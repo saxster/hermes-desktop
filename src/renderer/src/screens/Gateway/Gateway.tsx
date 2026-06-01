@@ -10,6 +10,8 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
   const [platformEnabled, setPlatformEnabled] = useState<
     Record<string, boolean>
   >({});
+  const [gatewayBusy, setGatewayBusy] = useState(false);
+  const [gatewayError, setGatewayError] = useState("");
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const gatewayStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -19,14 +21,30 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
     null,
   );
 
+  const setGatewayErrorState = useCallback((error: string): void => {
+    setGatewayError(error);
+  }, []);
+
+  async function refreshGatewayStatus(fallback = false): Promise<boolean> {
+    try {
+      const status = await window.hermesAPI.gatewayStatus();
+      setGatewayRunning(status);
+      return status;
+    } catch {
+      setGatewayRunning(fallback);
+      return fallback;
+    }
+  }
+
   const loadConfig = useCallback(async (): Promise<void> => {
     const envData = await window.hermesAPI.getEnv(profile);
     setEnv(envData);
     const gwStatus = await window.hermesAPI.gatewayStatus();
     setGatewayRunning(gwStatus);
+    setGatewayErrorState("");
     const platforms = await window.hermesAPI.getPlatformEnabled(profile);
     setPlatformEnabled(platforms);
-  }, [profile]);
+  }, [profile, setGatewayErrorState]);
 
   useEffect(() => {
     loadConfig();
@@ -46,17 +64,57 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
       clearTimeout(gatewayStatusTimeoutRef.current);
       gatewayStatusTimeoutRef.current = null;
     }
-    if (gatewayRunning) {
-      await window.hermesAPI.stopGateway();
-      setGatewayRunning(false);
-    } else {
-      const started = await window.hermesAPI.startGateway();
-      setGatewayRunning(started);
-      gatewayStatusTimeoutRef.current = setTimeout(async () => {
-        const status = await window.hermesAPI.gatewayStatus();
-        setGatewayRunning(status);
-        gatewayStatusTimeoutRef.current = null;
-      }, 5000);
+    setGatewayBusy(true);
+    setGatewayErrorState("");
+    try {
+      if (gatewayRunning) {
+        await window.hermesAPI.stopGateway();
+        setGatewayRunning(false);
+      } else {
+        const started = await window.hermesAPI.startGateway(profile);
+        setGatewayRunning(started);
+        if (!started) {
+          setGatewayErrorState(t("gateway.restartFailed"));
+        } else {
+          gatewayStatusTimeoutRef.current = setTimeout(async () => {
+            const status = await window.hermesAPI.gatewayStatus();
+            setGatewayRunning(status);
+            gatewayStatusTimeoutRef.current = null;
+          }, 5000);
+        }
+      }
+    } catch {
+      setGatewayErrorState(t("gateway.restartFailed"));
+    } finally {
+      setGatewayBusy(false);
+    }
+  }
+
+  async function restartGateway(): Promise<void> {
+    if (gatewayStatusTimeoutRef.current) {
+      clearTimeout(gatewayStatusTimeoutRef.current);
+      gatewayStatusTimeoutRef.current = null;
+    }
+    setGatewayBusy(true);
+    setGatewayErrorState("");
+    try {
+      const restarted = await window.hermesAPI.restartGateway(profile);
+      setGatewayRunning(restarted);
+      if (!restarted) {
+        await refreshGatewayStatus(false);
+        setGatewayErrorState(t("gateway.restartFailed"));
+      } else {
+        gatewayStatusTimeoutRef.current = setTimeout(async () => {
+          const status = await window.hermesAPI.gatewayStatus();
+          setGatewayRunning(status);
+          gatewayStatusTimeoutRef.current = null;
+        }, 5000);
+      }
+    } catch {
+      await refreshGatewayStatus(false);
+      setGatewayErrorState(t("gateway.restartFailed"));
+    } finally {
+      setGatewayBusy(false);
     }
   }
 
@@ -128,10 +186,23 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
             <button
               className="btn btn-secondary btn-sm"
               onClick={toggleGateway}
+              disabled={gatewayBusy}
             >
               {gatewayRunning ? t("common.stop") : t("common.start")}
             </button>
+            {gatewayRunning && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={restartGateway}
+                disabled={gatewayBusy}
+              >
+                {t("gateway.restart")}
+              </button>
+            )}
           </div>
+          {gatewayError && (
+            <div className="settings-field-error">{gatewayError}</div>
+          )}
           <div className="settings-field-hint">{t("gateway.gatewayHint")}</div>
         </div>
       </div>

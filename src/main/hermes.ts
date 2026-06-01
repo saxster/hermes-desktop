@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   existsSync,
   readFileSync,
+  writeFileSync,
   appendFileSync,
   unlinkSync,
   mkdirSync,
@@ -178,22 +179,26 @@ interface ChatHandle {
 
 function isApiServerReady(): Promise<boolean> {
   return new Promise((resolve) => {
-    const url = `${getApiUrl()}/health`;
-    const mod = url.startsWith("https") ? https : http;
-    const req = mod.request(
-      url,
-      { method: "GET", timeout: 1500, headers: getRemoteAuthHeader() },
-      (res) => {
-        resolve(res.statusCode === 200);
-        res.resume();
-      },
-    );
-    req.on("error", () => resolve(false));
-    req.on("timeout", () => {
-      req.destroy();
+    try {
+      const url = `${getApiUrl()}/health`;
+      const mod = url.startsWith("https") ? https : http;
+      const req = mod.request(
+        url,
+        { method: "GET", timeout: 1500, headers: getRemoteAuthHeader() },
+        (res) => {
+          resolve(res.statusCode === 200);
+          res.resume();
+        },
+      );
+      req.on("error", () => resolve(false));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve(false);
+      });
+      req.end();
+    } catch {
       resolve(false);
-    });
-    req.end();
+    }
   });
 }
 
@@ -201,11 +206,14 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForApiServerReady(timeoutMs = 8000): Promise<boolean> {
+async function waitForApiServerReady(
+  timeoutMs = 8000,
+  pollMs = 250,
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await isApiServerReady()) return true;
-    await delay(250);
+    await delay(pollMs);
   }
   return false;
 }
@@ -719,7 +727,9 @@ function sendMessageViaApi(
   req.on("timeout", () => {
     req.destroy();
     finish(
-      "API request timed out. Check the SSH tunnel and remote Hermes gateway.",
+      isRemoteMode()
+        ? "API request timed out. Check the SSH tunnel and remote Hermes gateway."
+        : "API request timed out. Check the local Hermes gateway.",
     );
   });
 
@@ -995,6 +1005,141 @@ function sendMessageViaCli(
 
 let apiServerAvailable: boolean | null = null; // cached after first check
 
+function isSafeLocalApiRetryError(error: string): boolean {
+  return /^API request failed:.*\bECONNREFUSED\b/i.test(error);
+}
+
+function isRecoverableLocalApiFailure(error: string): boolean {
+  return (
+    /^API request failed:/i.test(error) ||
+    /^API request timed out\./i.test(error)
+  );
+}
+
+async function sendMessageViaApiWithLocalRecovery(
+  message: string,
+  cb: ChatCallbacks,
+  profile?: string,
+  resumeSessionId?: string,
+  history?: Array<{ role: string; content: string }>,
+  attachments?: Attachment[],
+  contextFolder?: string,
+): Promise<ChatHandle> {
+  let aborted = false;
+  let retrying = false;
+  let sawOutput = false;
+  let settled = false;
+  let activeHandle: ChatHandle | null = null;
+
+  const recoverAndRetry = async (): Promise<void> => {
+    if (aborted || retrying || settled || sawOutput) return;
+
+    retrying = true;
+    activeHandle?.abort();
+    apiServerAvailable = false;
+    const recovered = await startGatewayWithRecovery(profile);
+    if (aborted) return;
+
+    if (recovered) {
+      apiServerAvailable = true;
+      activeHandle = await sendMessageViaApi(
+        message,
+        cb,
+        profile,
+        resumeSessionId,
+        history,
+        attachments,
+        contextFolder,
+      );
+      return;
+    }
+
+    activeHandle = await sendMessageViaCli(
+      message,
+      cb,
+      profile,
+      resumeSessionId,
+      attachments,
+    );
+  };
+
+  const recoverAndFail = async (error: string): Promise<void> => {
+    if (aborted || retrying || settled || sawOutput) return;
+
+    retrying = true;
+    activeHandle?.abort();
+    apiServerAvailable = false;
+    const recovered = await startGatewayWithRecovery(profile);
+    if (aborted) return;
+
+    apiServerAvailable = recovered;
+    settled = true;
+    cb.onError(
+      recovered
+        ? "Local Hermes gateway became unhealthy while processing this message and was restarted. Please resend the message if needed."
+        : error,
+    );
+  };
+
+  const handle: ChatHandle = {
+    abort: () => {
+      aborted = true;
+      activeHandle?.abort();
+    },
+  };
+
+  const callbacks: ChatCallbacks = {
+    ...cb,
+    onChunk: (text) => {
+      sawOutput = true;
+      cb.onChunk(text);
+    },
+    onReasoningChunk: cb.onReasoningChunk
+      ? (text) => {
+          sawOutput = true;
+          cb.onReasoningChunk?.(text);
+        }
+      : undefined,
+    onToolProgress: cb.onToolProgress
+      ? (tool) => {
+          sawOutput = true;
+          cb.onToolProgress?.(tool);
+        }
+      : undefined,
+    onDone: (sessionId) => {
+      settled = true;
+      cb.onDone(sessionId);
+    },
+    onError: async (error) => {
+      if (aborted || retrying || settled) return;
+      if (sawOutput || !isRecoverableLocalApiFailure(error)) {
+        settled = true;
+        cb.onError(error);
+        return;
+      }
+
+      if (isSafeLocalApiRetryError(error)) {
+        await recoverAndRetry();
+        return;
+      }
+
+      await recoverAndFail(error);
+    },
+  };
+
+  activeHandle = await sendMessageViaApi(
+    message,
+    callbacks,
+    profile,
+    resumeSessionId,
+    history,
+    attachments,
+    contextFolder,
+  );
+
+  return handle;
+}
+
 export async function sendMessage(
   message: string,
   cb: ChatCallbacks,
@@ -1019,23 +1164,19 @@ export async function sendMessage(
     );
   }
 
-  // Check API server availability. In local mode, a running gateway process
-  // can still be in its startup window (or the cached ready state can be stale
-  // after an external stop/start), so verify health before taking the API path.
-  const localGatewayRunning = !isRemoteMode() && isGatewayRunning();
-  if (
-    apiServerAvailable === null ||
-    apiServerAvailable === false ||
-    localGatewayRunning
-  ) {
+  // Check API server availability when the cache is cold or known-bad. Once
+  // the API is known healthy, keep the normal send path fast and let the API
+  // transport error wrapper handle a stale cache caused by external lifecycle
+  // events such as `hermes update` or Windows sleep/resume.
+  if (apiServerAvailable === null || apiServerAvailable === false) {
     apiServerAvailable = await isApiServerReady();
-    if (!apiServerAvailable && localGatewayRunning) {
-      apiServerAvailable = await waitForApiServerReady();
+    if (!apiServerAvailable) {
+      apiServerAvailable = await startGatewayWithRecovery(profile);
     }
   }
 
   if (apiServerAvailable) {
-    return sendMessageViaApi(
+    return sendMessageViaApiWithLocalRecovery(
       message,
       cb,
       profile,
@@ -1089,50 +1230,25 @@ export function stopHealthPolling(): void {
 let gatewayProcess: ChildProcess | null = null;
 let gatewayStartedByApp = false;
 
-export function startGateway(profile?: string): boolean {
-  // Defensive: the local gateway is never the right thing to spawn in
-  // remote/SSH mode — the user is pointing at an off-machine server.
-  // Callers should already gate, but several IPC handlers historically
-  // forgot to (issue #266), and reaching `spawn(HERMES_PYTHON, …)` when
-  // there's no local hermes-agent install produces an uncaught ENOENT
-  // that pops a generic error dialog.  Refuse cleanly here.
-  if (isRemoteMode()) {
-    console.warn(
-      "[gateway] startGateway() called in remote/SSH mode — refusing local spawn",
-    );
-    return false;
+function gatewayLogPath(): string {
+  const logDir = HERMES_HOME;
+  try {
+    mkdirSync(logDir, { recursive: true });
+  } catch {
+    // ignore
   }
-  ensureInitialized();
-  if (isGatewayRunning()) return false;
+  return join(logDir, "gateway-stderr.log");
+}
 
-  // Pre-flight: verify the Python interpreter exists before attempting to
-  // spawn. Without this check, spawn() fails with ENOENT and the error is
-  // completely silent (stdio:"ignore", no error handler).
-  if (!existsSync(HERMES_PYTHON)) {
-    console.error(
-      `[gateway] Cannot start: Python interpreter not found at ${HERMES_PYTHON}. ` +
-        "Is hermes-agent installed?",
-    );
-    return false;
-  }
-  if (!existsSync(HERMES_REPO)) {
-    console.error(
-      `[gateway] Cannot start: hermes-agent repo not found at ${HERMES_REPO}. ` +
-        "Is hermes-agent installed?",
-    );
-    return false;
-  }
-
-  // Build gateway env with profile API keys
+function buildGatewayEnv(profile?: string): Record<string, string> {
   const gatewayEnv: Record<string, string> = {
     ...(process.env as Record<string, string>),
     PATH: getEnhancedPath(),
     HOME: homedir(),
     HERMES_HOME: HERMES_HOME,
-    API_SERVER_ENABLED: "true", // Ensure API server starts with gateway
+    API_SERVER_ENABLED: "true",
   };
 
-  // Inject ALL profile API keys so the gateway can authenticate with any provider.
   const profileEnv = readEnv(profile);
   for (const [key, value] of Object.entries(profileEnv)) {
     if (value) {
@@ -1173,51 +1289,94 @@ export function startGateway(profile?: string): boolean {
     gatewayEnv.API_SERVER_KEY = resolvedApiServerKey;
   }
 
+  return gatewayEnv;
+}
+
+function canSpawnGateway(): boolean {
+  if (!existsSync(HERMES_PYTHON)) {
+    console.error(
+      `[gateway] Cannot start: Python interpreter not found at ${HERMES_PYTHON}. ` +
+        "Is hermes-agent installed?",
+    );
+    return false;
+  }
+  if (!existsSync(HERMES_REPO)) {
+    console.error(
+      `[gateway] Cannot start: hermes-agent repo not found at ${HERMES_REPO}. ` +
+        "Is hermes-agent installed?",
+    );
+    return false;
+  }
+  return true;
+}
+
+export function startGateway(profile?: string): boolean {
+  // Defensive: the local gateway is never the right thing to spawn in
+  // remote/SSH mode — the user is pointing at an off-machine server.
+  // Callers should already gate, but several IPC handlers historically
+  // forgot to (issue #266), and reaching `spawn(HERMES_PYTHON, …)` when
+  // there's no local hermes-agent install produces an uncaught ENOENT
+  // that pops a generic error dialog.  Refuse cleanly here.
+  if (isRemoteMode()) {
+    console.warn(
+      "[gateway] startGateway() called in remote/SSH mode — refusing local spawn",
+    );
+    return false;
+  }
+  ensureInitialized();
+  if (isGatewayRunning()) return false;
+
+  // Pre-flight: verify the Python interpreter exists before attempting to
+  // spawn. Without this check, spawn() fails with ENOENT and the error is
+  // completely silent (stdio:"ignore", no error handler).
+  if (!canSpawnGateway()) return false;
+
   // Route stderr to a log file so startup errors are visible for debugging.
   // stdout is still ignored (the gateway daemonizes and writes its own logs).
-  const logDir = HERMES_HOME;
-  try {
-    mkdirSync(logDir, { recursive: true });
-  } catch {
-    // ignore
-  }
-  const logPath = join(logDir, "gateway-stderr.log");
+  const logPath = gatewayLogPath();
   const stderrStream = createWriteStream(logPath, { flags: "a" });
 
-  gatewayProcess = spawn(HERMES_PYTHON, hermesCliArgs(["gateway"]), {
+  const proc = spawn(HERMES_PYTHON, hermesCliArgs(["gateway"]), {
     cwd: HERMES_REPO,
-    env: gatewayEnv,
-    stdio: ["ignore", "ignore", stderrStream],
+    env: buildGatewayEnv(profile),
+    stdio: ["ignore", "ignore", "pipe"],
     detached: true,
     ...HIDDEN_SUBPROCESS_OPTIONS,
   });
+  gatewayProcess = proc;
+  proc.stderr?.pipe(stderrStream);
 
-  gatewayProcess.on("error", (err) => {
-    console.error("[gateway] Failed to spawn gateway process:", err.message);
+  const clearIfCurrent = (): void => {
+    if (gatewayProcess !== proc) return;
     gatewayProcess = null;
     gatewayStartedByApp = false;
     apiServerAvailable = false;
+    startHealthPolling();
+  };
+
+  proc.on("error", (err) => {
+    console.error("[gateway] Failed to spawn gateway process:", err.message);
+    stderrStream.end();
+    clearIfCurrent();
   });
 
-  gatewayProcess.on("close", (code, signal) => {
+  proc.on("close", (code, signal) => {
     if (code !== null && code !== 0) {
       console.error(
         `[gateway] Process exited with code ${code}${signal ? ` (signal: ${signal})` : ""}. ` +
           `Check ${logPath} for details.`,
       );
     }
-    gatewayProcess = null;
-    gatewayStartedByApp = false;
-    apiServerAvailable = false;
-    // Restart health polling to detect if gateway comes back
-    startHealthPolling();
+    stderrStream.end();
+    clearIfCurrent();
   });
 
-  gatewayProcess.unref();
+  proc.unref();
   gatewayStartedByApp = true;
 
   // Wait a bit then check if API server came up
   setTimeout(async () => {
+    if (gatewayProcess !== proc) return;
     apiServerAvailable = await isApiServerReady();
   }, 3000);
 
@@ -1255,9 +1414,13 @@ function gatewayPidPaths(): string[] {
 }
 
 function readPidFile(): number | null {
+  return readPidFileEntry()?.pid ?? null;
+}
+
+function readPidFileEntry(): { path: string; pid: number } | null {
   for (const pidFile of gatewayPidPaths()) {
     const pid = parsePidFromFile(pidFile);
-    if (pid !== null) return pid;
+    if (pid !== null) return { path: pidFile, pid };
   }
   return null;
 }
@@ -1265,7 +1428,7 @@ function readPidFile(): number | null {
 export function stopGateway(force = false): void {
   if (!force && !gatewayStartedByApp) return;
 
-  if (gatewayProcess && !gatewayProcess.killed) {
+  if (gatewayProcess && isChildProcessAlive(gatewayProcess)) {
     gatewayProcess.kill("SIGTERM");
     gatewayProcess = null;
   }
@@ -1298,8 +1461,21 @@ export function stopGateway(force = false): void {
 // gateway.pid actually belongs to a python process before reporting alive.
 const GATEWAY_IMAGE_PREFIXES = ["python", "pythonw"];
 
+function isChildProcessAlive(proc: ChildProcess): boolean {
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return false;
+  }
+  if (typeof proc.pid !== "number") return !proc.killed;
+  try {
+    process.kill(proc.pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isGatewayRunning(): boolean {
-  if (gatewayProcess && !gatewayProcess.killed) return true;
+  if (gatewayProcess && isChildProcessAlive(gatewayProcess)) return true;
   const pid = readPidFile();
   if (!pid) return false;
   return pidIsAliveAs(pid, GATEWAY_IMAGE_PREFIXES);
@@ -1307,6 +1483,10 @@ export function isGatewayRunning(): boolean {
 
 export function isApiReady(): boolean {
   return apiServerAvailable === true;
+}
+
+export function isGatewayHealthy(): Promise<boolean> {
+  return isApiServerReady();
 }
 
 export function testRemoteConnection(
@@ -1336,14 +1516,390 @@ export function testRemoteConnection(
   });
 }
 
-export function restartGateway(profile?: string): void {
+async function waitForApiServerStopped(
+  timeoutMs = 5000,
+  pollMs = 250,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await isApiServerReady())) return true;
+    await delay(pollMs);
+  }
+  return false;
+}
+
+export function restartGateway(
+  profile?: string,
+  healthTimeoutMs = 30000,
+  healthPollMs = 250,
+  stopTimeoutMs = 5000,
+): Promise<boolean> {
   // Same defensive gate as startGateway — the local gateway has no role
   // in remote/SSH mode.  Cheap to check; catches IPC paths that don't
   // wrap their restart calls in an isRemoteMode() check.
-  if (isRemoteMode()) return;
-  if (!gatewayStartedByApp && !isGatewayRunning()) return;
-  stopGateway(true);
-  setTimeout(() => {
-    startGateway(profile);
-  }, 500);
+  if (isRemoteMode()) return Promise.resolve(false);
+
+  const profileKey = gatewayRestartProfileKey(profile);
+  const existing = gatewayRestartByProfile.get(profileKey);
+  if (existing) {
+    return existing;
+  }
+
+  const queued = gatewayRestartQueueTail.then(
+    () =>
+      restartGatewayLocallyOnce(
+        profile,
+        healthTimeoutMs,
+        healthPollMs,
+        stopTimeoutMs,
+      ),
+    () =>
+      restartGatewayLocallyOnce(
+        profile,
+        healthTimeoutMs,
+        healthPollMs,
+        stopTimeoutMs,
+      ),
+  );
+
+  const promise = queued.finally(() => {
+    if (gatewayRestartByProfile.get(profileKey) === promise) {
+      gatewayRestartByProfile.delete(profileKey);
+    }
+  });
+
+  gatewayRestartByProfile.set(profileKey, promise);
+  gatewayRestartQueueTail = promise.catch(() => undefined);
+  return promise;
+}
+
+let gatewayRestartQueueTail: Promise<unknown> = Promise.resolve();
+const gatewayRestartByProfile = new Map<string, Promise<boolean>>();
+
+function markGatewayRestartFailed(): void {
+  gatewayProcess = null;
+  gatewayStartedByApp = false;
+  apiServerAvailable = false;
+  startHealthPolling();
+}
+
+function restoreGatewayAfterRestartFailure(
+  previousProcess: ChildProcess | null,
+  previousStartedByApp: boolean,
+  previousPidEntry: { path: string; pid: number } | null = null,
+): void {
+  if (previousProcess && isChildProcessAlive(previousProcess)) {
+    gatewayProcess = previousProcess;
+    gatewayStartedByApp = previousStartedByApp;
+    apiServerAvailable = false;
+    startHealthPolling();
+    return;
+  }
+  if (
+    previousPidEntry &&
+    pidIsAliveAs(previousPidEntry.pid, GATEWAY_IMAGE_PREFIXES)
+  ) {
+    try {
+      writeFileSync(
+        previousPidEntry.path,
+        String(previousPidEntry.pid),
+        "utf-8",
+      );
+    } catch {
+      // best-effort; health polling will still recover API readiness.
+    }
+    gatewayProcess = null;
+    gatewayStartedByApp = previousStartedByApp;
+    apiServerAvailable = false;
+    startHealthPolling();
+    return;
+  }
+  markGatewayRestartFailed();
+}
+
+async function restartGatewayLocallyOnce(
+  profile?: string,
+  healthTimeoutMs = 30000,
+  healthPollMs = 250,
+  stopTimeoutMs = 5000,
+): Promise<boolean> {
+  try {
+    if (isRemoteMode()) return false;
+    ensureInitialized();
+    if (!canSpawnGateway()) return false;
+
+    const previousProcess = gatewayProcess;
+    const previousStartedByApp = gatewayStartedByApp;
+    const previousPidEntry = readPidFileEntry();
+    stopGateway(true);
+    const stopped = await waitForApiServerStopped(stopTimeoutMs, healthPollMs);
+    if (!stopped) {
+      console.error(
+        "[gateway] Native restart failed: gateway did not stop before restart",
+      );
+      restoreGatewayAfterRestartFailure(
+        previousProcess,
+        previousStartedByApp,
+        previousPidEntry,
+      );
+      return false;
+    }
+
+    const started = startGateway(profile);
+    if (!started) {
+      const alreadyReady = await waitForApiServerReady(
+        healthTimeoutMs,
+        healthPollMs,
+      );
+      apiServerAvailable = alreadyReady;
+      return alreadyReady;
+    }
+
+    const ready = await waitForApiServerReady(healthTimeoutMs, healthPollMs);
+    apiServerAvailable = ready;
+    if (!ready) {
+      markGatewayRestartFailed();
+    }
+    return ready;
+  } catch (err) {
+    console.error("[gateway] Native restart failed:", (err as Error).message);
+    markGatewayRestartFailed();
+    return false;
+  }
+}
+
+function gatewayRestartProfileKey(profile?: string): string {
+  return profile || getActiveProfileNameSync();
+}
+
+export async function startGatewayWithRecovery(
+  profile?: string,
+  healthTimeoutMs = 8000,
+  healthPollMs = 250,
+  restartCommandTimeoutMs = 15000,
+  restartHealthTimeoutMs = 30000,
+  restartStopTimeoutMs = 5000,
+): Promise<boolean> {
+  // Fourth argument kept for call-site compatibility with the earlier CLI
+  // restart implementation.
+  void restartCommandTimeoutMs;
+
+  if (isRemoteMode()) return false;
+
+  if (isGatewayRunning()) {
+    return (
+      (await isGatewayHealthy()) ||
+      restartGateway(
+        profile,
+        restartHealthTimeoutMs,
+        healthPollMs,
+        restartStopTimeoutMs,
+      )
+    );
+  }
+
+  const started = startGateway(profile);
+  if (!started) return false;
+
+  const ready = await waitForApiServerReady(healthTimeoutMs, healthPollMs);
+  if (ready) {
+    apiServerAvailable = true;
+    return true;
+  }
+
+  return restartGateway(
+    profile,
+    restartHealthTimeoutMs,
+    healthPollMs,
+    restartStopTimeoutMs,
+  );
+}
+
+export function restartGatewayViaCli(
+  profile?: string,
+  healthTimeoutMs = 30000,
+  healthPollMs = 250,
+  commandTimeoutMs = 15000,
+): Promise<boolean> {
+  if (isRemoteMode()) return Promise.resolve(false);
+  const profileKey = gatewayRestartProfileKey(profile);
+
+  const existing = gatewayRestartByProfile.get(profileKey);
+  if (existing) {
+    return existing;
+  }
+
+  const queued = gatewayRestartQueueTail.then(
+    () =>
+      restartGatewayViaCliOnce(
+        profile,
+        healthTimeoutMs,
+        healthPollMs,
+        commandTimeoutMs,
+      ),
+    () =>
+      restartGatewayViaCliOnce(
+        profile,
+        healthTimeoutMs,
+        healthPollMs,
+        commandTimeoutMs,
+      ),
+  );
+
+  const promise = queued.finally(() => {
+    if (gatewayRestartByProfile.get(profileKey) === promise) {
+      gatewayRestartByProfile.delete(profileKey);
+    }
+  });
+
+  gatewayRestartByProfile.set(profileKey, promise);
+  gatewayRestartQueueTail = promise.catch(() => undefined);
+  return promise;
+}
+
+async function restartGatewayViaCliOnce(
+  profile?: string,
+  healthTimeoutMs = 30000,
+  healthPollMs = 250,
+  commandTimeoutMs = 15000,
+): Promise<boolean> {
+  // Kept for backwards-compatible tests/callers. Restart success is governed
+  // by health readiness because recent hermes-agent builds may keep this
+  // process alive as the foreground gateway.
+  void commandTimeoutMs;
+
+  try {
+    if (isRemoteMode()) return false;
+    ensureInitialized();
+    if (!canSpawnGateway()) return false;
+
+    const previousProcess = gatewayProcess;
+    const previousStartedByApp = gatewayStartedByApp;
+    const logPath = gatewayLogPath();
+    const wasHealthyBeforeRestart = await isApiServerReady();
+    appendFileSync(
+      logPath,
+      `\n[gateway] Desktop requested hermes gateway restart at ${new Date().toISOString()}\n`,
+    );
+
+    return await new Promise<boolean>((resolve) => {
+      let stderrStream: ReturnType<typeof createWriteStream> | null = null;
+      let proc: ChildProcess | null = null;
+      try {
+        stderrStream = createWriteStream(logPath, { flags: "a" });
+        proc = spawn(HERMES_PYTHON, hermesCliArgs(["gateway", "restart"]), {
+          cwd: HERMES_REPO,
+          env: buildGatewayEnv(profile),
+          stdio: ["ignore", "ignore", "pipe"],
+          detached: true,
+          ...HIDDEN_SUBPROCESS_OPTIONS,
+        });
+        proc.stderr?.pipe(stderrStream);
+        proc.unref();
+      } catch (err) {
+        console.error(
+          "[gateway] Failed to launch restart command:",
+          (err as Error).message,
+        );
+        try {
+          stderrStream?.end();
+        } catch {
+          // ignore
+        }
+        restoreGatewayAfterRestartFailure(
+          previousProcess,
+          previousStartedByApp,
+        );
+        resolve(false);
+        return;
+      }
+
+      let settled = false;
+      let exitedSuccessfully = false;
+
+      const finish = (ok: boolean): void => {
+        if (settled) return;
+        settled = true;
+        try {
+          proc?.stderr?.unpipe(stderrStream ?? undefined);
+          stderrStream?.end();
+        } catch {
+          // ignore
+        }
+        gatewayProcess = ok && proc && isChildProcessAlive(proc) ? proc : null;
+        gatewayStartedByApp = ok;
+        apiServerAvailable = ok;
+        if (!ok) {
+          restoreGatewayAfterRestartFailure(
+            previousProcess,
+            previousStartedByApp,
+          );
+        }
+        resolve(ok);
+      };
+
+      proc.on("error", (err) => {
+        console.error("[gateway] Failed to restart gateway:", err.message);
+        finish(false);
+      });
+
+      proc.on("close", (code, signal) => {
+        if (settled) return;
+        if (code !== 0) {
+          console.error(
+            `[gateway] Restart exited with code ${code}${signal ? ` (signal: ${signal})` : ""}. ` +
+              `Check ${logPath} for details.`,
+          );
+          finish(false);
+          return;
+        }
+        exitedSuccessfully = true;
+      });
+
+      void (async () => {
+        const deadline = Date.now() + healthTimeoutMs;
+        let sawUnhealthy = !wasHealthyBeforeRestart;
+
+        while (!settled && Date.now() < deadline) {
+          const ready = await isApiServerReady();
+          if (!ready) sawUnhealthy = true;
+          if (ready && (sawUnhealthy || exitedSuccessfully)) {
+            finish(true);
+            return;
+          }
+          await delay(healthPollMs);
+        }
+
+        if (!settled) {
+          console.error(
+            `[gateway] Restart command did not make /health ready within ${healthTimeoutMs}ms. ` +
+              `Check ${logPath} for details.`,
+          );
+          try {
+            proc?.kill("SIGTERM");
+          } catch {
+            // already gone
+          }
+          finish(false);
+        }
+      })().catch((err) => {
+        console.error(
+          "[gateway] Failed while waiting for restart health:",
+          (err as Error).message,
+        );
+        try {
+          proc?.kill("SIGTERM");
+        } catch {
+          // already gone
+        }
+        finish(false);
+      });
+    });
+  } catch (err) {
+    console.error(
+      "[gateway] Restart failed before the command could complete:",
+      (err as Error).message,
+    );
+    return false;
+  }
 }

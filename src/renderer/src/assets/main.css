@@ -3617,6 +3617,12 @@ body {
   color: var(--text-muted);
 }
 
+.settings-field-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
 /* Platform cards in Gateway */
 .settings-platform-card {
   border: 1px solid var(--border);

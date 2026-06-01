@@ -425,8 +425,11 @@ const hermesAPI = {
   },
 
   // Gateway
-  startGateway: (): Promise<boolean> => ipcRenderer.invoke("start-gateway"),
+  startGateway: (profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("start-gateway", profile),
   stopGateway: (): Promise<boolean> => ipcRenderer.invoke("stop-gateway"),
+  restartGateway: (profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("restart-gateway", profile),
   gatewayStatus: (): Promise<boolean> => ipcRenderer.invoke("gateway-status"),
 
   // Platform toggles

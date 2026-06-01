@@ -49,6 +49,7 @@ import {
   isRemoteOnlyMode,
   sendMessage,
   startGateway,
+  startGatewayWithRecovery,
   stopGateway,
   isGatewayRunning,
   testRemoteConnection,
@@ -808,10 +809,6 @@ function setupIPC(): void {
       attachments?: Attachment[],
       contextFolder?: string,
     ) => {
-      if (!isRemoteMode() && !isGatewayRunning()) {
-        startGateway(profile);
-      }
-
       await ensureSshTunnelIfNeeded();
       const conn = getConnectionConfig();
       if (conn.mode === "ssh" && conn.ssh) {
@@ -1025,7 +1022,7 @@ function setupIPC(): void {
   );
 
   // Gateway
-  ipcMain.handle("start-gateway", async () => {
+  ipcMain.handle("start-gateway", async (_event, profile?: string) => {
     const conn = getConnectionConfig();
     if (conn.mode === "ssh" && conn.ssh) {
       await sshStartGateway(conn.ssh);
@@ -1037,7 +1034,7 @@ function setupIPC(): void {
       // spawn a non-existent local hermes-agent (issue #266).
       return false;
     }
-    return startGateway();
+    return startGatewayWithRecovery(profile);
   });
   ipcMain.handle("stop-gateway", async () => {
     const conn = getConnectionConfig();
@@ -1051,6 +1048,18 @@ function setupIPC(): void {
     }
     stopGateway(true);
     return true;
+  });
+  ipcMain.handle("restart-gateway", async (_event, profile?: string) => {
+    const conn = getConnectionConfig();
+    if (conn.mode === "ssh" && conn.ssh) {
+      await sshStopGateway(conn.ssh);
+      await sshStartGateway(conn.ssh);
+      return sshGatewayStatus(conn.ssh);
+    }
+    if (conn.mode === "remote") {
+      return false;
+    }
+    return restartGateway(profile);
   });
   ipcMain.handle("gateway-status", () => {
     const conn = getConnectionConfig();

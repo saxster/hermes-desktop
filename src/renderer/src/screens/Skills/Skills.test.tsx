@@ -18,6 +18,20 @@ vi.mock("../../components/AgentMarkdown", () => ({
 
 import Skills from "./Skills";
 
+async function clickBrowseTab(view: ReturnType<typeof render>): Promise<void> {
+  let browseTab: HTMLButtonElement | null = null;
+  await waitFor(() => {
+    browseTab = view.container.querySelectorAll(
+      ".skills-tab",
+    )[1] as HTMLButtonElement | null;
+    expect(browseTab).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.click(browseTab!);
+  });
+}
+
 describe("Skills.tsx — Install button (issue #310 diagnosis)", () => {
   it("calls window.hermesAPI.installSkill(skill.name, profile) when Install is clicked on a Browse card", async () => {
     const installSkill = vi.fn().mockResolvedValue({ success: true });
@@ -52,12 +66,7 @@ describe("Skills.tsx — Install button (issue #310 diagnosis)", () => {
     });
 
     // Default tab is "installed"; switch to Browse so the bundled card renders.
-    const tabs = view.container.querySelectorAll(".skills-tab");
-    const browseTab = tabs[1] as HTMLButtonElement;
-    expect(browseTab).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(browseTab);
-    });
+    await clickBrowseTab(view);
 
     // Find the Install button on the bundled card.
     let installBtn: HTMLButtonElement | null = null;
@@ -113,13 +122,7 @@ describe("Skills.tsx — Install button (issue #310 diagnosis)", () => {
       expect(listInstalledSkills).toHaveBeenCalled();
     });
 
-    const browseTab = view.container.querySelectorAll(
-      ".skills-tab",
-    )[1] as HTMLButtonElement;
-    expect(browseTab).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(browseTab);
-    });
+    await clickBrowseTab(view);
 
     let installBtn: HTMLButtonElement | null = null;
     await waitFor(() => {
