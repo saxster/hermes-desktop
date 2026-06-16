@@ -12,11 +12,17 @@ import type {
 import type {
   SpsCaptureInput,
   SpsBaseViewConfig,
+  SpsBaseProposalInput,
+  SpsContextPackInput,
+  SpsContextPackResult,
   SpsImportPlan,
   SpsImportResult,
   SpsImportSource,
   SpsPropertyValue,
   SpsSaveResult,
+  VaultHealthReport,
+  VaultProposal,
+  VaultProposalInput,
 } from "../shared/sps-types";
 import type {
   FederatedHit,
@@ -64,7 +70,11 @@ import type {
   ScheduledResearchItem,
   ScheduleInput,
 } from "../shared/scheduledResearch";
-import type { SrPendingUpdate, SrPatch } from "./bridges/sps";
+import type {
+  NotebookLmMcpStatus,
+  SrPendingUpdate,
+  SrPatch,
+} from "./bridges/sps";
 import type { CredentialPoolEntry } from "../shared/credentials";
 import type { CapabilityRiskSummary } from "../shared/capability-risk";
 import type { ResearchReachStatus } from "../shared/research-reach";
@@ -1242,7 +1252,8 @@ interface HermesAPI {
   }>;
   spsNotebookLmEnsureMcp: (
     profile?: string,
-  ) => Promise<{ registered: boolean; alreadyPresent: boolean }>;
+  ) => Promise<NotebookLmMcpStatus>;
+  spsNotebookLmStatus: (profile?: string) => Promise<NotebookLmMcpStatus>;
   spsAppendWikiLog: (
     op: "ingest" | "file-answer" | "lint" | "research" | "digest",
     summary: string,
@@ -1274,6 +1285,32 @@ interface HermesAPI {
     pagesScanned: number;
     pagesDropped: number;
   }>;
+  spsHealthReport: (
+    staleDays?: number,
+    profile?: string,
+  ) => Promise<VaultHealthReport>;
+  spsCreateVaultProposal: (
+    input: VaultProposalInput,
+    profile?: string,
+  ) => Promise<VaultProposal>;
+  spsListVaultProposals: (profile?: string) => Promise<VaultProposal[]>;
+  spsCommitVaultProposal: (
+    id: string,
+    operationIds?: string[],
+    profile?: string,
+  ) => Promise<VaultProposal | null>;
+  spsDismissVaultProposal: (
+    id: string,
+    profile?: string,
+  ) => Promise<VaultProposal | null>;
+  spsBuildContextPack: (
+    input: SpsContextPackInput,
+    profile?: string,
+  ) => Promise<SpsContextPackResult>;
+  spsCreateBaseProposal: (
+    input: SpsBaseProposalInput,
+    profile?: string,
+  ) => Promise<VaultProposal>;
   spsLoad: (profile?: string) => Promise<unknown | null>;
   spsSave: (
     ws: unknown,

@@ -12,11 +12,17 @@ import type {
 import type {
   SpsCaptureInput,
   SpsBaseViewConfig,
+  SpsBaseProposalInput,
+  SpsContextPackInput,
+  SpsContextPackResult,
   SpsImportPlan,
   SpsImportResult,
   SpsImportSource,
   SpsPropertyValue,
   SpsSaveResult,
+  VaultHealthReport,
+  VaultProposal,
+  VaultProposalInput,
 } from "../../shared/sps-types";
 import type {
   FederatedHit,
@@ -56,6 +62,18 @@ export type SrPatch = Partial<{
   enabled: boolean;
   autoApply: boolean;
 }>;
+
+export interface NotebookLmMcpStatus {
+  registered: boolean;
+  alreadyPresent: boolean;
+  commandFound: boolean;
+  command: string;
+  args: string[];
+  source: "env" | "user-bin" | "path" | "claude-code" | "existing";
+  nlmCommand: string | null;
+  restarted: boolean;
+  message: string;
+}
 
 export const spsBridge = {
   // SPS Agent workspace
@@ -159,8 +177,10 @@ export const spsBridge = {
     ipcRenderer.invoke("sps-file-research", topic, researchedMarkdown, profile),
   spsNotebookLmEnsureMcp: (
     profile?: string,
-  ): Promise<{ registered: boolean; alreadyPresent: boolean }> =>
+  ): Promise<NotebookLmMcpStatus> =>
     ipcRenderer.invoke("sps-notebooklm-ensure-mcp", profile),
+  spsNotebookLmStatus: (profile?: string): Promise<NotebookLmMcpStatus> =>
+    ipcRenderer.invoke("sps-notebooklm-status", profile),
   spsAppendWikiLog: (
     op: "ingest" | "file-answer" | "lint" | "research" | "digest",
     summary: string,
@@ -193,6 +213,39 @@ export const spsBridge = {
     pagesScanned: number;
     pagesDropped: number;
   }> => ipcRenderer.invoke("sps-lint-wiki", staleDays, profile),
+  spsHealthReport: (
+    staleDays?: number,
+    profile?: string,
+  ): Promise<VaultHealthReport> =>
+    ipcRenderer.invoke("sps-health-report", staleDays, profile),
+  spsCreateVaultProposal: (
+    input: VaultProposalInput,
+    profile?: string,
+  ): Promise<VaultProposal> =>
+    ipcRenderer.invoke("sps-create-vault-proposal", input, profile),
+  spsListVaultProposals: (profile?: string): Promise<VaultProposal[]> =>
+    ipcRenderer.invoke("sps-list-vault-proposals", profile),
+  spsCommitVaultProposal: (
+    id: string,
+    operationIds?: string[],
+    profile?: string,
+  ): Promise<VaultProposal | null> =>
+    ipcRenderer.invoke("sps-commit-vault-proposal", id, operationIds, profile),
+  spsDismissVaultProposal: (
+    id: string,
+    profile?: string,
+  ): Promise<VaultProposal | null> =>
+    ipcRenderer.invoke("sps-dismiss-vault-proposal", id, profile),
+  spsBuildContextPack: (
+    input: SpsContextPackInput,
+    profile?: string,
+  ): Promise<SpsContextPackResult> =>
+    ipcRenderer.invoke("sps-build-context-pack", input, profile),
+  spsCreateBaseProposal: (
+    input: SpsBaseProposalInput,
+    profile?: string,
+  ): Promise<VaultProposal> =>
+    ipcRenderer.invoke("sps-create-base-proposal", input, profile),
   spsLoad: (profile?: string): Promise<unknown | null> =>
     ipcRenderer.invoke("sps-load", profile),
   spsSave: (
