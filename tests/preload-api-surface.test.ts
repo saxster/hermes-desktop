@@ -189,6 +189,13 @@ describe("Legacy APIs preserved (backward compat)", () => {
     "getSkillContent",
     "installSkill",
     "uninstallSkill",
+    "spsListAssistantRecipes",
+    "spsCreateAssistantRecipe",
+    "spsUpdateAssistantRecipe",
+    "spsDeleteAssistantRecipe",
+    "spsRunAssistantRecipe",
+    "spsListAssistantRecipeRuns",
+    "spsSaveAssistantRecipeRun",
     // Models
     "listModels",
     "addModel",

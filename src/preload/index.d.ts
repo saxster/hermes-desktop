@@ -71,6 +71,15 @@ import type {
   ScheduleInput,
 } from "../shared/scheduledResearch";
 import type {
+  AssistantRecipe,
+  AssistantRecipePatch,
+  AssistantRecipeResult,
+  AssistantRecipeRunRecord,
+  AssistantRecipeRunResult,
+  AssistantRecipeSaveRunResult,
+  CreateAssistantRecipeInput,
+} from "../shared/assistant-recipes";
+import type {
   NotebookLmMcpStatus,
   SrPendingUpdate,
   SrPatch,
@@ -1236,9 +1245,7 @@ interface HermesAPI {
       memory: string[];
     };
   }>;
-  spsNotebookLmEnsureMcp: (
-    profile?: string,
-  ) => Promise<NotebookLmMcpStatus>;
+  spsNotebookLmEnsureMcp: (profile?: string) => Promise<NotebookLmMcpStatus>;
   spsNotebookLmStatus: (profile?: string) => Promise<NotebookLmMcpStatus>;
   spsAppendWikiLog: (
     op: "ingest" | "file-answer" | "lint" | "research" | "digest",
@@ -1297,6 +1304,33 @@ interface HermesAPI {
     input: SpsBaseProposalInput,
     profile?: string,
   ) => Promise<VaultProposal>;
+  spsListAssistantRecipes: (profile?: string) => Promise<AssistantRecipe[]>;
+  spsCreateAssistantRecipe: (
+    input: CreateAssistantRecipeInput,
+    profile?: string,
+  ) => Promise<AssistantRecipeResult>;
+  spsUpdateAssistantRecipe: (
+    id: string,
+    patch: AssistantRecipePatch,
+    profile?: string,
+  ) => Promise<AssistantRecipeResult>;
+  spsDeleteAssistantRecipe: (
+    id: string,
+    profile?: string,
+  ) => Promise<AssistantRecipeResult>;
+  spsRunAssistantRecipe: (
+    id: string,
+    userInput?: string,
+    profile?: string,
+  ) => Promise<AssistantRecipeRunResult>;
+  spsListAssistantRecipeRuns: (
+    recipeId?: string,
+    profile?: string,
+  ) => Promise<AssistantRecipeRunRecord[]>;
+  spsSaveAssistantRecipeRun: (
+    runId: string,
+    profile?: string,
+  ) => Promise<AssistantRecipeSaveRunResult>;
   spsLoad: (profile?: string) => Promise<unknown | null>;
   spsSave: (
     ws: unknown,
@@ -1530,9 +1564,7 @@ interface HermesAPI {
   spsTriggerScreencapture: (profile?: string) => Promise<string | null>;
 
   // Health APIs
-  spsHealthGetProfile: (
-    profile?: string,
-  ) => Promise<SpsHealthProfile | null>;
+  spsHealthGetProfile: (profile?: string) => Promise<SpsHealthProfile | null>;
   spsHealthSaveProfile: (
     profileData: Record<string, unknown>,
     profile?: string,
