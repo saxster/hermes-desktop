@@ -16,6 +16,9 @@ external-context verification, production build, and the SPS Playwright-Electron
 Actions also passed on the fork branch after two CI-only test hermeticity fixes.
 The remaining launchd lifecycle risk was reduced with a disposable LaunchAgent smoke that bootstraps,
 runs, boots out, and cleans up a unique temporary user-agent label.
+The production Hermes scheduler LaunchAgent is also currently accepted by launchd under `gui/501`:
+`launchctl print gui/501/com.nousresearch.hermes-scheduler` reports the expected plist path,
+`StartInterval`/run interval of 60 seconds, 93 runs, and last exit code 0.
 The Telegram mobile-client write boundary now has a guarded local intake path: authenticated control
 clients can call `/sps/mobile-task` or the generated `sps task` helper to create review-first human
 task rows with `source: telegram/mobile` and without `context: include`.
@@ -42,6 +45,8 @@ Commands run after the implementation and CI-hardening patches:
 | `npx eslint scripts/launchagent-smoke.mjs`                                                                                                                                                                                                  | Passed.                                                                                                                                             |
 | `node scripts/launchagent-smoke.mjs`                                                                                                                                                                                                        | Passed: bootstrapped disposable label `com.nousresearch.hermes-scheduler.codex-smoke.33903` in `gui/501`, wrote marker, booted out, and cleaned up. |
 | `test ! -e /private/tmp/hermes-launchagent-smoke-Eis4HE`                                                                                                                                                                                    | Passed: smoke temp directory was removed.                                                                                                           |
+| `launchctl print gui/$(id -u)/com.nousresearch.hermes-scheduler`                                                                                                                                                                            | Passed: production label loaded from `~/Library/LaunchAgents/com.nousresearch.hermes-scheduler.plist`; 93 runs; last exit code 0.                   |
+| `plutil -p ~/Library/LaunchAgents/com.nousresearch.hermes-scheduler.plist`                                                                                                                                                                  | Passed: plist points to `/Users/amar/.hermes/bin/hermes-cron.js` with `RunAtLoad: true` and `StartInterval: 60`.                                    |
 | `TMPDIR=/private/tmp npx vitest run tests/mobile-workspace-intake.test.ts tests/mobile-workspace-skill.test.ts tests/control-server.test.ts`                                                                                                | Passed: 3 files, 15 tests.                                                                                                                          |
 | `npx eslint src/main/mobile-workspace-intake.ts src/main/control-server.ts src/main/mobile-workspace-skill.ts tests/mobile-workspace-intake.test.ts tests/control-server.test.ts tests/mobile-workspace-skill.test.ts`                      | Passed.                                                                                                                                             |
 | `npm run lint`                                                                                                                                                                                                                              | Passed.                                                                                                                                             |
@@ -61,7 +66,19 @@ were running concurrently. The focused test passed on rerun, and the serial full
 
 ## GitHub Actions Evidence
 
-Latest fork CI run before the LaunchAgent smoke harness was added:
+Latest fork CI run for the code head before this audit-only refresh:
+
+- Run: `28881233027`
+- URL: `https://github.com/saxster/hermes-desktop/actions/runs/28881233027`
+- Event: `workflow_dispatch`
+- Branch: `codex/roadmap-phase0-note-index`
+- SHA: `41dd70e81610de8725a7188db65300c26060f838`
+- Result: passed
+- `check`: passed in 4m31s, including dependency install, audit, SBOM upload, typecheck, test, and lint.
+- `verify-smoke`: passed in 2m18s, including build, note-index verification, external-context
+  verification, and SPS smoke.
+
+Earlier fork CI run before the LaunchAgent smoke harness was added:
 
 - Run: `28878749010`
 - URL: `https://github.com/saxster/hermes-desktop/actions/runs/28878749010`
@@ -99,7 +116,7 @@ external skill fixtures are not installed.
 | 1.5 Surface shipped upstream features           | Settings/provider/model capability changes, `tests/engine-capabilities.test.ts`, provider tests, renderer tests.                                                                                                            | Locally proven against mocked capabilities.                                        |
 | 1.6 Local UI capability gate                    | Chat/model picker capability changes and focused renderer tests.                                                                                                                                                            | Locally proven.                                                                    |
 | 2.1 SPS chat approvals                          | `src/renderer/src/screens/SpsAgent/store/slices/assistant.ts`, `AgentBody.tsx`, `tests/sps-work-approvals.test.ts`.                                                                                                         | Locally proven.                                                                    |
-| 2.2 Gateway keepalive while app closed          | Generated cron helper in `src/main/control-server.ts`, `tests/launchd-autonomy.test.ts`.                                                                                                                                    | Logic locally proven; real LaunchAgent check pending.                              |
+| 2.2 Gateway keepalive while app closed          | Generated cron helper in `src/main/control-server.ts`, `tests/launchd-autonomy.test.ts`, `scripts/launchagent-smoke.mjs`, `launchctl print gui/501/com.nousresearch.hermes-scheduler`.                                      | Logic locally proven; production LaunchAgent accepted by launchd.                  |
 | 2.3 Owner-critical routines as engine cron jobs | `src/main/owner-routines.ts`, `tests/owner-routines.test.ts`.                                                                                                                                                               | Locally proven with mocked cron creation.                                          |
 | 2.4 Routines status panel                       | `src/main/routines-status.ts`, `RoutinesStatusPanel.tsx`, routine status tests.                                                                                                                                             | Locally proven.                                                                    |
 | 2.5 Renderer intervals moved to scheduler       | `src/main/scheduler.ts`, `src/renderer/src/screens/SpsAgent/App.tsx`, `tests/scheduler.test.ts`.                                                                                                                            | Locally proven.                                                                    |
@@ -136,8 +153,10 @@ LaunchAgent label, observed execution through a marker file, booted it out, and 
 directory. It intentionally did not install or disturb the real `com.nousresearch.hermes-scheduler`
 label.
 
-Remaining caveat: the production Hermes scheduler label itself was not installed or accepted as a
-persistent user agent in this audit.
+Production proof completed: `launchctl print gui/501/com.nousresearch.hermes-scheduler` shows the
+real scheduler label loaded from `~/Library/LaunchAgents/com.nousresearch.hermes-scheduler.plist`,
+pointing at `/Users/amar/.hermes/bin/hermes-cron.js`, with a 60-second run interval, 93 runs, and
+last exit code 0.
 
 ### Owner Channels
 
@@ -151,8 +170,8 @@ through a guarded task row path (`/sps/mobile-task` or `sps task`). The guarded 
 - `reviewRequired: true`;
 - no `context: include`.
 
-Local redacted config check on `/Users/amar/.hermes` found `channel_directory.json` mentions
-Telegram, but `ownerNotificationPrefsByProfile` has no configured owner Telegram/email targets.
+Local redacted config check on `/Users/amar/.hermes` found no configured
+`ownerNotificationPrefsByProfile` entries and zero Telegram targets in `channel_directory.json`.
 
 Still required before owner use:
 
