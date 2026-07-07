@@ -177,6 +177,13 @@ Generate a secure SSH key pair using ed25519. Ensure the private key has a passp
   }, 60000);
 
   it("interacts with live Ollama if it is active", async () => {
+    if (process.env.HERMES_ENABLE_LIVE_OLLAMA_TEST !== "1") {
+      console.log(
+        "Skipping live Ollama test: set HERMES_ENABLE_LIVE_OLLAMA_TEST=1 to opt in.",
+      );
+      return;
+    }
+
     // Check if live Ollama is running on 11434
     let ollamaAlive = false;
     try {
