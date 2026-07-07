@@ -2,7 +2,7 @@
 
 Branch: `codex/roadmap-phase0-note-index`
 
-Implementation commit audited: `fd05e08aa7b66be1285d555553377c569b8172d0`
+Implementation commit audited: `0d9a68249061f2f73d517fa062c45ae102e4d620`
 
 Source plan: `ROADMAP.md`
 
@@ -12,34 +12,39 @@ The roadmap implementation is committed and pushed to `origin/codex/roadmap-phas
 Local verification passed across lint, typecheck, Vitest, Electron-ABI note-index verification,
 external-context verification, production build, and the SPS Playwright-Electron smoke. GitHub
 Actions also passed on the fork branch after two CI-only test hermeticity fixes.
+The remaining launchd lifecycle risk was reduced with a disposable LaunchAgent smoke that bootstraps,
+runs, boots out, and cleans up a unique temporary user-agent label.
 
 The implementation should not be called fully owner-shipped until the remaining external/manual gates
 below are proven:
 
-- A real macOS LaunchAgent bootstrap is installed, exercised, and cleaned up or accepted.
 - Live owner-channel delivery is smoked with real configured owner channels, especially Telegram.
 
 ## Local Evidence
 
 Commands run after the implementation and CI-hardening patches:
 
-| Command                                                                                                                                                                                                                                     | Result                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `npx vitest run tests/mobile-workspace-skill.test.ts`                                                                                                                                                                                       | Passed: 1 file, 3 tests.                                                    |
-| `npx eslint src/main/mobile-workspace-skill.ts tests/mobile-workspace-skill.test.ts`                                                                                                                                                        | Passed.                                                                     |
-| `TMPDIR=/private/tmp npx vitest run tests/newsroom-curator.test.ts tests/vault-semantic-search.test.ts`                                                                                                                                     | Passed: 2 files, 7 tests.                                                   |
-| `TMPDIR=/private/tmp HERMES_NEWSROOM_CURATOR_SCRIPT=/private/tmp/missing-cluster.py HERMES_VAULT_SEMANTIC_SEARCH_SCRIPT=/private/tmp/missing-semantic.py npx vitest run tests/newsroom-curator.test.ts tests/vault-semantic-search.test.ts` | Passed: 2 files skipped, 7 tests skipped.                                   |
-| `TMPDIR=/private/tmp npx vitest run tests/app-launcher.test.ts`                                                                                                                                                                             | Passed: 1 file, 8 tests.                                                    |
-| `npx eslint tests/newsroom-curator.test.ts tests/vault-semantic-search.test.ts`                                                                                                                                                             | Passed.                                                                     |
-| `npx eslint tests/app-launcher.test.ts`                                                                                                                                                                                                     | Passed.                                                                     |
-| `npm run lint`                                                                                                                                                                                                                              | Passed.                                                                     |
-| `npm run typecheck`                                                                                                                                                                                                                         | Passed: node and web TypeScript projects.                                   |
-| `npm test`                                                                                                                                                                                                                                  | Passed: 372 files, 2824 tests passed, 3 skipped.                            |
-| `npm run verify:note-index`                                                                                                                                                                                                                 | Passed: all note-index checks, including corrupt-cache self-heal.           |
-| `npm run verify:external-context`                                                                                                                                                                                                           | Passed: all external-context checks, including redaction and MCP roundtrip. |
-| `npm run build`                                                                                                                                                                                                                             | Passed with existing Vite dynamic-import warnings.                          |
-| `SMOKE_OUT=/private/tmp/hermes-sps-smoke node scripts/sps-smoke.mjs`                                                                                                                                                                        | Passed: 29 screenshots, `SMOKE_DONE`.                                       |
-| `git diff --check`                                                                                                                                                                                                                          | Passed.                                                                     |
+| Command                                                                                                                                                                                                                                     | Result                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npx vitest run tests/mobile-workspace-skill.test.ts`                                                                                                                                                                                       | Passed: 1 file, 3 tests.                                                                                                                            |
+| `npx eslint src/main/mobile-workspace-skill.ts tests/mobile-workspace-skill.test.ts`                                                                                                                                                        | Passed.                                                                                                                                             |
+| `TMPDIR=/private/tmp npx vitest run tests/newsroom-curator.test.ts tests/vault-semantic-search.test.ts`                                                                                                                                     | Passed: 2 files, 7 tests.                                                                                                                           |
+| `TMPDIR=/private/tmp HERMES_NEWSROOM_CURATOR_SCRIPT=/private/tmp/missing-cluster.py HERMES_VAULT_SEMANTIC_SEARCH_SCRIPT=/private/tmp/missing-semantic.py npx vitest run tests/newsroom-curator.test.ts tests/vault-semantic-search.test.ts` | Passed: 2 files skipped, 7 tests skipped.                                                                                                           |
+| `TMPDIR=/private/tmp npx vitest run tests/app-launcher.test.ts`                                                                                                                                                                             | Passed: 1 file, 8 tests.                                                                                                                            |
+| `npx eslint tests/newsroom-curator.test.ts tests/vault-semantic-search.test.ts`                                                                                                                                                             | Passed.                                                                                                                                             |
+| `npx eslint tests/app-launcher.test.ts`                                                                                                                                                                                                     | Passed.                                                                                                                                             |
+| `node --check scripts/launchagent-smoke.mjs`                                                                                                                                                                                                | Passed.                                                                                                                                             |
+| `npx eslint scripts/launchagent-smoke.mjs`                                                                                                                                                                                                  | Passed.                                                                                                                                             |
+| `node scripts/launchagent-smoke.mjs`                                                                                                                                                                                                        | Passed: bootstrapped disposable label `com.nousresearch.hermes-scheduler.codex-smoke.33903` in `gui/501`, wrote marker, booted out, and cleaned up. |
+| `test ! -e /private/tmp/hermes-launchagent-smoke-Eis4HE`                                                                                                                                                                                    | Passed: smoke temp directory was removed.                                                                                                           |
+| `npm run lint`                                                                                                                                                                                                                              | Passed.                                                                                                                                             |
+| `npm run typecheck`                                                                                                                                                                                                                         | Passed: node and web TypeScript projects.                                                                                                           |
+| `npm test`                                                                                                                                                                                                                                  | Passed: 372 files, 2824 tests passed, 3 skipped.                                                                                                    |
+| `npm run verify:note-index`                                                                                                                                                                                                                 | Passed: all note-index checks, including corrupt-cache self-heal.                                                                                   |
+| `npm run verify:external-context`                                                                                                                                                                                                           | Passed: all external-context checks, including redaction and MCP roundtrip.                                                                         |
+| `npm run build`                                                                                                                                                                                                                             | Passed with existing Vite dynamic-import warnings.                                                                                                  |
+| `SMOKE_OUT=/private/tmp/hermes-sps-smoke node scripts/sps-smoke.mjs`                                                                                                                                                                        | Passed: 29 screenshots, `SMOKE_DONE`.                                                                                                               |
+| `git diff --check`                                                                                                                                                                                                                          | Passed.                                                                                                                                             |
 
 One validation artifact to avoid: running `npm run lint` in parallel with `npm run verify:note-index`
 can race the verifier's transient `.verify-ni.cjs` file. Serial lint passed.
@@ -49,16 +54,16 @@ were running concurrently. The focused test passed on rerun, and the serial full
 
 ## GitHub Actions Evidence
 
-Final fork CI run:
+Latest fork CI run before the LaunchAgent smoke harness was added:
 
-- Run: `28878242037`
-- URL: `https://github.com/saxster/hermes-desktop/actions/runs/28878242037`
+- Run: `28878749010`
+- URL: `https://github.com/saxster/hermes-desktop/actions/runs/28878749010`
 - Event: `workflow_dispatch`
 - Branch: `codex/roadmap-phase0-note-index`
-- SHA: `fd05e08aa7b66be1285d555553377c569b8172d0`
+- SHA: `0d9a68249061f2f73d517fa062c45ae102e4d620`
 - Result: passed
-- `check`: passed in 4m28s, including dependency install, audit, SBOM upload, typecheck, test, and lint.
-- `verify-smoke`: passed in 2m31s, including build, note-index verification, external-context
+- `check`: passed in 4m12s, including dependency install, audit, SBOM upload, typecheck, test, and lint.
+- `verify-smoke`: passed in 2m26s, including build, note-index verification, external-context
   verification, and SPS smoke.
 
 Earlier fork CI run `28877719443` proved `verify-smoke` but failed `check` because
@@ -78,7 +83,7 @@ external skill fixtures are not installed.
 | 0.4 Gateway hang and port conflict visibility   | `src/main/hermes/gateway-process.ts`, `src/main/gateway-ports.ts`, gateway tests.                                                                             | Locally proven.                                                 |
 | 0.5 Aborted stream terminal callback            | `src/main/hermes/chat-client/api.ts`, `tests/chat-client-streaming.test.ts`.                                                                                  | Locally proven.                                                 |
 | 0.6 Scheduled research `lastError`              | `src/main/scheduled-research.ts`, `tests/scheduled-research.test.ts`.                                                                                         | Locally proven.                                                 |
-| 0.7 CI all tiers                                | `.github/workflows/ci.yml` includes `verify-smoke`; workflow dispatch run `28878242037` passed on fork branch SHA `fd05e08aa7b66be1285d555553377c569b8172d0`. | Proven on GitHub Actions.                                       |
+| 0.7 CI all tiers                                | `.github/workflows/ci.yml` includes `verify-smoke`; workflow dispatch run `28878749010` passed on fork branch SHA `0d9a68249061f2f73d517fa062c45ae102e4d620`. | Proven on GitHub Actions.                                       |
 | 1.0 Plan checkbox reconciliation                | Updated superpowers plan docs.                                                                                                                                | Locally proven by path review.                                  |
 | 1.1 Release-channel updates                     | `src/main/hermes-agent-updates.ts`, `tests/hermes-agent-update-check.test.ts`, update routine tests.                                                          | Locally proven with mocked GitHub release data.                 |
 | 1.2 Live install-script refresh                 | `src/main/installer.ts`, `tests/installer-script-refresh.test.ts`.                                                                                            | Locally proven with mocked fetch responses.                     |
@@ -107,7 +112,9 @@ external skill fixtures are not installed.
 ### GitHub Actions
 
 Completed. Manual dispatch run `28878242037` passed on fork branch
-`codex/roadmap-phase0-note-index` at SHA `fd05e08aa7b66be1285d555553377c569b8172d0`.
+`codex/roadmap-phase0-note-index` at SHA `fd05e08aa7b66be1285d555553377c569b8172d0`. Manual dispatch
+run `28878749010` then passed on the docs-refreshed branch head
+`0d9a68249061f2f73d517fa062c45ae102e4d620`.
 
 ### LaunchAgent
 
@@ -117,11 +124,20 @@ Local tests execute the generated cron helper in a VM harness and prove:
 - it records `managed-by-desktop` instead of double-managing when the desktop control server is up;
 - it preserves outage duration after recovery.
 
-Still required before shipping: install and exercise the actual LaunchAgent on the user machine or a disposable macOS account, then record cleanup/acceptance.
+Additional proof completed: `scripts/launchagent-smoke.mjs` bootstrapped a unique disposable user
+LaunchAgent label, observed execution through a marker file, booted it out, and removed its temporary
+directory. It intentionally did not install or disturb the real `com.nousresearch.hermes-scheduler`
+label.
+
+Remaining caveat: the production Hermes scheduler label itself was not installed or accepted as a
+persistent user agent in this audit.
 
 ### Owner Channels
 
 Unit tests prove macOS/Telegram/email fanout, quiet hours, event opt-out, idempotency, and rate limiting with mocked senders.
+
+Local redacted config check on `/Users/amar/.hermes` found `channel_directory.json` mentions
+Telegram, but `ownerNotificationPrefsByProfile` has no configured owner Telegram/email targets.
 
 Still required before owner use:
 
