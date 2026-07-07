@@ -26,6 +26,8 @@ A redacted owner-channel readiness check now makes the remaining Telegram gate r
 sending live messages; on the current `/Users/amar/.hermes` it exits blocked because owner
 notification prefs are not saved for the active profile and the channel directory has zero Telegram
 targets.
+An explicit-gated outbound Telegram live-smoke harness now reuses that readiness gate and only sends
+after both `--send` and `HERMES_OWNER_CHANNEL_LIVE=1` are present.
 
 The implementation should not be called fully owner-shipped until the remaining external/manual gates
 below are proven:
@@ -56,11 +58,15 @@ Commands run after the implementation and CI-hardening patches:
 | `node scripts/owner-channel-readiness.mjs --require-ready`                                                                                                                                                                                  | Expected exit 2: same redacted blocked state, proving the gate fails closed until owner channels are configured.                                             |
 | `TMPDIR=/private/tmp npx vitest run tests/owner-channel-readiness-script.test.ts`                                                                                                                                                           | Passed: 1 file, 3 tests.                                                                                                                                     |
 | `npx eslint scripts/owner-channel-readiness.mjs tests/owner-channel-readiness-script.test.ts`                                                                                                                                               | Passed.                                                                                                                                                      |
+| `node --check scripts/owner-channel-live-smoke.mjs`                                                                                                                                                                                         | Passed.                                                                                                                                                      |
+| `node scripts/owner-channel-live-smoke.mjs`                                                                                                                                                                                                 | Expected exit 2: failed closed with `reason: telegram-not-ready` against current `/Users/amar/.hermes`.                                                      |
+| `TMPDIR=/private/tmp npx vitest run tests/owner-channel-live-smoke-script.test.ts tests/owner-channel-readiness-script.test.ts`                                                                                                             | Passed: 2 files, 7 tests.                                                                                                                                    |
+| `npx eslint scripts/owner-channel-live-smoke.mjs tests/owner-channel-live-smoke-script.test.ts`                                                                                                                                             | Passed.                                                                                                                                                      |
 | `TMPDIR=/private/tmp npx vitest run tests/mobile-workspace-intake.test.ts tests/mobile-workspace-skill.test.ts tests/control-server.test.ts`                                                                                                | Passed: 3 files, 15 tests.                                                                                                                                   |
 | `npx eslint src/main/mobile-workspace-intake.ts src/main/control-server.ts src/main/mobile-workspace-skill.ts tests/mobile-workspace-intake.test.ts tests/control-server.test.ts tests/mobile-workspace-skill.test.ts`                      | Passed.                                                                                                                                                      |
 | `npm run lint`                                                                                                                                                                                                                              | Passed.                                                                                                                                                      |
 | `npm run typecheck`                                                                                                                                                                                                                         | Passed: node and web TypeScript projects.                                                                                                                    |
-| `TMPDIR=/private/tmp npm test`                                                                                                                                                                                                              | Passed: 374 files, 2832 tests passed, 3 skipped.                                                                                                             |
+| `TMPDIR=/private/tmp npm test`                                                                                                                                                                                                              | Passed: 375 files, 2836 tests passed, 3 skipped.                                                                                                             |
 | `npm run verify:note-index`                                                                                                                                                                                                                 | Passed: all note-index checks, including corrupt-cache self-heal.                                                                                            |
 | `npm run verify:external-context`                                                                                                                                                                                                           | Passed: all external-context checks, including redaction and MCP roundtrip.                                                                                  |
 | `npm run build`                                                                                                                                                                                                                             | Passed with existing Vite dynamic-import warnings.                                                                                                           |
@@ -183,12 +189,17 @@ Local redacted config check on `/Users/amar/.hermes`, now reproducible with
 `node scripts/owner-channel-readiness.mjs`, found no configured `ownerNotificationPrefsByProfile`
 entry for the active profile and zero Telegram targets in `channel_directory.json`. Running the same
 script with `--require-ready` exits 2 while blocked.
+The outbound live-smoke handoff is now reproducible with `scripts/owner-channel-live-smoke.mjs`; it
+fails closed while Telegram readiness is blocked, dry-runs when ready, and only sends after both
+`--send` and `HERMES_OWNER_CHANNEL_LIVE=1` are present.
 
 Still required before owner use:
 
 - configure a throwaway Telegram owner channel;
 - rerun `node scripts/owner-channel-readiness.mjs --require-ready` and confirm it exits 0 with
   `telegramLiveReady: true`;
+- run `HERMES_OWNER_CHANNEL_LIVE=1 node scripts/owner-channel-live-smoke.mjs --send` and confirm the
+  smoke message reaches the configured owner Telegram channel;
 - send a Telegram message such as "add this as a task" through the gateway bot and have it call the guarded mobile task path;
 - verify the live-written SPS task is review-first, `source: telegram/mobile`, `route: human`, and not `context: include`;
 - smoke real email/macOS notification delivery if those channels are enabled.
