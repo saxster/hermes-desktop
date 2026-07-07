@@ -91,4 +91,61 @@ describe("owner-channel-readiness script", () => {
 
     expect(status).toBe(2);
   });
+
+  it("exits non-zero with --require-telegram when only macOS is ready", () => {
+    writeFileSync(
+      join(home, "desktop.json"),
+      JSON.stringify({
+        ownerNotificationPrefsByProfile: {
+          work: {
+            channels: { macos: true, telegram: false },
+          },
+        },
+      }),
+    );
+
+    let status = 0;
+    try {
+      execFileSync(process.execPath, [
+        SCRIPT,
+        "--home",
+        home,
+        "--profile",
+        "work",
+        "--require-ready",
+        "--require-telegram",
+      ]);
+    } catch (err) {
+      status = (err as { status?: number }).status ?? 1;
+    }
+
+    expect(status).toBe(2);
+  });
+
+  it("exits zero with --require-telegram when Telegram is live-ready", () => {
+    writeFileSync(
+      join(home, "desktop.json"),
+      JSON.stringify({
+        ownerNotificationPrefsByProfile: {
+          work: {
+            channels: { macos: false, telegram: true },
+            targets: { telegramChatId: "12345" },
+          },
+        },
+      }),
+    );
+    writeFileSync(
+      join(home, "channel_directory.json"),
+      JSON.stringify({ channels: [{ target: "telegram:12345" }] }),
+    );
+
+    const result = run(home, [
+      "--profile",
+      "work",
+      "--require-ready",
+      "--require-telegram",
+    ]);
+
+    expect(result.telegramLiveReady).toBe(true);
+  });
 });

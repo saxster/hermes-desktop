@@ -78,7 +78,8 @@ Commands run after the implementation and CI-hardening patches:
 | `node --check scripts/owner-channel-readiness.mjs`                                                                                                                                                                                          | Passed.                                                                                                                                                      |
 | `node scripts/owner-channel-readiness.mjs`                                                                                                                                                                                                  | Passed: read-only redacted check returned `status: blocked`, profile `default`, no owner prefs entry, `telegramLiveReady: false`, and zero Telegram targets. |
 | `node scripts/owner-channel-readiness.mjs --require-ready`                                                                                                                                                                                  | Expected exit 2: same redacted blocked state, proving the gate fails closed until owner channels are configured.                                             |
-| `TMPDIR=/private/tmp npx vitest run tests/owner-channel-readiness-script.test.ts`                                                                                                                                                           | Passed: 1 file, 3 tests.                                                                                                                                     |
+| `node scripts/owner-channel-readiness.mjs --require-ready --require-telegram`                                                                                                                                                               | Expected exit 2: failed closed until Telegram owner prefs and a gateway Telegram target are both configured.                                                 |
+| `TMPDIR=/private/tmp npx vitest run tests/owner-channel-readiness-script.test.ts`                                                                                                                                                           | Passed: 1 file, 5 tests.                                                                                                                                     |
 | `npx eslint scripts/owner-channel-readiness.mjs tests/owner-channel-readiness-script.test.ts`                                                                                                                                               | Passed.                                                                                                                                                      |
 | `node --check scripts/owner-channel-live-smoke.mjs`                                                                                                                                                                                         | Passed.                                                                                                                                                      |
 | `node scripts/owner-channel-live-smoke.mjs`                                                                                                                                                                                                 | Expected exit 2: failed closed with `reason: telegram-not-ready` against current `/Users/amar/.hermes`.                                                      |
@@ -250,7 +251,9 @@ entry for the active profile and zero Telegram targets in `channel_directory.jso
 script with `--require-ready` exits 2 while blocked.
 The outbound live-smoke handoff is now reproducible with `scripts/owner-channel-live-smoke.mjs`; it
 fails closed while Telegram readiness is blocked, dry-runs when ready, and only sends after both
-`--send` and `HERMES_OWNER_CHANNEL_LIVE=1` are present.
+`--send` and `HERMES_OWNER_CHANNEL_LIVE=1` are present. The read-only readiness command also supports
+`--require-telegram`, which exits 2 unless Telegram has both owner prefs and a gateway Telegram
+target; this avoids treating macOS-only readiness as proof of the Telegram owner-channel gate.
 The inbound mobile-task live-smoke handoff is now reproducible with
 `scripts/mobile-task-live-smoke.mjs`; it verifies the local control server state, dry-runs without
 writing by default, only posts after both `--write` and `HERMES_MOBILE_TASK_LIVE=1` are present, and
@@ -270,8 +273,8 @@ touching production owner prefs.
 Still required before owner use:
 
 - configure a throwaway Telegram owner channel;
-- rerun `node scripts/owner-channel-readiness.mjs --require-ready` and confirm it exits 0 with
-  `telegramLiveReady: true`;
+- rerun `node scripts/owner-channel-readiness.mjs --require-ready --require-telegram` and confirm it
+  exits 0 with `telegramLiveReady: true`;
 - run `HERMES_OWNER_CHANNEL_LIVE=1 node scripts/owner-channel-live-smoke.mjs --send` and confirm the
   smoke message reaches the configured owner Telegram channel;
 - run `HERMES_MOBILE_TASK_LIVE=1 node scripts/mobile-task-live-smoke.mjs --write` against the real

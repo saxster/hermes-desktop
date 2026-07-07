@@ -38,6 +38,7 @@ function parseArgs(argv) {
     home: process.env.HERMES_HOME || join(homedir(), ".hermes"),
     profile: "",
     requireReady: false,
+    requireTelegram: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -47,6 +48,8 @@ function parseArgs(argv) {
       opts.profile = argv[++i] || "";
     } else if (arg === "--require-ready") {
       opts.requireReady = true;
+    } else if (arg === "--require-telegram") {
+      opts.requireTelegram = true;
     } else if (arg === "--help" || arg === "-h") {
       opts.help = true;
     } else {
@@ -269,14 +272,15 @@ export function evaluateOwnerChannelReadiness(options = {}) {
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/owner-channel-readiness.mjs [--home <path>] [--profile <name>] [--require-ready]
+  console.log(`Usage: node scripts/owner-channel-readiness.mjs [--home <path>] [--profile <name>] [--require-ready] [--require-telegram]
 
 Read-only owner-channel readiness check. It prints redacted JSON and never sends live messages.
 
 Options:
-  --home <path>       HERMES_HOME to inspect (default: $HERMES_HOME or ~/.hermes)
-  --profile <name>   Profile key to inspect (default: active_profile or default)
-  --require-ready    Exit 2 when readiness status is not "ready"
+  --home <path>          HERMES_HOME to inspect (default: $HERMES_HOME or ~/.hermes)
+  --profile <name>      Profile key to inspect (default: active_profile or default)
+  --require-ready       Exit 2 when readiness status is not "ready"
+  --require-telegram    Exit 2 when Telegram live readiness is false
 `);
 }
 
@@ -293,6 +297,9 @@ if (
     const result = evaluateOwnerChannelReadiness(opts);
     console.log(JSON.stringify(result, null, 2));
     if (opts.requireReady && result.status !== "ready") process.exit(2);
+    if (opts.requireTelegram && result.telegramLiveReady !== true) {
+      process.exit(2);
+    }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
