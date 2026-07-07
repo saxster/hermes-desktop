@@ -64,6 +64,7 @@ Use this skill when the owner reaches Hermes from Telegram or another gateway ch
 - Treat Telegram as a remote command surface for the owner's existing SPS workspace, not as a separate mobile app.
 - Prefer read-only answers for quick phone questions.
 - For writes, use the existing SPS capture, task, or approval-aware tool paths. Do not bypass approvals or write directly when an approval proposal is required.
+- If the desktop control helper is available, prefer \`sps task "<task text>"\` for phone task capture. It writes the guarded mobile task row; do not use raw markdown task writes for phone-created tasks.
 - Phone-created tasks are review-first SPS task captures with source: telegram/mobile, route: human by default, and no context: include promotion unless the owner explicitly approves that later.
 - Do not auto-message assignees or external contacts from a mobile request unless the existing task/contact flow explicitly asks for that action and approval state allows it.
 - Keep responses short enough for a phone screen and include the affected page/task names.

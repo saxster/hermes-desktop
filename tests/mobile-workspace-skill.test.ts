@@ -39,6 +39,7 @@ describe("owner mobile workspace skill", () => {
     expect(body).toContain("Source: docs/ONTOLOGY.md");
     expect(body).toContain("what's overdue?");
     expect(body).toContain("add this as a task");
+    expect(body).toContain('sps task "<task text>"');
     expect(body).toContain("approval-aware");
     expect(body).toContain(
       "Phone-created tasks are review-first SPS task captures with source: telegram/mobile, route: human by default",

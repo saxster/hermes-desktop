@@ -31,6 +31,7 @@ import { createCronJob } from "./cronjobs";
 import { getSpsNoteIndex } from "./note-index";
 import { resolveSpsVaultDir } from "./sps-storage";
 import { writeSpsCapture } from "./sps-capture";
+import { captureMobileWorkspaceTask } from "./mobile-workspace-intake";
 import { formatLogError, log } from "./log";
 import {
   exportPageMarkdownTo,
@@ -451,6 +452,47 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/sps/mobile-task") {
+    void readJsonRequest(req)
+      .then((payload) => {
+        const text =
+          typeof payload.text === "string"
+            ? payload.text
+            : typeof payload.body === "string"
+              ? payload.body
+              : "";
+        if (!text.trim()) {
+          writeJson(res, 400, { error: "Missing required field: text." });
+          return;
+        }
+        const profile = getActiveProfileNameSync();
+        return captureMobileWorkspaceTask(
+          {
+            text,
+            channel:
+              typeof payload.channel === "string"
+                ? payload.channel
+                : "telegram",
+            chatId:
+              typeof payload.chatId === "string" ? payload.chatId : undefined,
+            externalMessageId:
+              typeof payload.externalMessageId === "string"
+                ? payload.externalMessageId
+                : undefined,
+            capturedAt:
+              typeof payload.capturedAt === "number"
+                ? payload.capturedAt
+                : undefined,
+          },
+          profile,
+        ).then((result) => writeJson(res, result.success ? 200 : 500, result));
+      })
+      .catch((err) =>
+        writeJson(res, 400, { error: String(err.message || err) }),
+      );
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/sps/task") {
     void readJsonRequest(req)
       .then((payload) => {
@@ -818,8 +860,17 @@ case "$1" in
     JSON_PAYLOAD=$(node -e 'const [body,url]=process.argv.slice(1); const payload=url ? {source:"web", body, url} : {source:"quick-note", body}; process.stdout.write(JSON.stringify(payload));' "$BODY" "$URL")
     curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$JSON_PAYLOAD" "$BASE/sps/capture"
     ;;
+  task)
+    if [ -z "$2" ]; then
+      echo "Usage: sps task <text>"
+      exit 1
+    fi
+    BODY="$2"
+    JSON_PAYLOAD=$(node -e 'const [text]=process.argv.slice(1); process.stdout.write(JSON.stringify({text, channel:"telegram"}));' "$BODY")
+    curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$JSON_PAYLOAD" "$BASE/sps/mobile-task"
+    ;;
   *)
-    echo "Usage: sps status | search <query> | read <pageId> | capture <text> [url]"
+    echo "Usage: sps status | search <query> | read <pageId> | capture <text> [url] | task <text>"
     exit 1
     ;;
 esac
