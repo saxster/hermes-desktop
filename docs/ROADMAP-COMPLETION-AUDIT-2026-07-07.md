@@ -37,6 +37,9 @@ An explicit-gated inbound mobile-task live-smoke harness now checks the authenti
 server, posts through `/sps/mobile-task` only after `--write` and `HERMES_MOBILE_TASK_LIVE=1`, and
 verifies the persisted vault row stays review-first. On the current machine it fails closed because
 the saved control-server port is not reachable from this worktree session.
+An aggregate `scripts/roadmap-live-gate.mjs` harness now runs the remaining owner-live gates together:
+Telegram readiness, outbound owner-channel smoke, and inbound mobile-task smoke. It stays read-only
+by default and only passes through the existing send/write guards in `--live` mode.
 An isolated Electron control-server smoke now launches the built app with throwaway `HOME` and
 `HERMES_HOME`, discovers the real control-server token/port, writes one `/sps/mobile-task` row, and
 verifies the persisted vault markdown. That proves the local runtime path without touching the
@@ -98,6 +101,10 @@ Commands run after the implementation and CI-hardening patches:
 | `npx eslint scripts/mobile-task-control-server-smoke.mjs scripts/mobile-task-live-smoke.mjs`                                                                                                                                                | Passed.                                                                                                                                                      |
 | `TMPDIR=/private/tmp npx vitest run tests/vault-semantic-search.test.ts tests/mobile-task-live-smoke-script.test.ts tests/mobile-workspace-intake.test.ts tests/control-server.test.ts`                                                     | Passed: 4 files, 19 tests.                                                                                                                                   |
 | `npx eslint tests/vault-semantic-search.test.ts scripts/mobile-task-control-server-smoke.mjs scripts/mobile-task-live-smoke.mjs`                                                                                                            | Passed.                                                                                                                                                      |
+| `node --check scripts/roadmap-live-gate.mjs`                                                                                                                                                                                                | Passed.                                                                                                                                                      |
+| `node scripts/roadmap-live-gate.mjs`                                                                                                                                                                                                        | Expected exit 2: aggregates current blockers for missing owner prefs/Telegram readiness and unreachable control server port `8645`.                          |
+| `TMPDIR=/private/tmp npx vitest run tests/roadmap-live-gate-script.test.ts tests/owner-channel-live-smoke-script.test.ts tests/mobile-task-live-smoke-script.test.ts tests/owner-channel-readiness-script.test.ts`                          | Passed: 4 files, 16 tests.                                                                                                                                   |
+| `npx eslint scripts/roadmap-live-gate.mjs tests/roadmap-live-gate-script.test.ts`                                                                                                                                                           | Passed.                                                                                                                                                      |
 | `TMPDIR=/private/tmp npx vitest run tests/mobile-workspace-intake.test.ts tests/mobile-workspace-skill.test.ts tests/control-server.test.ts`                                                                                                | Passed: 3 files, 15 tests.                                                                                                                                   |
 | `npx eslint src/main/mobile-workspace-intake.ts src/main/control-server.ts src/main/mobile-workspace-skill.ts tests/mobile-workspace-intake.test.ts tests/control-server.test.ts tests/mobile-workspace-skill.test.ts`                      | Passed.                                                                                                                                                      |
 | `npm run lint`                                                                                                                                                                                                                              | Passed.                                                                                                                                                      |
@@ -269,16 +276,22 @@ runtime control-server proof while leaving the owner-profile Telegram roundtrip 
 Electron runtime: it writes temp owner prefs, calls `deliverOwnerNotification`, and verifies the
 result summary reports `Sent via macOS.` This closes the local macOS notification smoke without
 touching production owner prefs.
+`scripts/roadmap-live-gate.mjs` now aggregates the remaining owner-use gates into one JSON command.
+Default mode is a read-only dry run; `--live` passes `--send` and `--write` through to the existing
+harnesses, which still require `HERMES_OWNER_CHANNEL_LIVE=1` and `HERMES_MOBILE_TASK_LIVE=1`.
 
 Still required before owner use:
 
 - configure a throwaway Telegram owner channel;
+- run `node scripts/roadmap-live-gate.mjs` and confirm it exits 0 in dry-run mode;
 - rerun `node scripts/owner-channel-readiness.mjs --require-ready --require-telegram` and confirm it
   exits 0 with `telegramLiveReady: true`;
 - run `HERMES_OWNER_CHANNEL_LIVE=1 node scripts/owner-channel-live-smoke.mjs --send` and confirm the
   smoke message reaches the configured owner Telegram channel;
 - run `HERMES_MOBILE_TASK_LIVE=1 node scripts/mobile-task-live-smoke.mjs --write` against the real
   owner-profile control server and confirm it writes exactly one review-first SPS task row;
+- equivalently, run `HERMES_OWNER_CHANNEL_LIVE=1 HERMES_MOBILE_TASK_LIVE=1 node scripts/roadmap-live-gate.mjs --live`
+  and confirm it exits 0 after the outbound Telegram smoke and guarded mobile-task write both pass;
 - send a Telegram message such as "add this as a task" through the gateway bot and have it call the guarded mobile task path;
 - verify the live-written SPS task is review-first, `source: telegram/mobile`, `route: human`, and not `context: include`;
 - smoke real email delivery if that channel is enabled.
