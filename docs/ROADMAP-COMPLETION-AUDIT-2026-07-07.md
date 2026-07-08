@@ -15,8 +15,8 @@ Source plan: `ROADMAP.md`
 The roadmap implementation is committed and pushed to `origin/codex/roadmap-phase0-note-index`.
 Local verification passed across lint, typecheck, Vitest, Electron-ABI note-index verification,
 external-context verification, production build, and the SPS Playwright-Electron smoke. GitHub
-Actions also passed on the fork branch after two CI-only test hermeticity fixes, and the latest
-manual dispatch run `28911649820` passed on branch head `af893955`.
+Actions also passed on the fork branch after two CI-only test hermeticity fixes, and manual dispatch
+run `28911649820` passed on the aggregate-gate implementation head `af893955`.
 The remaining launchd lifecycle risk was reduced with a disposable LaunchAgent smoke that bootstraps,
 runs, boots out, and cleans up a unique temporary user-agent label.
 The production Hermes scheduler LaunchAgent is also currently accepted by launchd under `gui/501`:
@@ -216,7 +216,7 @@ Completed. Manual dispatch run `28878242037` passed on fork branch
 `codex/roadmap-phase0-note-index` at SHA `fd05e08aa7b66be1285d555553377c569b8172d0`. Manual dispatch
 run `28878749010` then passed on the docs-refreshed branch head
 `0d9a68249061f2f73d517fa062c45ae102e4d620`.
-Manual dispatch run `28911649820` passed on the latest branch head
+Manual dispatch run `28911649820` passed on the aggregate-gate implementation head
 `af893955352aeaba2d43e82e8a039c37382ea2c8`, including `check` and `verify-smoke`
 (`npm run build`, `npm run verify:note-index`, `npm run verify:external-context`, and
 `node scripts/sps-smoke.mjs`). Pull-request run `28911447632` had `check` pass, but the overall run
