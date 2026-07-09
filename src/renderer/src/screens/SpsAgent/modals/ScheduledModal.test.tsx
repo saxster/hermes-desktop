@@ -187,8 +187,12 @@ describe("ScheduledModal Telegram delivery UX", () => {
     render(<ScheduledModal />);
 
     await waitFor(() => expect(api.srTelegramStatus).toHaveBeenCalled());
-    const telegramToggle = screen.getByLabelText("Telegram summary");
-    expect(telegramToggle).toBeEnabled();
+    // Status loads async; wait for the toggle to leave the disabled state.
+    const telegramToggle = await waitFor(() => {
+      const el = screen.getByLabelText("Telegram summary");
+      expect(el).toBeEnabled();
+      return el;
+    });
 
     fireEvent.click(telegramToggle);
     fireEvent.change(screen.getByPlaceholderText(/monitor this topic/i), {

@@ -48,6 +48,13 @@ export interface SpsBridgeApi {
     profile?: string,
   ) => Promise<unknown>;
 
+  spsStudyCard: (
+    focus: string,
+    corpusDescription?: string,
+    sourceDurationSeconds?: number,
+    profile?: string,
+  ) => Promise<unknown>;
+
   spsIngestInbox: (profile?: string) => Promise<{
     ok: boolean;
     captureCount: number;

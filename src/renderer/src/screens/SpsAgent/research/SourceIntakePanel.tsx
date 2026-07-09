@@ -10,6 +10,12 @@ import {
 } from "../../../lib/content-studio";
 import { hasCuratedBriefSources } from "../../../../../shared/curatedBrief";
 import { buildDeckInputFromResearch } from "../../../../../shared/deck-studio";
+import {
+  buildDeckInputFromStudyCardMarkdown,
+  enrichStudyCardMarkdown,
+  extractTimeSavedLine,
+  hasStudyCardSources,
+} from "../../../../../shared/study-card";
 import { Icon } from "../components/Icon";
 import { SubstackRadarPanel } from "./SubstackRadarPanel";
 import { saveContentIdea } from "../content/contentStudioStorage";
@@ -73,9 +79,9 @@ export function SourceIntakePanel({
   const [studyCorpus, setStudyCorpus] = useState("");
   const [studyBusy, setStudyBusy] = useState(false);
   const [studyResult, setStudyResult] = useState("");
-  const [studyResultKind, setStudyResultKind] = useState<"study" | "brief">(
-    "study",
-  );
+  const [studyResultKind, setStudyResultKind] = useState<
+    "study" | "brief" | "card"
+  >("study");
   const [screenshotCandidates, setScreenshotCandidates] = useState<
     SpsRecentScreenshotCandidate[]
   >([]);
@@ -396,9 +402,37 @@ export function SourceIntakePanel({
     }
   }
 
+  async function runStudyCard(): Promise<void> {
+    const focus = studyFocus.trim();
+    if (!focus || studyBusy) return;
+    setStudyBusy(true);
+    setStudyResult("");
+    setStudyResultKind("card");
+    setMessage("");
+    try {
+      const res = await window.hermesAPI.spsStudyCard?.(
+        focus,
+        studyCorpus.trim() || undefined,
+      );
+      const raw = extractChatReply(res) || "No study card returned.";
+      const enriched = enrichStudyCardMarkdown(raw);
+      setStudyResult(enriched);
+    } catch {
+      setStudyResult("Study card failed.");
+    } finally {
+      setStudyBusy(false);
+    }
+  }
+
   async function saveBriefToKb(): Promise<void> {
     if (!studyFocus.trim() || !studyResult.trim() || saving) return;
-    if (!hasCuratedBriefSources(studyResult)) {
+    const needsSources =
+      studyResultKind === "brief" || studyResultKind === "card";
+    const hasSources =
+      studyResultKind === "card"
+        ? hasStudyCardSources(studyResult)
+        : hasCuratedBriefSources(studyResult);
+    if (needsSources && !hasSources) {
       setMessage("Could not find usable source links, so nothing was saved.");
       return;
     }
@@ -409,13 +443,19 @@ export function SourceIntakePanel({
         studyFocus.trim(),
         studyResult,
       );
+      const label =
+        studyResultKind === "card"
+          ? "study card"
+          : studyResultKind === "brief"
+            ? "brief"
+            : "study";
       setMessage(
         saved.ok
-          ? "Saved brief to Knowledge Base."
+          ? `Saved ${label} to Knowledge Base.`
           : saved.error || "Save failed.",
       );
     } catch {
-      setMessage("Could not save that brief.");
+      setMessage("Could not save that result.");
     } finally {
       setSaving(false);
     }
@@ -427,13 +467,18 @@ export function SourceIntakePanel({
     setSaving(true);
     setMessage("");
     try {
+      const capturedFrom =
+        studyResultKind === "brief"
+          ? "curated-brief"
+          : studyResultKind === "card"
+            ? "study-card"
+            : "source-study";
       const idea = buildContentIdeaFromSources({
         id: `idea-study-${Date.now().toString(36)}`,
         title: studyFocus.trim(),
         sources: urls.map((sourceUrl) => ({ url: sourceUrl })),
         angle: studyResult,
-        capturedFrom:
-          studyResultKind === "brief" ? "curated-brief" : "source-study",
+        capturedFrom,
         rubric: { proof: urls.length ? 1 : 0, originality: 1 },
       });
       await saveContentIdea(idea);
@@ -441,7 +486,9 @@ export function SourceIntakePanel({
       setMessage(
         studyResultKind === "brief"
           ? "Saved brief as content idea."
-          : "Saved study as content idea.",
+          : studyResultKind === "card"
+            ? "Saved study card as content idea."
+            : "Saved study as content idea.",
       );
     } finally {
       setSaving(false);
@@ -450,6 +497,16 @@ export function SourceIntakePanel({
 
   function openStudyDeck(): void {
     if (!studyFocus.trim() || !studyResult.trim()) return;
+    if (studyResultKind === "card") {
+      openDeckStudioInput(
+        buildDeckInputFromStudyCardMarkdown(
+          studyFocus.trim(),
+          `${studyCorpus}\n\n${studyResult}`.trim(),
+        ),
+      );
+      setMessage("Opened Deck Studio with this study card.");
+      return;
+    }
     openDeckStudioInput(
       buildDeckInputFromResearch({
         title: studyFocus.trim(),
@@ -466,6 +523,15 @@ export function SourceIntakePanel({
         : "Opened Deck Studio with this study.",
     );
   }
+
+  const studyResultLabel =
+    studyResultKind === "brief"
+      ? "brief"
+      : studyResultKind === "card"
+        ? "study card"
+        : "study";
+  const timeSavedLine =
+    studyResultKind === "card" ? extractTimeSavedLine(studyResult) : null;
 
   async function showSetup(): Promise<void> {
     setSetup(await window.hermesAPI.sourceIntakeInstallInstructions());
@@ -807,17 +873,37 @@ export function SourceIntakePanel({
           >
             {studyBusy ? "Working..." : "Curated Brief"}
           </button>
+          <button
+            type="button"
+            className="log-submit-btn protocol-record-btn"
+            disabled={studyBusy || !studyFocus.trim()}
+            onClick={() => void runStudyCard()}
+          >
+            {studyBusy ? "Distilling..." : "Study Card"}
+          </button>
           {studyResult && (
             <>
+              {timeSavedLine && (
+                <div
+                  className="source-intake-status"
+                  data-testid="study-card-time-saved"
+                >
+                  {timeSavedLine}
+                </div>
+              )}
               <pre className="source-intake-markdown">{studyResult}</pre>
-              {studyResultKind === "brief" && (
+              {(studyResultKind === "brief" || studyResultKind === "card") && (
                 <button
                   type="button"
                   className="log-submit-btn save-journal-entry-btn"
                   disabled={saving}
                   onClick={() => void saveBriefToKb()}
                 >
-                  {saving ? "Saving..." : "Save brief to KB"}
+                  {saving
+                    ? "Saving..."
+                    : studyResultKind === "card"
+                      ? "Save study card to KB"
+                      : "Save brief to KB"}
                 </button>
               )}
               <button
@@ -826,18 +912,14 @@ export function SourceIntakePanel({
                 disabled={saving}
                 onClick={() => void saveStudyAsContentIdea()}
               >
-                {studyResultKind === "brief"
-                  ? "Save brief as content idea"
-                  : "Save study as content idea"}
+                {`Save ${studyResultLabel} as content idea`}
               </button>
               <button
                 type="button"
                 className="log-submit-btn protocol-record-btn"
                 onClick={openStudyDeck}
               >
-                {studyResultKind === "brief"
-                  ? "Deck from brief"
-                  : "Deck from study"}
+                {`Deck from ${studyResultLabel}`}
               </button>
             </>
           )}

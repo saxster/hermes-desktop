@@ -40,7 +40,7 @@ export function aiActionLabel(kind: AiActionKind, selection: string): string {
 export function buildAiActionPrompt(
   kind: AiActionKind,
   selection: string,
-  ): string {
+): string {
   const target = selection.trim();
   switch (kind) {
     case "tldr":
@@ -179,3 +179,5 @@ export {
 } from "../../../../../shared/research";
 export { buildSourceStudyPrompt } from "../../../../../shared/sourceStudy";
 export type { SourceStudyPromptOptions } from "../../../../../shared/sourceStudy";
+export { buildStudyCardPrompt } from "../../../../../shared/study-card";
+export type { StudyCardPromptOptions } from "../../../../../shared/study-card";

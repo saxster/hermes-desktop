@@ -9,6 +9,16 @@ export interface MentionItem {
   emoji?: string;
 }
 
+/** Allow only simple CSS color tokens for mention chips (no url()/expression). */
+export function safeCssColor(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^#[0-9A-Fa-f]{3,8}$/.test(trimmed)) return trimmed;
+  if (/^rgba?\(\s*[\d.\s%,]+\)$/.test(trimmed)) return trimmed;
+  if (/^[a-zA-Z]{1,20}$/.test(trimmed)) return trimmed;
+  return undefined;
+}
+
 export function caretRect(): DOMRect | null {
   const s = window.getSelection();
   if (!s || !s.rangeCount) return null;
@@ -55,11 +65,20 @@ export function insertMentionChip(
   const span = document.createElement("span");
   span.contentEditable = "false";
   if (item.kind === "person") {
+    // DOM APIs only — label/color come from vault person pages and must not
+    // go through innerHTML (S2 XSS if a title embeds markup).
     span.className = "mention";
-    span.innerHTML = `<span class="pico" style="background:${item.color}">${item.initials?.[0] ?? ""}</span>${item.label}`;
+    const pico = document.createElement("span");
+    pico.className = "pico";
+    const safeColor = safeCssColor(item.color);
+    if (safeColor) pico.style.background = safeColor;
+    const initial = (item.initials?.[0] ?? "").slice(0, 1);
+    pico.textContent = initial;
+    span.appendChild(pico);
+    span.appendChild(document.createTextNode(item.label));
   } else if (item.kind === "page") {
     span.className = "mention page";
-    span.textContent = `${item.emoji} ${item.label}`;
+    span.textContent = `${item.emoji ?? ""} ${item.label}`.trim();
   } else {
     span.className = "mention date";
     span.textContent = "📅 " + item.label.replace(/\s*\(.*\)/, "");

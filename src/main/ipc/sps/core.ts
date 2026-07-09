@@ -4,6 +4,7 @@ import {
   spsUnfurl,
   spsAssistant,
   spsCuratedBrief,
+  spsStudyCard,
   spsTeachCapture,
   spsSourceStudy,
   spsIngestInbox,
@@ -44,6 +45,16 @@ export function registerSpsCoreIpc(): void {
     "sps-curated-brief",
     (_event, topic: string, corpusDescription?: string, profile?: string) =>
       spsCuratedBrief(topic, corpusDescription, profile),
+  );
+  safeHandle(
+    "sps-study-card",
+    (
+      _event,
+      focus: string,
+      corpusDescription?: string,
+      sourceDurationSeconds?: number,
+      profile?: string,
+    ) => spsStudyCard(focus, corpusDescription, sourceDurationSeconds, profile),
   );
   safeHandle("sps-ingest-inbox", (_event, profile?: string) =>
     spsIngestInbox(profile),

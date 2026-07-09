@@ -8,12 +8,22 @@ import eslintPluginReactRefresh from "eslint-plugin-react-refresh";
 export default defineConfig(
   {
     ignores: [
-      "**/node_modules",
-      "**/dist",
-      "**/out",
-      ".claude/**",
-      ".agents/**",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/out/**",
       "build/**",
+      "release/**",
+      "coverage/**",
+      "graphify-out/**",
+      // Git worktrees live under the primary tree (see CLAUDE.md / setup-worktree).
+      // Each is a full second checkout with its own src/ + node_modules. ESLint
+      // does NOT honor .gitignore, so `eslint .` was walking ~10 extra full
+      // codebases (~12× the real source set) and hanging for 10+ minutes until
+      // SIGTERM. Lint each worktree from inside that worktree, not from main.
+      ".worktrees/**",
+      ".claude/worktrees/**",
+      ".agents/**",
+      ".claude/**",
       // Bundled MCP server output (esbuild via the `build:mcp` script). A
       // generated, git-ignored single-file CJS bundle — not our source to lint.
       "resources/*.cjs",
@@ -24,7 +34,7 @@ export default defineConfig(
       // Archived standalone SPS Agent reference app: separate sub-project
       // with its own tooling. The integrated copy under
       // src/renderer/src/screens/SpsAgent IS linted.
-      "archive/sps-agent-standalone/**",
+      "archive/**",
       // CDP E2E harness — plain Node CommonJS scripts driving the
       // dev electron via Chrome DevTools Protocol for live testing.
       // They intentionally use require() because they run as one-off

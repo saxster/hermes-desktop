@@ -96,6 +96,7 @@ describe("SPS IPC surface", () => {
       "sps-save-assistant-recipe-run",
       "sps-set-work-session",
       "sps-source-study",
+      "sps-study-card",
       "sps-teach-capture",
       "sps-trigger-action",
       "sps-unfurl",

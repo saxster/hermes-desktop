@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   spsResearchGetConfig: vi.fn(),
   spsNotebookLmStatus: vi.fn(),
   spsCuratedBrief: vi.fn(),
+  spsStudyCard: vi.fn(),
 }));
 
 vi.mock("../store", () => ({
@@ -52,6 +53,30 @@ beforeEach(() => {
         "",
         "## Sources",
         "- [Brief](https://brief.example/source)",
+      ].join("\n"),
+    ],
+  });
+  api.spsStudyCard.mockResolvedValue({
+    kind: "chat",
+    reply: [
+      [
+        "# Distilled video",
+        "",
+        "## Big takeaway",
+        "Long media becomes a scannable card.",
+        "",
+        "## Time economics",
+        "- Source: 20 min",
+        "- Read: 4 min",
+        "- Saved: 16 min",
+        "",
+        "## Sections",
+        "",
+        "### Point",
+        "- Keep the structure fixed",
+        "",
+        "## Sources",
+        "- [Talk](https://www.youtube.com/watch?v=card-demo)",
       ].join("\n"),
     ],
   });
@@ -210,6 +235,43 @@ describe("ResearchModal", () => {
     expect(
       await screen.findByText(/could not find usable source links/i),
     ).toBeInTheDocument();
+  });
+
+  it("runs a Study card, shows time saved, and opens Deck Studio", async () => {
+    render(<ResearchModal />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^study card$/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText(/video, article, or source/i),
+      { target: { value: "YouTube procrastination talk" } },
+    );
+    fireEvent.change(screen.getByTitle("Corpus description"), {
+      target: { value: "https://www.youtube.com/watch?v=card-demo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /distill card/i }));
+
+    expect(
+      await screen.findByText(/long media becomes a scannable card/i),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("study-card-time-saved")).toHaveTextContent(
+      /You just saved 16 min/i,
+    );
+    expect(api.spsStudyCard).toHaveBeenCalledWith(
+      "YouTube procrastination talk",
+      "https://www.youtube.com/watch?v=card-demo",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /deck from study card/i }),
+    );
+
+    expect(store.openDeckStudioInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "YouTube procrastination talk",
+        theme: "research",
+        notes: expect.stringContaining("Big takeaway"),
+      }),
+    );
   });
 
   it("opens Deck Studio from a Curated Brief", async () => {

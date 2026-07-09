@@ -32,6 +32,7 @@ const api = {
   spsImportClipboardScreenshot: vi.fn(),
   spsSourceStudy: vi.fn(),
   spsCuratedBrief: vi.fn(),
+  spsStudyCard: vi.fn(),
   spsSubstackRadarListRuns: vi.fn(),
 };
 
@@ -133,6 +134,35 @@ beforeEach(() => {
         "",
         "## Sources",
         "- [Curated](https://brief.example/source)",
+      ].join("\n"),
+    ],
+  });
+  api.spsStudyCard.mockResolvedValue({
+    kind: "chat",
+    reply: [
+      [
+        "# Source-backed study card",
+        "",
+        "## Big takeaway",
+        "Distill long media into takeaway, sections, and quoted evidence.",
+        "",
+        "## Time economics",
+        "- Source: 14 min",
+        "- Read: 3 min",
+        "- Saved: 11 min",
+        "",
+        "## Sections",
+        "",
+        "### Core idea",
+        "- One scannable card beats a transcript dump",
+        "",
+        "## Notable quotes",
+        "",
+        "> Structure beats volume.",
+        "— Speaker [1:02]",
+        "",
+        "## Sources",
+        "- [Video](https://www.youtube.com/watch?v=study-card-demo)",
       ].join("\n"),
     ],
   });
@@ -588,6 +618,118 @@ describe("SourceIntakePanel", () => {
     expect(api.spsFileResearch).not.toHaveBeenCalled();
     expect(
       await screen.findByText(/could not find usable source links/i),
+    ).toBeInTheDocument();
+  });
+
+  it("runs a Study Card, shows time saved, and files to the Knowledge Base", async () => {
+    render(<SourceIntakePanel />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /study/i }));
+    fireEvent.change(screen.getByLabelText(/study focus/i), {
+      target: { value: "Video distill" },
+    });
+    fireEvent.change(screen.getByLabelText(/corpus description/i), {
+      target: {
+        value: "https://www.youtube.com/watch?v=study-card-demo transcript",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^study card$/i }));
+
+    expect(
+      await screen.findByText(/distill long media into takeaway/i),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("study-card-time-saved")).toHaveTextContent(
+      /You just saved 11 min/i,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /save study card to kb/i }),
+    );
+
+    await waitFor(() => {
+      expect(api.spsStudyCard).toHaveBeenCalledWith(
+        "Video distill",
+        "https://www.youtube.com/watch?v=study-card-demo transcript",
+      );
+      expect(api.spsFileResearch).toHaveBeenCalledWith(
+        "Video distill",
+        expect.stringContaining("## Big takeaway"),
+      );
+      expect(
+        screen.getByText("Saved study card to Knowledge Base."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not file a Study Card without usable sources", async () => {
+    api.spsStudyCard.mockResolvedValue({
+      kind: "chat",
+      reply: [
+        "# Thin card\n\n## Big takeaway\nNo links.\n\n## Sources\n- memory only",
+      ],
+    });
+    render(<SourceIntakePanel />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /study/i }));
+    fireEvent.change(screen.getByLabelText(/study focus/i), {
+      target: { value: "Unsourced card" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^study card$/i }));
+
+    expect(await screen.findByText(/no links/i)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /save study card to kb/i }),
+    );
+
+    expect(api.spsFileResearch).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(/could not find usable source links/i),
+    ).toBeInTheDocument();
+  });
+
+  it("saves a Study Card as a Content Studio idea and opens Deck Studio", async () => {
+    render(<SourceIntakePanel />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /study/i }));
+    fireEvent.change(screen.getByLabelText(/study focus/i), {
+      target: { value: "Card content" },
+    });
+    fireEvent.change(screen.getByLabelText(/corpus description/i), {
+      target: {
+        value: "https://www.youtube.com/watch?v=study-card-demo",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^study card$/i }));
+
+    expect(
+      await screen.findByText(/distill long media into takeaway/i),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /save study card as content idea/i }),
+    );
+
+    await waitFor(() =>
+      expect(store.openContentStudioIdea).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Card content",
+          capturedFrom: "study-card",
+        }),
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /deck from study card/i }),
+    );
+
+    expect(store.openDeckStudioInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Card content",
+        theme: "research",
+        notes: expect.stringContaining("Big takeaway"),
+      }),
+    );
+    expect(
+      await screen.findByText("Opened Deck Studio with this study card."),
     ).toBeInTheDocument();
   });
 

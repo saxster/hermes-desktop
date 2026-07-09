@@ -23,11 +23,17 @@ import {
 import { hasCuratedBriefSources } from "../../../../../shared/curatedBrief";
 import { buildDeckInputFromResearch } from "../../../../../shared/deck-studio";
 import {
+  buildDeckInputFromStudyCardMarkdown,
+  enrichStudyCardMarkdown,
+  extractTimeSavedLine,
+  hasStudyCardSources,
+} from "../../../../../shared/study-card";
+import {
   describeResearchReachIntent,
   type ResearchReachStatus,
 } from "../../../../../shared/research-reach";
 
-type Mode = "research" | "papers" | "study" | "brief";
+type Mode = "research" | "papers" | "study" | "brief" | "card";
 type Phase = "idle" | "running" | "done" | "warn" | "error";
 type NotebookState = "idle" | "checking" | "working" | "done" | "failed";
 
@@ -328,9 +334,37 @@ export function ResearchModal() {
     }
   };
 
+  const runStudyCard = async () => {
+    const focus = studyFocus.trim();
+    if (!focus || studyBusy) return;
+    setStudyBusy(true);
+    setStudyResult("");
+    setStudySaveMsg("");
+    studyUndoRef.current = null;
+    try {
+      const res = await window.hermesAPI?.spsStudyCard?.(
+        focus,
+        studyCorpus.trim() || undefined,
+      );
+      const reply = extractChatReply(res);
+      const raw = reply || "No study card returned.";
+      setStudyResult(enrichStudyCardMarkdown(raw));
+    } catch (err) {
+      setStudyResult(err instanceof Error ? err.message : "Study card failed.");
+    } finally {
+      setStudyBusy(false);
+    }
+  };
+
   const saveStudy = async () => {
     if (!studyResult.trim() || studySaving) return;
     if (mode === "brief" && !hasCuratedBriefSources(studyResult)) {
+      setStudySaveMsg(
+        "Could not find usable source links, so nothing was saved.",
+      );
+      return;
+    }
+    if (mode === "card" && !hasStudyCardSources(studyResult)) {
       setStudySaveMsg(
         "Could not find usable source links, so nothing was saved.",
       );
@@ -343,7 +377,11 @@ export function ResearchModal() {
       if (res.ok) {
         studyUndoRef.current = res.undo ?? null;
         setStudySaveMsg(res.summary || "Saved to your Knowledge Base.");
-        flash("Saved study to your Knowledge Base");
+        flash(
+          mode === "card"
+            ? "Saved study card to your Knowledge Base"
+            : "Saved study to your Knowledge Base",
+        );
       } else {
         setStudySaveMsg(res.error || "Filing unavailable.");
       }
@@ -356,8 +394,18 @@ export function ResearchModal() {
     const title = topic.trim() || studyFocus.trim();
     if (!title) return;
     const sourceUrls =
-      mode === "brief" ? parseContentSourceUrls(studyResult) : [];
+      mode === "brief" || mode === "card" || mode === "study"
+        ? parseContentSourceUrls(`${studyCorpus}\n${studyResult}`)
+        : [];
     const date = new Date().toISOString().slice(0, 10);
+    const capturedFrom =
+      mode === "brief"
+        ? "curated-brief"
+        : mode === "card"
+          ? "study-card"
+          : mode === "study"
+            ? "source-study"
+            : "research-reach";
     const idea: ContentIdea = {
       id: `idea-research-${Date.now().toString(36)}`,
       title,
@@ -368,7 +416,7 @@ export function ResearchModal() {
       createdAt: date,
       updatedAt: date,
       status: "captured",
-      capturedFrom: mode === "brief" ? "curated-brief" : "research-reach",
+      capturedFrom,
       rubric: {
         bookmarkability: 0,
         proof:
@@ -389,11 +437,23 @@ export function ResearchModal() {
     const title = topic.trim() || studyFocus.trim();
     const markdown = progress || resultSummary || studyResult;
     if (!title || !markdown.trim()) return;
+    if (mode === "card") {
+      openDeckStudioInput(buildDeckInputFromStudyCardMarkdown(title, markdown));
+      setResearchOpen(false);
+      flash("Opened Deck Studio with this study card.");
+      return;
+    }
+    const locator =
+      mode === "study"
+        ? "Research / Study sources"
+        : mode === "brief"
+          ? "Research / Curated brief"
+          : "Research";
     openDeckStudioInput(
       buildDeckInputFromResearch({
         title,
         markdown,
-        locator: mode === "study" ? "Research / Study sources" : "Research",
+        locator,
       }),
     );
     setResearchOpen(false);
@@ -427,8 +487,11 @@ export function ResearchModal() {
   const notebookRecovery = notebookStatus?.commandFound
     ? `If Google auth has expired, run ${notebookStatus.nlmCommand || "nlm"} login and try again.`
     : "Install notebooklm-mcp-cli, make notebooklm-mcp available on PATH, or ask IT to set HERMES_NOTEBOOKLM_MCP_COMMAND.";
-  const sourceMode = mode === "study" || mode === "brief";
+  const sourceMode = mode === "study" || mode === "brief" || mode === "card";
   const briefMode = mode === "brief";
+  const cardMode = mode === "card";
+  const studyCardTimeLine =
+    cardMode && studyResult ? extractTimeSavedLine(studyResult) : null;
 
   return (
     <SpsModal
@@ -465,6 +528,13 @@ export function ResearchModal() {
             disabled={busy}
           >
             Curated brief
+          </button>
+          <button
+            className={`pal-chip${mode === "card" ? " on" : ""}`}
+            onClick={() => setMode("card")}
+            disabled={busy}
+          >
+            Study card
           </button>
         </div>
       }
@@ -667,30 +737,40 @@ export function ResearchModal() {
                 onChange={(e) => setStudyFocus(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    void (briefMode ? runCuratedBrief() : runSourceStudy());
+                    if (briefMode) void runCuratedBrief();
+                    else if (cardMode) void runStudyCard();
+                    else void runSourceStudy();
                   }
                 }}
                 placeholder={
                   briefMode
                     ? "Topic or decision..."
-                    : "Question or learning goal..."
+                    : cardMode
+                      ? "Video, article, or source to distill..."
+                      : "Question or learning goal..."
                 }
                 disabled={studyBusy}
               />
               <button
                 className="cover-btn"
-                onClick={() =>
-                  void (briefMode ? runCuratedBrief() : runSourceStudy())
-                }
+                onClick={() => {
+                  if (briefMode) void runCuratedBrief();
+                  else if (cardMode) void runStudyCard();
+                  else void runSourceStudy();
+                }}
                 disabled={studyBusy || !studyFocus.trim()}
               >
                 {studyBusy
                   ? briefMode
                     ? "Writing..."
-                    : "Studying..."
+                    : cardMode
+                      ? "Distilling..."
+                      : "Studying..."
                   : briefMode
                     ? "Generate brief"
-                    : "Study"}
+                    : cardMode
+                      ? "Distill card"
+                      : "Study"}
               </button>
             </div>
 
@@ -699,7 +779,11 @@ export function ResearchModal() {
               <textarea
                 value={studyCorpus}
                 onChange={(e) => setStudyCorpus(e.target.value)}
-                placeholder="Optional: name the PDFs, videos, articles, wiki pages, or NotebookLM notebooks to study."
+                placeholder={
+                  cardMode
+                    ? "Paste a YouTube URL, transcript, or source set to distill into a scannable study card."
+                    : "Optional: name the PDFs, videos, articles, wiki pages, or NotebookLM notebooks to study."
+                }
                 disabled={studyBusy}
                 rows={3}
                 className="res-study-textarea"
@@ -711,12 +795,22 @@ export function ResearchModal() {
               <div className="cmts-empty res-idle-message">
                 {briefMode
                   ? "Build a source-grounded pre-writing brief with perspectives, questions, an evidence ledger, outline, concept links, and open questions."
-                  : "Study connected sources as a corpus: central argument, mental models, disagreements, weak evidence, checks for understanding, and a wiki-ready capture."}
+                  : cardMode
+                    ? "Distill long media into a vault-native study card: big takeaway, thematic sections, timestamped quotes, time saved, and sources."
+                    : "Study connected sources as a corpus: central argument, mental models, disagreements, weak evidence, checks for understanding, and a wiki-ready capture."}
               </div>
             )}
 
             {!!studyResult && (
               <>
+                {studyCardTimeLine && (
+                  <small
+                    className="res-status-label"
+                    data-testid="study-card-time-saved"
+                  >
+                    {studyCardTimeLine}
+                  </small>
+                )}
                 <div className="scroll res-study-result-box">{studyResult}</div>
                 <div className="res-save-card">
                   <small className="res-small-label">{studySaveMsg}</small>
@@ -740,7 +834,11 @@ export function ResearchModal() {
                       Save as content idea
                     </button>
                     <button className="cover-btn" onClick={openResearchDeck}>
-                      {briefMode ? "Deck from brief" : "Deck from study"}
+                      {briefMode
+                        ? "Deck from brief"
+                        : cardMode
+                          ? "Deck from study card"
+                          : "Deck from study"}
                     </button>
                   </div>
                 </div>

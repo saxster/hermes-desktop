@@ -11,6 +11,7 @@
 //   • sps:load / sps:save — durable workspace persistence under the profile home.
 import { buildCuratedBriefPrompt } from "../shared/curatedBrief";
 import { buildSourceStudyPrompt } from "../shared/sourceStudy";
+import { buildStudyCardPrompt } from "../shared/study-card";
 import {
   buildTeachCapturePrompt,
   type TeachCapturePromptInput,
@@ -634,6 +635,40 @@ export async function spsCuratedBrief(
     prompt,
     {
       pageTitle: "Curated Brief",
+      blocks: [],
+      notes: [],
+    },
+    profile,
+    true,
+  );
+}
+
+export async function spsStudyCard(
+  focus: string,
+  corpusDescription?: string,
+  sourceDurationSeconds?: number,
+  profile?: string,
+): Promise<AssistantResult> {
+  const options: {
+    corpusDescription?: string;
+    sourceDurationSeconds?: number;
+  } = {};
+  if (corpusDescription) options.corpusDescription = corpusDescription;
+  if (
+    sourceDurationSeconds !== undefined &&
+    Number.isFinite(sourceDurationSeconds) &&
+    sourceDurationSeconds > 0
+  ) {
+    options.sourceDurationSeconds = sourceDurationSeconds;
+  }
+  const prompt = [
+    buildStudyCardPrompt(focus, options),
+    'Inside SPS Agent, return this as {"kind":"chat"} only. Do not edit the page, create tasks, or produce any other action type.',
+  ].join("\n\n");
+  return spsAssistant(
+    prompt,
+    {
+      pageTitle: "Study Card",
       blocks: [],
       notes: [],
     },

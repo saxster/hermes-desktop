@@ -21,6 +21,14 @@ export function Icon({
 }: IconProps) {
   const path = ICON_PATHS[name];
   if (!path) return null;
+  // Escape title for SVG markup — some call sites pass i18n/user-derived strings.
+  const safeTitle = title
+    ? title
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+    : "";
   return (
     <svg
       className={"ic " + className}
@@ -36,7 +44,7 @@ export function Icon({
       aria-hidden={title ? undefined : true}
       role={title ? "img" : undefined}
       dangerouslySetInnerHTML={{
-        __html: (title ? `<title>${title}</title>` : "") + path,
+        __html: (safeTitle ? `<title>${safeTitle}</title>` : "") + path,
       }}
     />
   );
