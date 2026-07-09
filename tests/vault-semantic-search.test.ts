@@ -1,14 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync, existsSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { homedir, tmpdir } from "os";
 import { execFileSync } from "child_process";
 
-const HERMES_PYTHON = "/Users/amar/.hermes/hermes-agent/venv/bin/python";
+const DEFAULT_HERMES_HOME = join(homedir(), ".hermes");
+const DEFAULT_HERMES_PYTHON = join(
+  DEFAULT_HERMES_HOME,
+  "hermes-agent",
+  "venv",
+  process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
+);
+const HERMES_PYTHON = process.env.HERMES_TEST_PYTHON || DEFAULT_HERMES_PYTHON;
 const SEMANTIC_SEARCH_SCRIPT =
-  "/Users/amar/.hermes/skills/search/vault-semantic-search/semantic_search.py";
+  process.env.HERMES_VAULT_SEMANTIC_SEARCH_SCRIPT ||
+  join(
+    DEFAULT_HERMES_HOME,
+    "skills",
+    "search",
+    "vault-semantic-search",
+    "semantic_search.py",
+  );
+const hasExternalSkill =
+  (Boolean(process.env.HERMES_TEST_PYTHON) || existsSync(HERMES_PYTHON)) &&
+  existsSync(SEMANTIC_SEARCH_SCRIPT);
+const describeIf = describe.skipIf(!hasExternalSkill);
 
-describe("Vault Semantic Search Tool", () => {
+describeIf("Vault Semantic Search Tool", () => {
   let tempVaultDir: string;
   let tempEmbeddingsDir: string;
   let tempConfigPath: string;
@@ -159,6 +177,13 @@ Generate a secure SSH key pair using ed25519. Ensure the private key has a passp
   }, 60000);
 
   it("interacts with live Ollama if it is active", async () => {
+    if (process.env.HERMES_ENABLE_LIVE_OLLAMA_TEST !== "1") {
+      console.log(
+        "Skipping live Ollama test: set HERMES_ENABLE_LIVE_OLLAMA_TEST=1 to opt in.",
+      );
+      return;
+    }
+
     // Check if live Ollama is running on 11434
     let ollamaAlive = false;
     try {

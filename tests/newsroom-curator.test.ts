@@ -1,12 +1,30 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { homedir, tmpdir } from "os";
 import { execFileSync } from "child_process";
 
-const HERMES_PYTHON = "/Users/amar/.hermes/hermes-agent/venv/bin/python";
+const DEFAULT_HERMES_HOME = join(homedir(), ".hermes");
+const DEFAULT_HERMES_PYTHON = join(
+  DEFAULT_HERMES_HOME,
+  "hermes-agent",
+  "venv",
+  process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
+);
+const HERMES_PYTHON = process.env.HERMES_TEST_PYTHON || DEFAULT_HERMES_PYTHON;
 const CLUSTER_SCRIPT =
-  "/Users/amar/.hermes/skills/curation/newsroom-curator/cluster_news.py";
+  process.env.HERMES_NEWSROOM_CURATOR_SCRIPT ||
+  join(
+    DEFAULT_HERMES_HOME,
+    "skills",
+    "curation",
+    "newsroom-curator",
+    "cluster_news.py",
+  );
+const hasExternalSkill =
+  (Boolean(process.env.HERMES_TEST_PYTHON) || existsSync(HERMES_PYTHON)) &&
+  existsSync(CLUSTER_SCRIPT);
+const describeIf = describe.skipIf(!hasExternalSkill);
 const TEST_TIMEOUT_MS = 30_000;
 const PYTHON_CLUSTER_WRAPPER = String.raw`
 import importlib.util
@@ -65,7 +83,7 @@ function runCluster(
   return JSON.parse(outputRaw.toString().trim());
 }
 
-describe("Newsroom Curator: Semantic Similarity Clustering", () => {
+describeIf("Newsroom Curator: Semantic Similarity Clustering", () => {
   let tempVaultDir: string;
   let tempInboxDir: string;
 

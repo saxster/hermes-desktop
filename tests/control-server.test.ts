@@ -7,6 +7,15 @@ vi.mock("fs", () => {
   const fns = {
     existsSync: () => true,
     mkdirSync: () => {},
+    readFileSync: (path: string) => {
+      if (path.includes("closed-app-gateway.json")) {
+        return JSON.stringify({
+          status: "restarted",
+          lastOutageMs: 3600000,
+        });
+      }
+      return "{}";
+    },
     writeFileSync: (...args: unknown[]) => mockWriteFileSync(...args),
     chmodSync: (...args: unknown[]) => mockChmodSync(...args),
   };
@@ -26,6 +35,7 @@ const mockSendMessage = vi.fn();
 const mockIsGatewayRunning = vi.fn(() => false);
 const mockRunJobHeadless = vi.fn(() => Promise.resolve(true));
 const mockCalendarQuery = vi.fn(() => []);
+const mockCaptureMobileWorkspaceTask = vi.fn();
 
 vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),
@@ -44,6 +54,11 @@ vi.mock("../src/main/scheduler", () => ({
     mockRunJobHeadless(jobId, jobName, profile),
 }));
 
+vi.mock("../src/main/mobile-workspace-intake", () => ({
+  captureMobileWorkspaceTask: (input: unknown, profile?: string) =>
+    mockCaptureMobileWorkspaceTask(input, profile),
+}));
+
 vi.mock("../src/main/note-index", () => ({
   getSpsNoteIndex: () => Promise.resolve({ query: mockCalendarQuery }),
 }));
@@ -60,6 +75,7 @@ vi.mock("../src/main/installer/paths", () => ({
 
 import {
   renderCronScript,
+  renderSpsHelperScript,
   startControlServer,
   stopControlServer,
 } from "../src/main/control-server";
@@ -72,6 +88,16 @@ describe("renderCronScript", () => {
     expect(script).toContain("desktop.log");
     expect(script).toContain("writeCronLog('info'");
     expect(script).toContain("writeCronLog('error'");
+  });
+});
+
+describe("renderSpsHelperScript", () => {
+  it("exposes a guarded mobile task capture command", () => {
+    const script = renderSpsHelperScript(8645, "/tmp/token");
+
+    expect(script).toContain("Usage: sps task <text>");
+    expect(script).toContain('"$BASE/sps/mobile-task"');
+    expect(script).toContain('{text, channel:"telegram"}');
   });
 });
 
@@ -126,6 +152,10 @@ describe("Local Control Server Integration", () => {
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.profile).toBe("test-profile");
     expect(data.controlPort).toBe(port);
+    expect(data.closedAppGateway).toMatchObject({
+      status: "restarted",
+      lastOutageMs: 3600000,
+    });
   });
 
   it("should reject unauthorized requests", async () => {
@@ -215,6 +245,49 @@ describe("Local Control Server Integration", () => {
     expect(mockRunJobHeadless).toHaveBeenCalledWith(
       "job-123",
       "Test Run",
+      "test-profile",
+    );
+  });
+
+  it("captures a guarded mobile task on POST /sps/mobile-task", async () => {
+    const desktopConfig: Record<string, unknown> = {};
+    mockReadDesktopConfig.mockReturnValue(desktopConfig);
+    mockCaptureMobileWorkspaceTask.mockResolvedValueOnce({
+      success: true,
+      rowId: "mobile-task-1",
+      title: "Check Friday guard roster",
+    });
+
+    const port = await startControlServer();
+    const token = desktopConfig.controlServerToken;
+
+    const res = await fetch(`http://127.0.0.1:${port}/sps/mobile-task`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        text: "add this as a task: Check Friday guard roster",
+        channel: "telegram",
+        chatId: "12345",
+        externalMessageId: "msg-1",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      success: true,
+      rowId: "mobile-task-1",
+    });
+    expect(mockCaptureMobileWorkspaceTask).toHaveBeenCalledWith(
+      {
+        text: "add this as a task: Check Friday guard roster",
+        channel: "telegram",
+        chatId: "12345",
+        externalMessageId: "msg-1",
+        capturedAt: undefined,
+      },
       "test-profile",
     );
   });

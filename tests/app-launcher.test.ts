@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
+import { rmSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+
+const ORIGINAL_PLATFORM = process.platform;
+
+function stubPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, "platform", { value: platform });
+}
 
 const {
   TEST_HOME,
@@ -11,13 +16,9 @@ const {
   appendAuditLogMock,
   connectionModeRef,
 } = vi.hoisted(() => {
-  const fs = require("fs");
-  const os = require("os");
-  const path = require("path");
+  const tmpRoot = process.env.TMPDIR || "/tmp";
   return {
-    TEST_HOME: fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), "app-launcher-test-")),
-    ),
+    TEST_HOME: `${tmpRoot.replace(/\/$/, "")}/app-launcher-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     execFileMock: vi.fn(),
     openExternalMock: vi.fn(),
     showOpenDialogMock: vi.fn(),
@@ -40,9 +41,13 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("../src/main/utils", () => ({
-  profileHome: (profile?: string) => join(TEST_HOME, profile || "default"),
-}));
+vi.mock("../src/main/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/main/utils")>();
+  return {
+    ...actual,
+    profileHome: (profile?: string) => join(TEST_HOME, profile || "default"),
+  };
+});
 
 vi.mock("../src/main/audit-log", () => ({
   appendAuditLog: appendAuditLogMock,
@@ -65,6 +70,7 @@ import {
 
 describe("app launcher main service", () => {
   beforeEach(() => {
+    stubPlatform(ORIGINAL_PLATFORM);
     connectionModeRef.mode = "local";
     execFileMock.mockReset();
     execFileMock.mockImplementation(
@@ -83,10 +89,12 @@ describe("app launcher main service", () => {
   });
 
   afterEach(() => {
+    stubPlatform(ORIGINAL_PLATFORM);
     rmSync(TEST_HOME, { recursive: true, force: true });
   });
 
   it("launches a reviewed macOS app with /usr/bin/open and shell:false", async () => {
+    stubPlatform("darwin");
     const added = addMacApplicationTarget({
       label: "Slack",
       appPath: "/Applications/Slack.app",
@@ -114,8 +122,7 @@ describe("app launcher main service", () => {
   });
 
   it("adds macOS app targets only through the native picker", async () => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, "platform", { value: "darwin" });
+    stubPlatform("darwin");
     showOpenDialogMock.mockResolvedValueOnce({
       canceled: false,
       filePaths: ["/Applications/Calendar.app"],
@@ -129,7 +136,6 @@ describe("app launcher main service", () => {
       kind: "macos-app",
       appPath: "/Applications/Calendar.app",
     });
-    Object.defineProperty(process, "platform", { value: originalPlatform });
   });
 
   it("launches allowed URL targets through shell.openExternal", async () => {
@@ -143,7 +149,9 @@ describe("app launcher main service", () => {
     const result = await runAppLaunchTarget(target.id);
 
     expect(result.ok).toBe(true);
-    expect(openExternalMock).toHaveBeenCalledWith("https://status.example.com/");
+    expect(openExternalMock).toHaveBeenCalledWith(
+      "https://status.example.com/",
+    );
     expect(execFileMock).not.toHaveBeenCalled();
   });
 
@@ -220,6 +228,7 @@ describe("app launcher main service", () => {
   });
 
   it("persists failed launch status and error", async () => {
+    stubPlatform("darwin");
     execFileMock.mockImplementationOnce(
       (
         _file: string,
