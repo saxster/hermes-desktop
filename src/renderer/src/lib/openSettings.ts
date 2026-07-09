@@ -9,11 +9,24 @@
 /** Every view the admin overlay (Layout) can show. Layout imports this as its
  *  `View` type so the deep-link target and the nav union never drift. */
 export type AdminView =
+  | "overview"
+  | "aiSetup"
   | "models"
+  | "personalization"
+  | "preferences"
+  | "dataPrivacy"
+  | "connectedApps"
+  | "troubleshooting"
+  | "advanced"
   | "providers"
   | "gateway"
   | "spsAgent"
   | "settings";
+
+export type NormalizedAdminView = Exclude<
+  AdminView,
+  "providers" | "gateway" | "spsAgent" | "settings"
+>;
 
 export const OPEN_SETTINGS_EVENT = "hermes:open-settings";
 
@@ -42,32 +55,42 @@ export function openSettings(view?: AdminView): void {
 // and Layout (writes on every tab switch) share one key + one validator.
 export const ADMIN_LAST_VIEW_KEY = "hermes.admin.lastView";
 
-const KNOWN_VIEWS = new Set<AdminView>([
-  "models",
-  "providers",
-  "gateway",
-  "spsAgent",
-  "settings",
-]);
+const VIEW_ALIASES: Record<string, NormalizedAdminView> = {
+  overview: "overview",
+  aiSetup: "aiSetup",
+  models: "models",
+  personalization: "personalization",
+  preferences: "preferences",
+  dataPrivacy: "dataPrivacy",
+  connectedApps: "connectedApps",
+  troubleshooting: "troubleshooting",
+  advanced: "advanced",
+  providers: "aiSetup",
+  gateway: "connectedApps",
+  settings: "overview",
+  spsAgent: "overview",
+};
 
-function isAdminView(v: string | null): v is AdminView {
-  return v !== null && KNOWN_VIEWS.has(v as AdminView);
+export function normalizeAdminView(
+  view?: AdminView | string,
+): NormalizedAdminView {
+  return view ? (VIEW_ALIASES[view] ?? "overview") : "overview";
 }
 
-/** Last admin tab the user viewed, or "settings" if none/invalid. */
-export function readLastAdminView(): AdminView {
+/** Last admin tab the user viewed, or "overview" if none/invalid. */
+export function readLastAdminView(): NormalizedAdminView {
   try {
     const stored = window.localStorage.getItem(ADMIN_LAST_VIEW_KEY);
-    if (isAdminView(stored)) return stored;
+    return normalizeAdminView(stored ?? undefined);
   } catch {
     /* localStorage unavailable — fall through to default */
   }
-  return "settings";
+  return "overview";
 }
 
-export function writeLastAdminView(view: AdminView): void {
+export function writeLastAdminView(view: AdminView | string): void {
   try {
-    window.localStorage.setItem(ADMIN_LAST_VIEW_KEY, view);
+    window.localStorage.setItem(ADMIN_LAST_VIEW_KEY, normalizeAdminView(view));
   } catch {
     /* non-fatal: persistence is best-effort */
   }
