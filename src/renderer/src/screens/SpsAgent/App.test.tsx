@@ -178,29 +178,13 @@ beforeEach(() => {
 });
 
 describe("SpsAgent App doc surface", () => {
-  it("keeps onboarding and what's-new affordances in one compact strip before the document", () => {
+  it("opens directly on the document without persistent onboarding chrome", () => {
     const { container } = render(<App />);
 
-    const strip = container.querySelector(".home-affordance-strip");
-    expect(strip).toBeInTheDocument();
-    expect(screen.getByTestId("doc-header").previousElementSibling).toBe(strip);
-    expect(screen.getByTestId("onboarding-checklist")).toHaveAttribute(
-      "data-variant",
-      "compact",
-    );
-    expect(screen.getByTestId("whats-new-panel")).toHaveAttribute(
-      "data-variant",
-      "compact",
-    );
-    expect(componentCalls.onboarding).toHaveBeenCalledWith({
-      variant: "compact",
-    });
-    expect(componentCalls.whatsNew).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: "compact" }),
-    );
-    expect(
-      container.querySelectorAll(".doc-scroll > .ob-checklist"),
-    ).toHaveLength(0);
+    expect(container.querySelector(".home-affordance-strip")).toBeNull();
+    expect(screen.getByTestId("doc-header")).toBeInTheDocument();
+    expect(componentCalls.onboarding).not.toHaveBeenCalled();
+    expect(componentCalls.whatsNew).not.toHaveBeenCalled();
   });
 
   it.each([

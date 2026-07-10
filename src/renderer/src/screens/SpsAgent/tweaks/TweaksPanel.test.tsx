@@ -38,6 +38,7 @@ describe("TweaksPanel", () => {
     expect(screen.getByText("Layout")).toBeTruthy();
     expect(screen.getByLabelText("Content width")).toBeTruthy();
     expect(screen.getByText("Sidebar sections")).toBeTruthy();
+    expect(screen.queryByLabelText("Home page")).toBeNull();
     expect(screen.queryByText("Appearance")).toBeNull();
     expect(screen.queryByText("Typography")).toBeNull();
     expect(screen.queryByText("Storage")).toBeNull();

@@ -768,7 +768,10 @@
   flex: none;
 }
 .sps-scope .crumb .seg {
+  border: 0;
+  background: transparent;
   color: var(--tx-2);
+  font: inherit;
   padding: 3px 6px;
   border-radius: 5px;
   cursor: pointer;
@@ -1221,6 +1224,161 @@
 .sps-scope .b-col-add:hover {
   border-color: var(--accent);
   color: var(--tx-1);
+}
+
+/* ── calm Today dashboard ─────────────────────────────────────────────────── */
+.sps-scope .today-dashboard {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 56px 48px 80px;
+}
+.sps-scope .today-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--hair);
+}
+.sps-scope .today-eyebrow {
+  margin: 0 0 5px;
+  color: var(--tx-3);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sps-scope .today-header h1 {
+  margin: 0;
+  color: var(--tx-1);
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.sps-scope .today-actions {
+  display: flex;
+  gap: 8px;
+}
+.sps-scope .today-actions button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--hair);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tx-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sps-scope .today-actions button:hover {
+  background: var(--row-hover);
+  color: var(--tx-1);
+}
+.sps-scope .today-section {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--hair-soft);
+}
+.sps-scope .today-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.sps-scope .today-section h2 {
+  margin: 0;
+  color: var(--tx-1);
+  font-size: 15px;
+  font-weight: 650;
+}
+.sps-scope .today-section-heading p,
+.sps-scope .today-empty {
+  margin: 3px 0 0;
+  color: var(--tx-3);
+  font-size: 12px;
+}
+.sps-scope .today-scratchpad textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tx-1);
+  font: 15px/1.55 var(--font-sans);
+  outline: none;
+}
+.sps-scope .today-scratchpad textarea:focus {
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 12px;
+}
+.sps-scope .today-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+}
+.sps-scope .today-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sps-scope .today-list li {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--hair-soft);
+}
+.sps-scope .today-list li:first-child {
+  border-top: 0;
+}
+.sps-scope .today-list li > button:first-child {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--tx-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.sps-scope .today-list li > button:first-child:hover {
+  color: var(--tx-1);
+}
+.sps-scope .today-row-action {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tx-3);
+  cursor: pointer;
+}
+.sps-scope .today-row-action:hover {
+  background: var(--row-hover);
+  color: var(--tx-1);
+}
+@media (max-width: 720px) {
+  .sps-scope .today-dashboard {
+    padding: 32px 24px 64px;
+  }
+  .sps-scope .today-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .sps-scope .today-columns {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 
 /* ── cockpit dashboard ─────────────────────────────────────────────────────── */
@@ -2913,10 +3071,13 @@
   padding: 7px 10px;
 }
 
-/* --- command palette: filter chips + two-column preview --- */
-.sps-scope .palette.palette-wide {
-  width: min(880px, 94vw);
+/* --- command palette: compact commands, document preview on demand --- */
+.sps-scope .palette.palette-search {
+  width: min(620px, 94vw);
   max-height: 70vh;
+}
+.sps-scope .palette.palette-search.has-preview {
+  width: min(880px, 94vw);
 }
 .sps-scope .pal-filters {
   display: flex;
@@ -2959,6 +3120,16 @@
 .sps-scope .pal-body .pal-list {
   flex: 1;
   min-width: 0;
+}
+.sps-scope .pal-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+.sps-scope .pal-item.sel {
+  background: var(--row-hover);
 }
 .sps-scope .pal-preview {
   width: 340px;

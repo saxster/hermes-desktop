@@ -6,6 +6,7 @@ import {
   topModels,
   formatCost,
 } from "../../../../shared/usage";
+import { useStore } from "../SpsAgent/store";
 
 const RUN_CAP = 25;
 
@@ -38,6 +39,7 @@ function Insights({
   const [stats, setStats] = useState<UsageAggregate | null>(null);
   const [ledger, setLedger] = useState<RunLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const startNewChat = useStore((state) => state.startNewChat);
 
   useEffect(() => {
     if (!visible) return;
@@ -84,10 +86,23 @@ function Insights({
       {loading ? (
         <div className="insights-empty">Loading…</div>
       ) : !hasData ? (
-        <div className="insights-empty">
-          No usage recorded yet. Costs appear here after you chat with the
-          agent.
-        </div>
+        <section
+          className="insights-empty"
+          aria-labelledby="insights-empty-title"
+        >
+          <h2 id="insights-empty-title">No usage yet</h2>
+          <p>
+            Token and cost history will appear here after My Assistant completes
+            a chat turn for this profile.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => startNewChat()}
+          >
+            Start a chat
+          </button>
+        </section>
       ) : (
         <div className="insights-body">
           <section className="insights-cards">

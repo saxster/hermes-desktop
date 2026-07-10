@@ -83,6 +83,20 @@ afterEach(() => {
 });
 
 describe("CommandPalette", () => {
+  it("stays compact for commands and previews document results only", async () => {
+    const { container } = render(<CommandPalette />);
+
+    await screen.findAllByText("What's new");
+    expect(container.querySelector(".palette.has-preview")).toBeNull();
+    expect(container.querySelector(".pal-preview")).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText("Search or open in new tab…"), {
+      target: { value: "Launch Notes" },
+    });
+    expect(await screen.findByText("Existing page text")).toBeInTheDocument();
+    expect(container.querySelector(".palette.has-preview")).not.toBeNull();
+  });
+
   it("offers what's new when update affordances are unseen", async () => {
     render(<CommandPalette />);
 
@@ -128,8 +142,9 @@ describe("CommandPalette", () => {
 
     const [actionLabel] = await screen.findAllByText("What's new");
     expect(
-      screen.getByText("Review 1 available Hermes Agent update."),
-    ).toBeInTheDocument();
+      screen.queryByText("Review 1 available Hermes Agent update."),
+    ).not.toBeInTheDocument();
+    expect(document.querySelector(".pal-preview")).toBeNull();
 
     fireEvent.mouseDown(actionLabel);
 

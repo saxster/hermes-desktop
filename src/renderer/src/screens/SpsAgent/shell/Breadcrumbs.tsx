@@ -10,12 +10,12 @@ export function Breadcrumbs() {
   const meta = useStore((s) => s.meta);
   const selectPage = useStore((s) => s.selectPage);
   const pathIds = useMemo(() => computePathIds(tree, page), [tree, page]);
+  const ancestorIds = pathIds.slice(0, -1);
 
   return (
-    <div className="crumb">
-      {pathIds.map((id, i) => {
+    <div className="crumb" aria-label="Parent pages">
+      {ancestorIds.map((id, i) => {
         const m = meta[id] || { icon: "📄", title: "Untitled" };
-        const last = i === pathIds.length - 1;
         return (
           <Fragment key={id}>
             {i > 0 && (
@@ -23,17 +23,13 @@ export function Breadcrumbs() {
                 <Icon name="chevR" size={14} />
               </span>
             )}
-            <span className="seg" onClick={() => selectPage(id)}>
-              {last ? (
-                <b>
-                  {m.icon} {m.title}
-                </b>
-              ) : (
-                <>
-                  {m.icon} {m.title}
-                </>
-              )}
-            </span>
+            <button
+              type="button"
+              className="seg"
+              onClick={() => selectPage(id)}
+            >
+              {m.icon} {m.title}
+            </button>
           </Fragment>
         );
       })}

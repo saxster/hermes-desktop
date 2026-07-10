@@ -717,15 +717,9 @@ button.twk-field:disabled {
 }
 
 .sps-scope .graph-title-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
   flex: none;
   color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  border-radius: 8px;
 }
 
 .sps-scope .graph-title h1 {
@@ -754,11 +748,9 @@ button.twk-field:disabled {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
-  padding: 0 10px;
-  color: var(--tx-2);
-  background: var(--surface);
-  border: 1px solid var(--hair);
-  border-radius: 7px;
+  padding: 0 0 0 8px;
+  color: var(--tx-3);
+  border-left: 1px solid var(--hair);
   font-size: 12px;
   font-weight: 600;
 }
@@ -776,11 +768,10 @@ button.twk-field:disabled {
   align-items: center;
   min-height: 24px;
   max-width: 160px;
-  padding: 0 8px;
-  color: var(--tx-2);
-  background: var(--surface);
-  border: 1px solid var(--hair);
-  border-radius: 999px;
+  padding: 0;
+  color: var(--tx-3);
+  background: transparent;
+  border: 0;
   font-size: 11px;
   font-weight: 650;
   overflow: hidden;
@@ -793,14 +784,12 @@ button.twk-field:disabled {
   min-height: 560px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--hair);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 0;
   overflow: hidden;
-  background: var(--canvas);
+  background: transparent;
   position: relative;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.03) inset,
-    0 18px 42px rgba(0, 0, 0, 0.16);
+  box-shadow: none;
 }
 
 .sps-scope .graph-toolbar {
@@ -809,7 +798,8 @@ button.twk-field:disabled {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  background: var(--surface);
+  background: transparent;
+  border-top: 1px solid var(--hair);
   border-bottom: 1px solid var(--hair);
 }
 

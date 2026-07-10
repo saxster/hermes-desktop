@@ -85,10 +85,12 @@ describe("QueryDatabase", () => {
       spsExportRow: exportRow,
     });
     render(<QueryDatabase block={block} />);
-    fireEvent.change(screen.getByPlaceholderText("New row…"), {
+    expect(screen.queryByLabelText("New database row")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "New row" }));
+    fireEvent.change(screen.getByLabelText("Row title"), {
       target: { value: "New Task" },
     });
-    fireEvent.click(screen.getByText("Add"));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => expect(exportRow).toHaveBeenCalledTimes(1));
     const [folder, rowId, markdown] = exportRow.mock.calls[0];
     expect(folder).toBe("db1");
@@ -105,7 +107,8 @@ describe("QueryDatabase", () => {
     });
     render(<QueryDatabase block={block} />);
     await screen.findByText("No rows yet");
-    fireEvent.click(screen.getByText("Add"));
+    fireEvent.click(screen.getByRole("button", { name: "New row" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(exportRow).not.toHaveBeenCalled();
   });
 

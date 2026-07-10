@@ -42,7 +42,7 @@ the named validation evidence both exist.
 - [x] Keep connection status compact and move global Settings to the app-level
       command/profile path.
 - [ ] Use one functional icon language; page emoji remains content metadata.
-- [ ] Make Home one stable product concept.
+- [x] Make Home one stable product concept.
 - [x] Replace the full-screen Control Center overlay with a single settings
       presentation that has one navigation model and one close path.
 - [x] Keep global appearance/preferences in Settings and limit Workspace
@@ -50,18 +50,18 @@ the named validation evidence both exist.
 
 ## Core surfaces
 
-- [ ] Home/document: remove duplicate page identity and persistent onboarding
+- [x] Home/document: remove duplicate page identity and persistent onboarding
       chrome.
-- [ ] Dashboard: remove the tilted/inverted scratchpad and simplify into a calm
+- [x] Dashboard: remove the tilted/inverted scratchpad and simplify into a calm
       Today overview.
-- [ ] Search: use a compact command/search presentation and show preview only
+- [x] Search: use a compact command/search presentation and show preview only
       for document results.
-- [ ] Document editor: one title, subordinate metadata, readable line length.
+- [x] Document editor: one title, subordinate metadata, readable line length.
 - [x] Document inspector: labels never clip; less-used tabs move to overflow.
-- [ ] Query database: use available width and make row creation on demand.
-- [ ] Graph: remove dashboard-card framing; toolbar owns graph controls and the
+- [x] Query database: use available width and make row creation on demand.
+- [x] Graph: remove dashboard-card framing; toolbar owns graph controls and the
       inspector owns selection detail.
-- [ ] Insights: provide a contextual empty state and primary action.
+- [x] Insights: provide a contextual empty state and primary action.
 
 ## Workflow surfaces
 
@@ -153,3 +153,26 @@ the named validation evidence both exist.
   Data & Privacy screenshots. `02d-control-center.png`,
   `02e-settings-preferences.png`, `02f-settings-data-privacy.png`, and
   `04-tweaks.png` were visually reviewed.
+
+### Core workspace surfaces phase
+
+- Home now opens directly on the document, current-page identity appears only
+  in the editable page title, and authored content is no longer preceded by a
+  persistent onboarding/update strip. Parent breadcrumbs remain keyboard
+  accessible in the toolbar.
+- Dashboard is a restrained Today surface with New page/New task, a plain
+  inline local scratchpad, and simple Pinned/Recent lists. The rotated post-it
+  treatment and fabricated market, weather, news, sports, and schedule panels
+  were removed.
+- Command search is compact for commands and expands only when a highlighted
+  page or in-page result has a document preview. Result rows are real buttons.
+- Query database row creation is hidden until New row is requested; Escape and
+  Cancel dismiss it. Graph summary, relation legend, toolbar, and canvas now
+  form one full-width surface without a surrounding card or shadow.
+- Insights has an explanatory no-usage state and Start a chat action; populated
+  summary metrics use separators rather than cards.
+- Focused Home, Dashboard, command-search, Query Database, Graph, and Insights
+  suites pass (29 tests); both TypeScript projects and the production build pass.
+- Primary Electron smoke passes 32 steps. `01-home.png`, `02-palette.png`,
+  `02-dashboard.png`, `03-graph.png`, `06-querydb.png`, and
+  `07-querydb-addrow.png` were visually reviewed at the standard viewport.

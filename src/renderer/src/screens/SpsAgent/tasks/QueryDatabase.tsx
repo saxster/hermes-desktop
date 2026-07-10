@@ -49,6 +49,7 @@ export function QueryDatabase({ block, update }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
 
   const setOpenTask = useStore((s) => s.setOpenTask);
 
@@ -138,6 +139,7 @@ export function QueryDatabase({ block, update }: Props) {
     if (!trimmed) return;
     await createRow({ title: trimmed, status });
     setTitle("");
+    setFormOpen(false);
   };
 
   const deleteRow = async (taskId: string): Promise<void> => {
@@ -260,8 +262,11 @@ export function QueryDatabase({ block, update }: Props) {
           )}
         </div>
         <div className="db-new-btn-group">
-          <button className="db-tool db-new-btn-main" onClick={() => addRow()}>
-            <Icon name="plus" size={14} /> Add Row
+          <button
+            className="db-tool db-new-btn-main"
+            onClick={() => setFormOpen(true)}
+          >
+            <Icon name="plus" size={14} /> New row
           </button>
           <button
             className="db-tool db-new-btn-arrow"
@@ -359,33 +364,44 @@ export function QueryDatabase({ block, update }: Props) {
 
       {rows.length === 0 && <div className="qdb-empty">No rows yet</div>}
 
-      <div className="qdb-form">
-        <input
-          className="qdb-input"
-          value={title}
-          placeholder="New row…"
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void addFromForm();
-          }}
-          title="New row title"
-        />
-        <select
-          className="qdb-select"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as StatusKey)}
-          title="Status"
-        >
-          {statuses.map((s) => (
-            <option key={s} value={s}>
-              {STATUS[s]?.label || s}
-            </option>
-          ))}
-        </select>
-        <button className="qdb-add" onClick={() => void addFromForm()}>
-          <Icon name="plus" size={14} /> Add
-        </button>
-      </div>
+      {formOpen && (
+        <div className="qdb-form" role="group" aria-label="New database row">
+          <input
+            autoFocus
+            className="qdb-input"
+            value={title}
+            placeholder="Row title"
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void addFromForm();
+              if (e.key === "Escape") setFormOpen(false);
+            }}
+            aria-label="Row title"
+          />
+          <select
+            className="qdb-select"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as StatusKey)}
+            aria-label="Status"
+          >
+            {statuses.map((s) => (
+              <option key={s} value={s}>
+                {STATUS[s]?.label || s}
+              </option>
+            ))}
+          </select>
+          <button className="qdb-add" onClick={() => void addFromForm()}>
+            Add
+          </button>
+          <button
+            type="button"
+            className="db-tool"
+            onClick={() => setFormOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {prop && (
         <PropMenu

@@ -459,18 +459,6 @@ export function TweaksPanel() {
         options={["narrow", "comfortable", "wide", "full"]}
         onChange={(v) => setTweak("width", v)}
       />
-      <Select<Tweaks["homeSurface"]>
-        label="Home page"
-        value={t.homeSurface ?? "doc"}
-        options={["doc", "cockpit", "chats", "inbox"]}
-        labels={{
-          doc: "Document Editor",
-          cockpit: "Cockpit Dashboard",
-          chats: "AI Chats",
-          inbox: "Inbox Review",
-        }}
-        onChange={(v) => setTweak("homeSurface", v)}
-      />
       <SidebarSections />
     </Shell>
   );

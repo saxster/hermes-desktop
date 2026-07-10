@@ -136,7 +136,6 @@ const workspace = {
   },
   docs: {
     home: [
-      { id: "h1", type: "h1", text: "Home" },
       { id: "p1", type: "p", text: "Welcome to the smoke workspace." },
       { id: "pl1", type: "page", text: "", pageId: "alpha" },
     ],
@@ -176,11 +175,11 @@ const workspace = {
 writeFileSync(join(sps, "workspace.json"), JSON.stringify(workspace, null, 2));
 writeFileSync(
   join(vault, "home.md"),
-  `---\ntitle: "Home"\nicon: "🏠"\n---\n\n# Home\n\nWelcome to the smoke workspace.\n\n[[alpha]]\n`,
+  `---\ntitle: "Home"\nicon: "🏠"\n---\n\nWelcome to the smoke workspace.\n\n[[alpha]]\n`,
 );
 writeFileSync(
   join(vault, "alpha.md"),
-  `---\ntitle: "Alpha"\n---\n\n# Alpha\n\nA linked page.\n`,
+  `---\ntitle: "Alpha"\n---\n\nA linked page.\n`,
 );
 writeFileSync(
   join(vault, "db.md"),
@@ -432,13 +431,20 @@ function assertQuickCaptureTaskPersisted() {
 // 01 — initial SPS workspace (sectioned sidebar incl. the Graph nav item).
 await shot("01-home");
 
-// 02 — ⌘K command palette (two-pane preview).
+// 02 — compact ⌘K command palette (document previews appear only on results).
 await shot("02-palette", async () => {
   await win.evaluate(() => {
     window.dispatchEvent(new CustomEvent("sps:search"));
   });
 });
 await win.keyboard.press("Escape").catch(() => {});
+
+// 02-dashboard — calm Today overview with inline scratchpad.
+await shot("02-dashboard", async () => {
+  await openCommand("Open Dashboard");
+  await win.getByLabel("Today scratchpad").waitFor({ timeout: 8000 });
+});
+await win.getByText("Home", { exact: true }).first().click();
 
 // 02a — Learning surface, opened from command palette.
 await shot("02a-learning", async () => {
@@ -531,8 +537,9 @@ await win
 await shot("06-querydb", async () => {
   await win.getByText("Projects DB", { exact: true }).first().click();
 });
-// 07 — add a row through the inline "Form".
+// 07 — open row creation on demand, then add a row.
 await shot("07-querydb-addrow", async () => {
+  await win.getByRole("button", { name: "New row" }).click();
   await win.locator(".qdb-input").fill("Smoke row");
   await win.getByText("Add", { exact: true }).first().click();
 });

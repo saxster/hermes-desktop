@@ -111,7 +111,6 @@ export function Sidebar() {
   const setSurface = useStore((s) => s.setSurface);
   const selectPage = useStore((s) => s.selectPage);
   const setResearchOpen = useStore((s) => s.setResearchOpen);
-  const homeSurface = useStore((s) => s.t.homeSurface ?? "doc");
   // Selecting a page always returns to the document surface.
   const selectDoc = (id: string): void => {
     selectPage(id);
@@ -259,11 +258,7 @@ export function Sidebar() {
 
         <button
           type="button"
-          className={`nav-item ${
-            homeSurface === "doc" && activeId === "home" && surface === "doc"
-              ? "active"
-              : ""
-          }`}
+          className={`nav-item ${activeId === "home" && surface === "doc" ? "active" : ""}`}
           onClick={() => selectDoc("home")}
           title="Home"
           aria-label="Home"

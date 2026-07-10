@@ -682,12 +682,13 @@ export function CommandPalette() {
   }, [flat, sel]);
 
   const selected = flat[sel];
+  const showPreview = Boolean(selected && selected.kind !== "action");
 
   let idx = -1;
   return (
     <div className="scrim" onMouseDown={onClose}>
       <div
-        className="palette palette-wide"
+        className={`palette palette-search ${showPreview ? "has-preview" : ""}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="pal-input">
@@ -710,7 +711,7 @@ export function CommandPalette() {
           </button>
         </div>
 
-        <div className="pal-body">
+        <div className="pal-body" data-preview={showPreview ? "true" : "false"}>
           <div className="pal-list scroll">
             {grouped.length === 0 && (
               <div className="pal-group">No results for “{q}”</div>
@@ -722,7 +723,8 @@ export function CommandPalette() {
                   idx++;
                   const here = idx;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={item.kind + item.id}
                       className={`pal-item ${here === sel ? "sel" : ""}`}
                       onMouseEnter={() => setSel(here)}
@@ -752,14 +754,16 @@ export function CommandPalette() {
                       {item.kind === "action" && item.hint && (
                         <span className="hint">{item.hint}</span>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             ))}
           </div>
 
-          <PalettePreview item={selected} tree={tree} meta={meta} docs={docs} />
+          {showPreview && (
+            <PalettePreview item={selected} tree={tree} meta={meta} docs={docs} />
+          )}
         </div>
 
         <div className="pal-foot">
@@ -790,27 +794,7 @@ function PalettePreview({
   meta: Record<string, PageMeta>;
   docs: Record<string, import("../types").Block[]>;
 }) {
-  if (!item) {
-    return (
-      <div className="pal-preview pal-preview-empty">
-        <Icon name="search" size={22} style={{ color: "var(--tx-4)" }} />
-        <div>Search your workspace</div>
-      </div>
-    );
-  }
-
-  if (item.kind === "action") {
-    return (
-      <div className="pal-preview">
-        <div className="pal-pv-ic">
-          <Icon name={item.icon} size={22} />
-        </div>
-        <div className="pal-pv-crumb">Command</div>
-        <div className="pal-pv-title">{item.label}</div>
-        <div className="pal-pv-desc">{item.desc}</div>
-      </div>
-    );
-  }
+  if (!item || item.kind === "action") return null;
 
   const pid = item.kind === "content" ? item.pageId : item.id;
   const crumbIds = computePathIds(tree, pid);

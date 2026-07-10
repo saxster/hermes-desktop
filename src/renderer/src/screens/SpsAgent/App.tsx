@@ -12,7 +12,6 @@ import { Editor } from "./editor/Editor";
 import { RightPanel } from "./panel/RightPanel";
 import { Overlays } from "./shell/Overlays";
 import { Toast } from "./components/Toast";
-import { OnboardingChecklist } from "./components/OnboardingChecklist";
 import { SaveStatus } from "./components/SaveStatus";
 import { OcrStatus } from "./components/OcrStatus";
 import Insights from "../Insights/Insights";
@@ -43,10 +42,6 @@ import { RssReaderDashboard } from "./research/RssReaderDashboard";
 import { Dashboard } from "./components/Dashboard";
 import { ContentStudioSurface } from "./content/ContentStudioSurface";
 import { DeckStudioSurface } from "./deck/DeckStudioSurface";
-import { WhatsNewPanel } from "./updates/WhatsNewPanel";
-import { openSettings } from "../../lib/openSettings";
-import type { ReleaseAffordanceAction } from "../../../../shared/update-affordances";
-import type { Surface } from "./store/storeTypes";
 
 type WorkspaceWidth = "compact" | "standard" | "expanded";
 
@@ -69,40 +64,12 @@ export function App() {
   const setPanelOpen = useStore((s) => s.setPanelOpen);
   const surface = useStore((s) => s.surface);
   const chatNonce = useStore((s) => s.chatNonce);
-  const setSurface = useStore((s) => s.setSurface);
-  const setTemplatesOpen = useStore((s) => s.setTemplatesOpen);
-  const setResearchOpen = useStore((s) => s.setResearchOpen);
-  const setScheduledOpen = useStore((s) => s.setScheduledOpen);
-  const setPaletteOpen = useStore((s) => s.setPaletteOpen);
-  const setTweaksOpen = useStore((s) => s.setTweaksOpen);
   const mainLayoutRef = useRef<HTMLDivElement>(null);
   const docScrollRef = useRef<HTMLDivElement>(null);
   const [workspaceWidth, setWorkspaceWidth] = useState<WorkspaceWidth>(
     initialWorkspaceWidth,
   );
   const wasCompactRef = useRef(workspaceWidth === "compact");
-
-  const runReleaseAffordance = (action: ReleaseAffordanceAction): void => {
-    if (action.kind === "surface") {
-      setSurface(action.surface as Surface);
-      return;
-    }
-    if (action.kind === "settings") {
-      openSettings(action.view);
-      return;
-    }
-    if (action.modal === "research") {
-      setResearchOpen(true);
-    } else if (action.modal === "scheduled") {
-      setScheduledOpen(true);
-    } else if (action.modal === "templates") {
-      setTemplatesOpen({ parent: null });
-    } else if (action.modal === "palette") {
-      setPaletteOpen(true);
-    } else {
-      setTweaksOpen(true);
-    }
-  };
 
   useEffect(() => {
     setScrollContainer(docScrollRef.current);
@@ -249,13 +216,6 @@ export function App() {
             <>
               <Topbar />
               <div className="doc-scroll scroll" ref={docScrollRef}>
-                <div className="home-affordance-strip">
-                  <OnboardingChecklist variant="compact" />
-                  <WhatsNewPanel
-                    onRunAction={runReleaseAffordance}
-                    variant="compact"
-                  />
-                </div>
                 <DocHeader>
                   {/* distinct key so the editor remounts (clean refs) on page switch */}
                   <Editor key={`ed-${page}`} />
