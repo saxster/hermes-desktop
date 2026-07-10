@@ -110,7 +110,7 @@ describe("ControlCenterOverview", () => {
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
 
-  it("renders the task cards users need from the settings gear", async () => {
+  it("shows status and readiness without duplicating Settings navigation", async () => {
     render(
       <ControlCenterOverview
         onNavigate={vi.fn()}
@@ -122,39 +122,13 @@ describe("ControlCenterOverview", () => {
     expect(
       screen.getByRole("heading", { name: "Control Center" }),
     ).toBeInTheDocument();
+    await screen.findByText("Ready to chat");
     expect(screen.getByRole("button", { name: "Open AI Setup" })).toBeEnabled();
+    expect(document.querySelector(".control-center-card")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Open Data & Privacy" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: "Open Troubleshooting" }),
-    ).toBeEnabled();
-    await screen.findByText("Ready to chat");
+      screen.getByText("Choose a category in the sidebar to change configuration."),
+    ).toBeInTheDocument();
     await screen.findByRole("region", { name: "Operator readiness" });
-  });
-
-  it("routes personalization to the existing My Alignment surface", async () => {
-    const onClose = vi.fn();
-    const onNavigate = vi.fn<(view: NormalizedAdminView) => void>();
-
-    render(
-      <ControlCenterOverview
-        onNavigate={onNavigate}
-        onClose={onClose}
-        profile="default"
-      />,
-    );
-
-    await screen.findByText("Ready to chat");
-    await screen.findByRole("region", { name: "Operator readiness" });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open Personalization" }),
-    );
-
-    expect(setSurface).toHaveBeenCalledWith("you");
-    expect(onClose).toHaveBeenCalled();
-    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("shows ready local AI status and the active model", async () => {
@@ -309,12 +283,7 @@ describe("ControlCenterOverview", () => {
     expect(
       screen.queryByRole("button", { name: "Remote-managed" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Remote Connection" }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Review Connection" }));
-    expect(onNavigate).toHaveBeenCalledWith("advanced");
+    expect(document.querySelector(".control-center-card")).toBeNull();
     await waitFor(() => {
       expect(api.getModelConfig).not.toHaveBeenCalled();
       expect(api.validateChatReadiness).not.toHaveBeenCalled();

@@ -5670,52 +5670,56 @@ body {
   background: var(--danger-fg);
 }
 
-.control-center-list {
-  display: grid;
+.control-center-navigation-hint {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--hair);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.settings-compact-select {
+  width: min(240px, 100%);
+}
+
+.settings-accent-options {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.control-center-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: none;
+.settings-accent-option {
+  width: 32px;
+  height: 24px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--text-muted);
+  cursor: pointer;
 }
 
-.control-center-card h2 {
-  margin: 0 0 6px;
-  font-size: 16px;
-  line-height: 1.25;
-  color: var(--text-primary);
+.settings-accent-option[aria-pressed="true"] {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--bg-primary);
 }
 
-.control-center-card p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.45;
+.settings-workspace-storage .twk-sect {
+  display: none;
 }
 
-.control-center-card-action {
-  min-height: 44px;
-  flex: none;
+.settings-workspace-storage .twk-row {
+  margin-bottom: 12px;
+}
+
+.settings-workspace-storage .twk-field {
+  width: auto;
+  min-height: 32px;
+  margin: 0 8px 8px 0;
 }
 
 @media (max-width: 760px) {
-  .control-center-status-strip,
-  .control-center-card {
+  .control-center-status-strip {
     grid-template-columns: 1fr;
     align-items: stretch;
-  }
-
-  .control-center-card {
-    flex-direction: column;
   }
 
   .operator-readiness-head,
@@ -5727,12 +5731,13 @@ body {
 }
 
 .settings-section {
-  background: var(--surface);
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-1);
-  padding: 20px 22px;
-  margin-bottom: 14px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px 0 24px;
+  margin: 0;
 }
 
 /* SPS section label — mirrors .type-section-label (12px / 600 / 0.06em). */

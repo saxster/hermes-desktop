@@ -1,9 +1,6 @@
-// TweaksPanel.test.tsx — F5: the Storage settings section shows the right
-// control per authoritative mode. IPC is stubbed; storage mode lives in
-// localStorage (jsdom).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { TweaksPanel } from "./TweaksPanel";
+import { StorageSettings, TweaksPanel } from "./TweaksPanel";
 import { useStore } from "../store";
 import { setStorageMode } from "../lib/storageMode";
 
@@ -12,41 +9,37 @@ function stubApi(overrides: Record<string, unknown>): void {
 }
 
 beforeEach(() => {
-  setStorageMode("blob");
-  // listSkins is awaited on mount; resolve empty so the skin select stays hidden.
-  stubApi({ listSkins: vi.fn().mockResolvedValue([]) });
+  stubApi({});
   useStore.setState({ tweaksOpen: true });
+  setStorageMode("blob");
 });
 
 afterEach(() => {
   cleanup();
   delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
-  setStorageMode("blob");
   useStore.setState({ tweaksOpen: false });
+  setStorageMode("blob");
   vi.restoreAllMocks();
 });
 
-describe("TweaksPanel — Storage section", () => {
-  it("shows the migrate control + JSON-blob mode in blob mode", async () => {
-    await act(async () => render(<TweaksPanel />));
-    expect(screen.getByText("Storage")).toBeTruthy();
+describe("StorageSettings", () => {
+  it("retains the storage migration controls for Data & Privacy", async () => {
+    await act(async () => render(<StorageSettings />));
+
     expect(screen.getByText("JSON blob")).toBeTruthy();
     expect(screen.getByText("Switch to markdown storage")).toBeTruthy();
   });
-
-  it("shows the rollback control + vault mode in vault mode", async () => {
-    setStorageMode("vault");
-    await act(async () => render(<TweaksPanel />));
-    expect(screen.getByText("Markdown vault")).toBeTruthy();
-    expect(screen.getByText("Switch to JSON storage")).toBeTruthy();
-  });
 });
 
-describe("TweaksPanel — Learning split", () => {
-  it("does not duplicate skill management", async () => {
+describe("TweaksPanel", () => {
+  it("contains local layout controls without global appearance or storage", async () => {
     await act(async () => render(<TweaksPanel />));
 
-    expect(await screen.findByText("Storage")).toBeTruthy();
-    expect(screen.queryByText("Active skills")).toBeNull();
+    expect(screen.getByText("Layout")).toBeTruthy();
+    expect(screen.getByLabelText("Content width")).toBeTruthy();
+    expect(screen.getByText("Sidebar sections")).toBeTruthy();
+    expect(screen.queryByText("Appearance")).toBeNull();
+    expect(screen.queryByText("Typography")).toBeNull();
+    expect(screen.queryByText("Storage")).toBeNull();
   });
 });

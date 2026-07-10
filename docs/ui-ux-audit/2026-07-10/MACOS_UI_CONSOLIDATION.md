@@ -45,7 +45,7 @@ the named validation evidence both exist.
 - [ ] Make Home one stable product concept.
 - [x] Replace the full-screen Control Center overlay with a single settings
       presentation that has one navigation model and one close path.
-- [ ] Keep global appearance/preferences in Settings and limit Workspace
+- [x] Keep global appearance/preferences in Settings and limit Workspace
       settings to local layout controls.
 
 ## Core surfaces
@@ -134,3 +134,22 @@ the named validation evidence both exist.
 - `01-home.png`, `02d-control-center.png`, and `04-tweaks.png` were reviewed at
   the standard smoke viewport; the modal is bounded and the sidebar has no
   duplicate New Chat action or generated Content Studio subtree.
+
+### Settings information architecture phase
+
+- Control Center Overview now contains only AI status and actionable readiness;
+  it no longer repeats every sidebar destination as a card.
+- Global theme, palette, accent, density, authored-content font, display zoom,
+  and custom skin controls live in Preferences. Storage migration, vault
+  location, OKF import/export, backups, and privacy controls live in Data &
+  Privacy. The local Workspace settings panel contains only layout and sidebar
+  controls.
+- Ordinary Settings sections now use dividers and spacing instead of nested
+  rectangular cards.
+- Focused Control Center, Workspace appearance, Workspace storage, and local
+  layout tests pass (9 tests); both TypeScript projects and the production build
+  pass.
+- Primary Electron smoke passes 31 steps, including dedicated Preferences and
+  Data & Privacy screenshots. `02d-control-center.png`,
+  `02e-settings-preferences.png`, `02f-settings-data-privacy.png`, and
+  `04-tweaks.png` were visually reviewed.

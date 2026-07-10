@@ -31,6 +31,8 @@ import { HealthSurface } from "../SpsAgent/health/HealthSurface";
 import { getDevMode, setDevMode } from "../../lib/devMode";
 import type { SettingsSection } from "./settingsSections";
 import { SETTINGS_SECTION_COPY } from "./settingsSections";
+import { WorkspaceAppearanceSettings } from "./WorkspaceAppearanceSettings";
+import { StorageSettings } from "../SpsAgent/tweaks/TweaksPanel";
 
 const TELEGRAM_COMMUNITY_URL = "https://t.me/hermes_agent_desktop";
 
@@ -1173,6 +1175,14 @@ function Settings({
             Make text and interface controls larger or smaller. Applies after
             restart too.
           </div>
+        </div>
+        <WorkspaceAppearanceSettings />
+      </div>
+
+      <div className="settings-section" data-section-tab="dataPrivacy">
+        <div className="settings-section-title">Workspace storage</div>
+        <div className="settings-workspace-storage">
+          <StorageSettings />
         </div>
       </div>
 

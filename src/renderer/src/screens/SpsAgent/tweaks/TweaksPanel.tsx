@@ -9,17 +9,13 @@ import {
   type ReactNode,
 } from "react";
 import { useStore } from "../store";
-import { useTheme } from "../../../components/ThemeProvider";
 import { SECTION_ORDER, type SectionId } from "../store/storeTypes";
-import { ACCENTS, type Tweaks, setSkinVars } from "../lib/theme";
-import { skinToSpsVars } from "../lib/skin";
-import { getActiveSkinId, setActiveSkinId } from "../../../utils/skin";
+import type { Tweaks } from "../lib/theme";
 import { getStorageMode, type StorageMode } from "../lib/storageMode";
 import { toggleStorageMode, getLastBackup } from "../lib/storageActions";
 import { commitChangeset } from "../inbox/ingestApply";
 import { workspaceParity, type ParityReport } from "../editor/workspaceVault";
 import type { Workspace } from "../types";
-import type { LoadedSkin } from "../../../../../shared/skins";
 
 function Section({ label }: { label: string }) {
   return <div className="twk-sect">{label}</div>;
@@ -77,38 +73,6 @@ function Toggle({
       >
         <i />
       </button>
-    </div>
-  );
-}
-
-function ColorChips({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="twk-row">
-      <span className="twk-lbl">
-        <span>{label}</span>
-      </span>
-      <div className="twk-chips">
-        {options.map((c) => (
-          <button
-            key={c}
-            className="twk-chip"
-            data-on={value === c ? "1" : "0"}
-            data-accent={c}
-            onClick={() => onChange(c)}
-            aria-label={c}
-          />
-        ))}
-      </div>
     </div>
   );
 }
@@ -178,69 +142,10 @@ function Select<T extends string>({
   );
 }
 
-// Skin selector (idea A6): lists skins found under <profileHome>/skins/ and
-// applies the chosen one's variables onto the SPS scope. Hidden when none exist.
-function SkinSelect() {
-  const [skins, setSkins] = useState<LoadedSkin[]>([]);
-  const [active, setActive] = useState<string>("");
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = await window.hermesAPI.listSkins();
-        if (cancelled) return;
-        setSkins(list);
-        setActive(getActiveSkinId() ?? "");
-      } catch {
-        /* no bridge / no skins */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  if (skins.length === 0) return null;
-  const onChange = (id: string): void => {
-    setActive(id);
-    if (!id) {
-      setActiveSkinId(undefined, null);
-      setSkinVars({});
-      return;
-    }
-    const skin = skins.find((s) => s.id === id);
-    setActiveSkinId(undefined, id);
-    setSkinVars(skinToSpsVars(skin?.skin ?? null));
-  };
-  return (
-    <>
-      <Section label="Skin" />
-      <div className="twk-row twk-row-h">
-        <span className="twk-lbl">
-          <span>Skin</span>
-        </span>
-        <select
-          className="twk-field twk-w-120"
-          title="Skin"
-          aria-label="Skin"
-          value={active}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Default</option>
-          {skins.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.skin.name}
-            </option>
-          ))}
-        </select>
-      </div>
-    </>
-  );
-}
-
 // Storage settings (F5): a discoverable home for the markdown-vault cutover —
 // current mode, a parity readout, the migrate/rollback control (shared with the
 // command palette via lib/storageActions), and the last JSON-blob backup path.
-function StorageSettings() {
+export function StorageSettings() {
   const tree = useStore((s) => s.tree);
   const flash = useStore((s) => s.flash);
   const ingestCommitPage = useStore((s) => s.ingestCommitPage);
@@ -524,7 +429,6 @@ export function TweaksPanel() {
   const setOpen = useStore((s) => s.setTweaksOpen);
   const t = useStore((s) => s.t);
   const setTweak = useStore((s) => s.setTweak);
-  const { setTheme } = useTheme();
 
   useEffect(() => {
     if (!open) return;
@@ -540,32 +444,8 @@ export function TweaksPanel() {
   }, [open, setOpen]);
 
   if (!open) return null;
-  // Toggling dark here is the reciprocal of the Settings → Appearance control:
-  // drive BOTH the SPS Tweaks flag (paints the workspace) and ThemeProvider
-  // (keeps the Settings radio + THEME_STORAGE_KEY coherent), so the two theme
-  // controls can never disagree.
-  const setDark = (v: boolean): void => {
-    setTweak("dark", v);
-    setTheme(v ? "dark" : "light");
-  };
   return (
     <Shell onClose={() => setOpen(false)}>
-      <Section label="Appearance" />
-      <Toggle label="Dark mode" value={t.dark} onChange={setDark} />
-      {t.dark && (
-        <Segmented<Tweaks["darkSkin"]>
-          label="Dark palette"
-          value={t.darkSkin}
-          options={["black", "warm", "terminal"]}
-          onChange={(v) => setTweak("darkSkin", v)}
-        />
-      )}
-      <ColorChips
-        label="Accent"
-        value={t.accent}
-        options={ACCENTS}
-        onChange={(v) => setTweak("accent", v)}
-      />
       <Section label="Layout" />
       <Segmented<Tweaks["sidebar"]>
         label="Sidebar"
@@ -591,22 +471,7 @@ export function TweaksPanel() {
         }}
         onChange={(v) => setTweak("homeSurface", v)}
       />
-      <Segmented<Tweaks["density"]>
-        label="Density"
-        value={t.density}
-        options={["comfortable", "compact"]}
-        onChange={(v) => setTweak("density", v)}
-      />
-      <Section label="Typography" />
-      <Segmented<Tweaks["bodyfont"]>
-        label="Body font"
-        value={t.bodyfont}
-        options={["sans", "serif", "mono"]}
-        onChange={(v) => setTweak("bodyfont", v)}
-      />
-      <SkinSelect />
       <SidebarSections />
-      <StorageSettings />
     </Shell>
   );
 }

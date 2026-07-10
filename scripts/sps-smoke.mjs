@@ -481,6 +481,19 @@ await shot("02d-control-center", async () => {
     .waitFor({ timeout: 8000 });
   await win.getByText("claude-3-5-sonnet").waitFor({ timeout: 8000 });
 });
+await shot("02e-settings-preferences", async () => {
+  await win.getByRole("button", { name: "Preferences", exact: true }).click();
+  await win.getByText("Authored content font").waitFor({ timeout: 8000 });
+});
+await shot("02f-settings-data-privacy", async () => {
+  await win.getByRole("button", { name: "Data & Privacy", exact: true }).click();
+  await win
+    .locator(
+      '.settings-container[data-section="dataPrivacy"] .settings-section-title',
+    )
+    .filter({ hasText: "Workspace storage" })
+    .waitFor({ timeout: 8000 });
+});
 await win
   .getByRole("button", { name: "Close settings" })
   .click()
