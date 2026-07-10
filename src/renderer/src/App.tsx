@@ -583,34 +583,29 @@ function App(): React.JSX.Element {
                 this overlay via the `hermes:open-settings` event, so the trigger
                 stays in the layout instead of floating over the workspace. */}
             {adminOpen && (
-              <div
-                className="sps-admin-overlay"
-                ref={adminOverlayRef}
-                role="dialog"
-                aria-modal="true"
-                aria-label="SPS Control Center"
-              >
-                <button
-                  className="sps-admin-back"
-                  onClick={() => setAdminOpen(false)}
+              <div className="sps-admin-overlay" ref={adminOverlayRef}>
+                <section
+                  className="sps-settings-window"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="SPS Control Center"
                 >
-                  ← Back to workspace
-                </button>
-                <button
-                  className="sps-admin-close"
-                  onClick={() => setAdminOpen(false)}
-                  title="Close (Esc)"
-                  aria-label="Close settings"
-                >
-                  ✕
-                </button>
-                <Layout
-                  initialView={adminInitialView}
-                  onClose={() => setAdminOpen(false)}
-                  verifyWarning={verifyWarning}
-                  onReinstall={handleVerifyReinstall}
-                  onDismissVerifyWarning={handleDismissVerifyWarning}
-                />
+                  <button
+                    className="sps-admin-close"
+                    onClick={() => setAdminOpen(false)}
+                    title="Close (Esc)"
+                    aria-label="Close settings"
+                  >
+                    ✕
+                  </button>
+                  <Layout
+                    initialView={adminInitialView}
+                    onClose={() => setAdminOpen(false)}
+                    verifyWarning={verifyWarning}
+                    onReinstall={handleVerifyReinstall}
+                    onDismissVerifyWarning={handleDismissVerifyWarning}
+                  />
+                </section>
               </div>
             )}
           </>

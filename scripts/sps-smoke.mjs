@@ -474,7 +474,8 @@ await shot("02c-research-nudge", async () => {
 // 02d — Settings opens the Control Center Overview with live AI readiness and
 // the active model from the seeded smoke config.
 await shot("02d-control-center", async () => {
-  await win.getByRole("button", { name: "Settings" }).click();
+  await win.getByRole("button", { name: "Open profile menu" }).click();
+  await win.getByRole("menuitem", { name: /Settings/ }).click();
   await win
     .getByRole("dialog", { name: "SPS Control Center" })
     .waitFor({ timeout: 8000 });
@@ -499,9 +500,10 @@ await win
 await win.waitForTimeout(500);
 
 // 04 — Tweaks panel (sidebar-section toggles + the new Storage section, F5).
-// The rail button is titled "Appearance" (it opens the Tweaks panel).
+// Local workspace appearance is available from the profile menu.
 await shot("04-tweaks", async () => {
-  await win.locator('[title="Appearance"]').click();
+  await win.getByRole("button", { name: "Open profile menu" }).click();
+  await win.getByRole("menuitem", { name: "Workspace appearance" }).click();
 });
 // 05 — toggle a sidebar section (Notion "customize sidebar").
 await shot("05-tweaks-section-toggled", async () => {

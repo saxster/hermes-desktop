@@ -252,6 +252,33 @@ describe("App startup timeout", () => {
     expect(screen.queryByTestId("setup")).toBeNull();
   });
 
+  it("presents Settings with one window and one explicit close path", async () => {
+    installApi({
+      checkInstall: vi.fn().mockResolvedValue({
+        installed: true,
+        configured: true,
+        hasApiKey: true,
+      }),
+    });
+    render(<App />);
+    await flushStartup();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hermes:open-settings", { detail: {} }),
+      );
+    });
+
+    expect(
+      screen.getByRole("dialog", { name: "SPS Control Center" }),
+    ).toHaveClass("sps-settings-window");
+    expect(screen.queryByText("Back to workspace")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close settings" }));
+    expect(
+      screen.queryByRole("dialog", { name: "SPS Control Center" }),
+    ).toBeNull();
+  });
+
   it("keeps SSH startup on the loading screen during the short IPC budget", async () => {
     installApi({
       getConnectionConfig: vi.fn().mockResolvedValue({

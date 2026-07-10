@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => ({
-  tree: [],
-  meta: {},
+  tree: [] as { id: string; children: { id: string; children: never[] }[] }[],
+  meta: {} as Record<string, { title: string; journal?: boolean }>,
   page: "home",
   surface: "doc",
   t: { homeSurface: "doc", sidebar: "full" },
@@ -38,6 +38,7 @@ const store = vi.hoisted(() => ({
   importPdf: vi.fn(),
   toggleSection: vi.fn(),
 }));
+const openSettings = vi.hoisted(() => vi.fn());
 
 vi.mock("../store", () => ({
   useStore: (selector: (s: typeof store) => unknown) => selector(store),
@@ -48,16 +49,26 @@ vi.mock("../hooks/useNoteIndex", () => ({
 }));
 
 vi.mock("./SidebarRecents", () => ({ SidebarRecents: () => null }));
-vi.mock("./TreeNode", () => ({ TreeNode: () => null }));
+vi.mock("./TreeNode", () => ({
+  TreeNode: (props: {
+    node: { id: string };
+    meta: Record<string, { title: string }>;
+  }) => <div>{props.meta[props.node.id]?.title}</div>,
+}));
 vi.mock("./ObsidianExplorer", () => ({ ObsidianExplorer: () => null }));
 vi.mock("./StatusChip", () => ({ StatusChip: () => null }));
-vi.mock("../../../lib/openSettings", () => ({ openSettings: vi.fn() }));
+vi.mock("../../../lib/openSettings", () => ({ openSettings }));
 
 import { Sidebar } from "./Sidebar";
 
 describe("Sidebar", () => {
   beforeEach(() => {
     store.setSurface.mockClear();
+    openSettings.mockClear();
+    store.tree = [];
+    store.meta = {};
+    store.sectionsEnabled.private = false;
+    store.sectionsOpen.private = false;
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: { listProfiles: vi.fn().mockResolvedValue([]) },
@@ -90,5 +101,42 @@ describe("Sidebar", () => {
       expect(button.getAttribute("title")).toBe(label);
       expect(button.getAttribute("aria-label")).toBe(label);
     }
+  });
+
+  it("keeps Content Studio storage pages out of everyday navigation", () => {
+    store.sectionsEnabled.private = true;
+    store.sectionsOpen.private = true;
+    store.tree = [
+      {
+        id: "content-root",
+        children: [{ id: "content-ideas", children: [] }],
+      },
+      { id: "notes", children: [] },
+    ];
+    store.meta = {
+      "content-root": { title: "Content Studio" },
+      "content-ideas": { title: "Ideas" },
+      notes: { title: "Notes" },
+    };
+
+    render(<Sidebar />);
+
+    expect(screen.queryByText("Content Studio")).toBeNull();
+    expect(screen.queryByText("Ideas")).toBeNull();
+    expect(screen.getByText("Notes")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "New chat" })).toBeNull();
+  });
+
+  it("puts workspace appearance and global Settings in one profile menu", () => {
+    render(<Sidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Workspace appearance" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /Settings/ }));
+    expect(openSettings).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu", { name: "Profile menu" })).toBeNull();
   });
 });

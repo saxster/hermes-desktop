@@ -1,7 +1,7 @@
 // Sidebar.tsx — workspace rail. Notion-3.1 grammar: an always-visible top icon
 // row, then named/toggleable/collapsible sections (Recents/Private), the
-// Obsidian Vault explorer, a persistent "New chat" launcher, and the identity
-// foot. Identity is derived from the active Hermes profile (demo fallback offline).
+// Obsidian Vault explorer, and the identity foot. Identity is derived from the
+// active Hermes profile (demo fallback offline).
 import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/iconPaths";
@@ -110,7 +110,6 @@ export function Sidebar() {
   const surface = useStore((s) => s.surface);
   const setSurface = useStore((s) => s.setSurface);
   const selectPage = useStore((s) => s.selectPage);
-  const startNewChat = useStore((s) => s.startNewChat);
   const setResearchOpen = useStore((s) => s.setResearchOpen);
   const homeSurface = useStore((s) => s.t.homeSurface ?? "doc");
   // Selecting a page always returns to the document surface.
@@ -147,6 +146,7 @@ export function Sidebar() {
     () => localStorage.getItem("sps-wing-packs") === "true",
   );
   const [packs, setPacks] = useState<Record<PackId, boolean>>(loadPacks);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const toggleLibrary = (): void => {
     const next = !libraryOpen;
@@ -349,7 +349,11 @@ export function Sidebar() {
               addTitle="New page"
             >
               {tree
-                .filter((n) => !meta[n.id]?.journal)
+                .filter(
+                  (n) =>
+                    !meta[n.id]?.journal &&
+                    meta[n.id]?.title !== "Content Studio",
+                )
                 .map((n) => (
                   <TreeNode
                     key={n.id}
@@ -487,51 +491,56 @@ export function Sidebar() {
         </button>
       </div>
 
-      <div className="rail-newchat-bar">
-        <button
-          className="rail-newchat"
-          onClick={() => startNewChat()}
-          title="New chat"
-          aria-label="New chat"
-        >
-          <Icon name="sparkle" size={16} />
-          <span>New chat</span>
-          <span className="rail-newchat-kbd">⌘O</span>
-        </button>
-        <button
-          className="rail-compose"
-          title="New page"
-          aria-label="New page"
-          onClick={newPage}
-        >
-          <Icon name="callout" size={16} />
-        </button>
-      </div>
-
       <StatusChip />
 
       <div className="rail-foot">
-        <span className="avatar">{identity.initial}</span>
-        <span className="rail-foot-name">
-          {identity.user}
-          <small>SPS</small>
-        </span>
         <button
-          className="rail-foot-gear"
-          title="Appearance"
-          aria-label="Appearance"
-          onClick={() => setTweaksOpen(!tweaksOpen)}
+          type="button"
+          className="rail-profile-button"
+          title={isIconsMode ? identity.user : undefined}
+          aria-label="Open profile menu"
+          aria-haspopup="menu"
+          aria-expanded={profileMenuOpen}
+          onClick={() => setProfileMenuOpen((open) => !open)}
         >
-          <Icon name="sun" size={16} />
+          <span className="avatar">{identity.initial}</span>
+          <span className="rail-foot-name">
+            {identity.user}
+            <small>SPS</small>
+          </span>
+          <Icon className="rail-profile-chevron" name="chevD" size={14} />
         </button>
-        <button
-          className="rail-foot-gear"
-          title="Settings (⌘,)"
-          aria-label="Settings"
-          onClick={() => openSettings()}
-        >
-          <Icon name="settings" size={16} />
-        </button>
+        {profileMenuOpen && (
+          <div
+            className="rail-profile-menu"
+            role="menu"
+            aria-label="Profile menu"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setTweaksOpen(!tweaksOpen);
+                setProfileMenuOpen(false);
+              }}
+            >
+              <Icon name="sun" size={16} />
+              Workspace appearance
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                openSettings();
+                setProfileMenuOpen(false);
+              }}
+            >
+              <Icon name="settings" size={16} />
+              Settings
+              <span className="rail-profile-shortcut">⌘,</span>
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );

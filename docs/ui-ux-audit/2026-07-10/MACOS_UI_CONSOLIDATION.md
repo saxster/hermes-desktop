@@ -37,13 +37,13 @@ the named validation evidence both exist.
 ## Navigation and settings
 
 - [ ] Reduce the sidebar to Core, Library, optional Packs, and More.
-- [ ] Remove generated Content Studio storage pages from everyday navigation.
-- [ ] Move the dominant New Chat action into the Assistant surface/toolbar.
-- [ ] Keep connection status compact and move global Settings to the app-level
+- [x] Remove generated Content Studio storage pages from everyday navigation.
+- [x] Move the dominant New Chat action into the Assistant surface/toolbar.
+- [x] Keep connection status compact and move global Settings to the app-level
       command/profile path.
 - [ ] Use one functional icon language; page emoji remains content metadata.
 - [ ] Make Home one stable product concept.
-- [ ] Replace the full-screen Control Center overlay with a single settings
+- [x] Replace the full-screen Control Center overlay with a single settings
       presentation that has one navigation model and one close path.
 - [ ] Keep global appearance/preferences in Settings and limit Workspace
       settings to local layout controls.
@@ -121,3 +121,16 @@ the named validation evidence both exist.
 - `npm run build` passes.
 - Primary Electron smoke passes all 29 steps after the inspector navigation
   harness was updated to exercise the overflow menu.
+
+### Navigation and Settings presentation phase
+
+- `Sidebar.test.tsx`: Content Studio's generated page subtree is hidden, the
+  duplicate New Chat launcher is absent, and Appearance plus Settings route
+  through one profile menu; 4 tests passing.
+- `App.test.tsx`: Settings opens as one labelled dialog with one close path;
+  8 tests passing.
+- Both TypeScript projects, touched-file ESLint, and `npm run build` pass.
+- Primary Electron smoke passes all 29 steps through the new profile-menu path.
+- `01-home.png`, `02d-control-center.png`, and `04-tweaks.png` were reviewed at
+  the standard smoke viewport; the modal is bounded and the sidebar has no
+  duplicate New Chat action or generated Content Studio subtree.
