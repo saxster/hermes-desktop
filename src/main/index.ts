@@ -5,7 +5,6 @@ import {
   net,
   protocol,
   screen,
-  shell,
   globalShortcut,
   Tray,
   ipcMain,
@@ -31,7 +30,6 @@ const execFileAsync = promisify(execFile);
 import { closeSharedDb } from "./db";
 import { closeAllNoteIndexes } from "./note-index";
 import { semanticManager } from "./semantic-index";
-import { isAllowedObsidianExternalUrl } from "./obsidian";
 import {
   stopHealthPolling,
   setSshRemoteApiKey,
@@ -43,7 +41,6 @@ import { activeChatAborts } from "./ipc/chat";
 import { stopSshTunnel, startSshTunnel } from "./ssh-tunnel";
 import { HERMES_HOME, ensureDesktopMcpRegistered } from "./installer";
 import {
-  isAllowedExternalUrl,
   isAllowedAppNavigationUrl,
   isAllowedWebviewUrl,
   hardenWebviewPreferences,
@@ -52,9 +49,7 @@ import {
 import { resolveSpsVaultDir } from "./sps-storage";
 import { resolveAssetPath, writeAsset } from "./sps-assets";
 import { buildScreencaptureArgs } from "./screencapture";
-import { startEquityAlertWatcher } from "./equity-alerts";
-import { startScheduledResearch } from "./scheduled-research";
-import { startAssistantRecipeScheduler } from "./assistant-recipes";
+import { backgroundServices } from "./background-services";
 import { updaterLogger } from "./updater-log";
 import { getConnectionConfig, migrateDesktopConfigSecrets } from "./config";
 import {
@@ -95,38 +90,12 @@ import { startControlServer, stopControlServer } from "./control-server";
 import { setMainWindowGetter } from "./self-healing";
 import { formatLogError, log } from "./log";
 import { refreshEngineCapabilities } from "./engine-capabilities";
-import { redactExternalText } from "./external-context/redact";
+import { installDiagnostics } from "./diagnostics";
+import { openExternalUrl } from "./external-navigation";
 import {
   isRendererMediaRequestAllowed,
   isTrustedAppRenderer,
 } from "./media-permissions";
-
-// Last-resort loggers: anything that escapes a handler or a stray promise lands
-// here as a structured, redacted line in desktop.log instead of vanishing into a
-// dev-only console.error. Secrets can ride in either the message or the stack.
-process.on("uncaughtException", (err) => {
-  const message = redactExternalText(
-    err instanceof Error ? err.message : String(err),
-  );
-  const stack = err instanceof Error ? err.stack : undefined;
-  log.error("main", {
-    kind: "uncaughtException",
-    message,
-    stack: typeof stack === "string" ? redactExternalText(stack) : undefined,
-  });
-});
-
-process.on("unhandledRejection", (reason) => {
-  const message = redactExternalText(
-    reason instanceof Error ? reason.message : String(reason),
-  );
-  const stack = reason instanceof Error ? reason.stack : undefined;
-  log.error("main", {
-    kind: "unhandledRejection",
-    message,
-    stack: typeof stack === "string" ? redactExternalText(stack) : undefined,
-  });
-});
 
 let mainWindow: BrowserWindow | null = null;
 let captureWindow: BrowserWindow | null = null;
@@ -244,24 +213,6 @@ function createTray(): void {
       error: formatLogError(err),
     });
   }
-}
-
-function openExternalUrl(rawUrl: unknown): void {
-  if (!isAllowedExternalUrl(rawUrl) && !isAllowedObsidianExternalUrl(rawUrl)) {
-    log.warn("security", {
-      msg: "blocked unsafe external URL",
-      url: typeof rawUrl === "string" ? rawUrl : undefined,
-    });
-    return;
-  }
-
-  shell.openExternal(rawUrl as string).catch((err) => {
-    log.error("security", {
-      msg: "failed to open external URL",
-      url: rawUrl as string,
-      error: formatLogError(err),
-    });
-  });
 }
 
 // The SPS asset store streams journal/editor media (photos, voice, video,
@@ -413,11 +364,6 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow!.show();
-    // Watch the equity alert log → OS notification + renderer event per new line.
-    void startEquityAlertWatcher(() => mainWindow);
-    // Scheduled research: catch up on launch, then tick on a timer.
-    startScheduledResearch(() => mainWindow);
-    startAssistantRecipeScheduler(() => mainWindow);
   });
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -823,41 +769,7 @@ if (process.env.ENABLE_CDP === "1") {
   );
 }
 
-// MED-10 — durable local diagnostics: route uncaught failures into the
-// errors-only sink (<HERMES_HOME>/logs/hermes-errors.jsonl) that the
-// Diagnostics panel reads. Local file only; nothing leaves the machine.
-// Registering an uncaughtException listener replaces Electron's error dialog
-// with a durable record + continue, which is the desired headless behavior
-// for a long-lived tray-style app.
-process.on("uncaughtException", (err) => {
-  log.error("crash", {
-    msg: "uncaughtException",
-    error: formatLogError(err),
-    stack: err instanceof Error ? err.stack : undefined,
-  });
-});
-process.on("unhandledRejection", (reason) => {
-  log.error("crash", {
-    msg: "unhandledRejection",
-    error: formatLogError(reason),
-    stack: reason instanceof Error ? reason.stack : undefined,
-  });
-});
-app.on("render-process-gone", (_event, _webContents, details) => {
-  log.error("crash", {
-    msg: "render-process-gone",
-    reason: details.reason,
-    exitCode: details.exitCode,
-  });
-});
-app.on("child-process-gone", (_event, details) => {
-  log.error("crash", {
-    msg: "child-process-gone",
-    type: details.type,
-    reason: details.reason,
-    exitCode: details.exitCode,
-  });
-});
+installDiagnostics(app);
 
 // Single instance: a second launch must not spin up a parallel app. Acquire the
 // lock; if another instance already holds it, focus its window and quit this one.
@@ -942,6 +854,7 @@ app.whenReady().then(() => {
   createTray();
   ensureDesktopMcpRegistered();
   setMainWindowGetter(() => mainWindow);
+  backgroundServices.start(() => mainWindow);
   // Phase 1.1 — let the gateway supervisor push health transitions to the renderer
   // and know when an interactive stream is in-flight (so it never restarts mid-turn).
   setGatewayHealthBroadcaster((status) =>
@@ -1008,6 +921,7 @@ app.on("before-quit", () => {
   stopScheduler();
   stopCapabilityRiskScheduler();
   stopControlServer();
+  backgroundServices.stop();
   stopHealthPolling();
   abortAllChats();
   void closeObsidianWatcher();

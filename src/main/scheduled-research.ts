@@ -908,6 +908,7 @@ export async function triggerScheduleNow(
 
 // ── scheduler loop ───────────────────────────────────────────────────────────
 let _timer: ReturnType<typeof setInterval> | null = null;
+let _startupTimer: ReturnType<typeof setTimeout> | null = null;
 let _running = false;
 let _getWindow: (() => BrowserWindow | null) | null = null;
 
@@ -938,14 +939,22 @@ async function tick(): Promise<void> {
 export function startScheduledResearch(
   getWindow: () => BrowserWindow | null,
 ): void {
+  stopScheduledResearch();
   _getWindow = getWindow;
   // Delay the first pass so the gateway has a moment to be reachable on launch.
-  setTimeout(() => void tick(), 20000);
+  _startupTimer = setTimeout(() => {
+    _startupTimer = null;
+    void tick();
+  }, 20000);
+  _startupTimer.unref?.();
   _timer = setInterval(() => void tick(), 60000);
   _timer.unref?.();
 }
 
 export function stopScheduledResearch(): void {
+  if (_startupTimer) clearTimeout(_startupTimer);
+  _startupTimer = null;
   if (_timer) clearInterval(_timer);
   _timer = null;
+  _getWindow = null;
 }

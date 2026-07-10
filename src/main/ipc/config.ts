@@ -1,4 +1,4 @@
-import { clipboard, shell } from "electron";
+import { clipboard } from "electron";
 import { safeHandle } from "./safe-handle";
 import { appendActionReceipt } from "../action-receipts";
 import {
@@ -93,10 +93,9 @@ import {
   cancelHermesAuthLogin,
   accumulateOAuthPromptAction,
 } from "../hermes-auth";
-import { isAllowedExternalUrl } from "../security";
-import { isAllowedObsidianExternalUrl } from "../obsidian";
 import { refreshEngineCapabilities } from "../engine-capabilities";
-import { formatLogError, log } from "../log";
+import { log } from "../log";
+import { openExternalUrl } from "../external-navigation";
 import { registerDualHandler } from "./utility";
 import {
   getSchedulerConfig,
@@ -116,24 +115,6 @@ import {
   setAppZoomFactor,
 } from "../app-zoom";
 import type { CouncilConfig } from "../../shared/council";
-
-function openExternalUrl(rawUrl: unknown): void {
-  if (!isAllowedExternalUrl(rawUrl) && !isAllowedObsidianExternalUrl(rawUrl)) {
-    log.warn("security", {
-      msg: "blocked unsafe external URL",
-      url: typeof rawUrl === "string" ? rawUrl : undefined,
-    });
-    return;
-  }
-
-  shell.openExternal(rawUrl as string).catch((err) => {
-    log.error("security", {
-      msg: "failed to open external URL",
-      url: rawUrl as string,
-      error: formatLogError(err),
-    });
-  });
-}
 
 function refreshEngineCapabilitiesForActiveProfile(): void {
   void refreshEngineCapabilities().catch((err) => {
