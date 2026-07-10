@@ -528,14 +528,12 @@ await shot("08-backlinks", async () => {
   await win.getByText("Alpha", { exact: true }).first().click({ force: true });
   await openCommand("Open My Assistant");
   await win.waitForTimeout(400);
-  // Dispatch the click on the tab node directly so the titlebar overlay can't
-  // swallow it; React's onClick still fires from the bubbled event.
   await win.evaluate(() => {
-    const tab = [...document.querySelectorAll(".rp-tab")].find((t) =>
-      /Info/.test(t.textContent || ""),
-    );
-    tab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    document
+      .querySelector('[aria-label="More inspector tabs"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
+  await win.getByRole("menuitem", { name: "Info" }).click();
 });
 
 // 09 — "Get started with" launcher on the empty page (untitled + no content).

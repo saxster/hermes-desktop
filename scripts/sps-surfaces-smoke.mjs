@@ -379,12 +379,17 @@ async function closeOverlays() {
 }
 
 async function clickPanelTab(label) {
-  await win.evaluate((tabLabel) => {
-    const tab = [...document.querySelectorAll(".rp-tab")].find((node) =>
-      (node.textContent || "").includes(tabLabel),
-    );
-    tab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  }, label);
+  const direct = win.locator(".rp-tab", { hasText: label });
+  if ((await direct.count()) > 0) {
+    await direct.first().click({ force: true });
+    return;
+  }
+  await win.evaluate(() => {
+    document
+      .querySelector('[aria-label="More inspector tabs"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await win.getByRole("menuitem", { name: label }).click();
 }
 
 await shot("01-dashboard", async () => {

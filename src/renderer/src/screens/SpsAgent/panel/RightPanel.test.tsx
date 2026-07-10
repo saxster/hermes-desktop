@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => ({
   rightTab: "assistant",
@@ -40,11 +40,28 @@ vi.mock("./BacklinksPane", () => ({
 import { RightPanel } from "./RightPanel";
 
 describe("RightPanel", () => {
+  beforeEach(() => {
+    store.openPanelTab.mockClear();
+    store.setPanelOpen.mockClear();
+  });
+
   it("exposes an explicit close control", () => {
     render(<RightPanel />);
 
     fireEvent.click(screen.getByRole("button", { name: "Close side panel" }));
 
     expect(store.setPanelOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps secondary inspector destinations in a labelled overflow menu", () => {
+    render(<RightPanel />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "More inspector tabs" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Backlinks" }));
+
+    expect(store.openPanelTab).toHaveBeenCalledWith("backlinks");
+    expect(screen.queryByRole("menu", { name: "Inspector tabs" })).toBeNull();
   });
 });

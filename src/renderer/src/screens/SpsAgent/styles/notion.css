@@ -652,6 +652,7 @@
 .sps-scope .rp {
   width: var(--agent-w);
   flex: none;
+  position: relative;
   background: var(--app-bg);
   border-left: 1px solid var(--hair);
   display: flex;
@@ -730,6 +731,45 @@
   flex: 0 0 30px;
   justify-content: center;
   padding: 0;
+}
+.sps-scope .rp-more-menu {
+  position: absolute;
+  z-index: 1002;
+  top: 40px;
+  right: 40px;
+  width: 168px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: 9px;
+  box-shadow: var(--shadow-menu);
+}
+.sps-scope .rp-more-menu button {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tx-2);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+.sps-scope .rp-more-menu button:hover,
+.sps-scope .rp-more-menu button.active {
+  background: var(--row-hover);
+  color: var(--tx-1);
+}
+.sps-scope .rp-more-menu button.active::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent);
 }
 .sps-scope .rp-body {
   flex: 1;

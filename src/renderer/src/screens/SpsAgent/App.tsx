@@ -48,11 +48,17 @@ import { openSettings } from "../../lib/openSettings";
 import type { ReleaseAffordanceAction } from "../../../../shared/update-affordances";
 import type { Surface } from "./store/storeTypes";
 
-const NARROW_WORKSPACE_QUERY = "(max-width: 900px)";
+type WorkspaceWidth = "compact" | "standard" | "expanded";
 
-function isNarrowWorkspace(): boolean {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia(NARROW_WORKSPACE_QUERY).matches;
+function workspaceWidthFor(width: number): WorkspaceWidth {
+  if (width < 720) return "compact";
+  if (width < 1180) return "standard";
+  return "expanded";
+}
+
+function initialWorkspaceWidth(): WorkspaceWidth {
+  if (typeof window === "undefined") return "standard";
+  return workspaceWidthFor(window.innerWidth);
 }
 
 export function App() {
@@ -69,9 +75,12 @@ export function App() {
   const setScheduledOpen = useStore((s) => s.setScheduledOpen);
   const setPaletteOpen = useStore((s) => s.setPaletteOpen);
   const setTweaksOpen = useStore((s) => s.setTweaksOpen);
+  const mainLayoutRef = useRef<HTMLDivElement>(null);
   const docScrollRef = useRef<HTMLDivElement>(null);
-  const [narrowWorkspace, setNarrowWorkspace] = useState(isNarrowWorkspace);
-  const wasNarrowRef = useRef(narrowWorkspace);
+  const [workspaceWidth, setWorkspaceWidth] = useState<WorkspaceWidth>(
+    initialWorkspaceWidth,
+  );
+  const wasCompactRef = useRef(workspaceWidth === "compact");
 
   const runReleaseAffordance = (action: ReleaseAffordanceAction): void => {
     if (action.kind === "surface") {
@@ -101,21 +110,38 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!window.matchMedia) return;
-    const query = window.matchMedia(NARROW_WORKSPACE_QUERY);
-    const update = (): void => setNarrowWorkspace(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
+    const layout = mainLayoutRef.current;
+    if (!layout) return;
+
+    const update = (width: number): void => {
+      setWorkspaceWidth(workspaceWidthFor(width));
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (entry) update(entry.contentRect.width);
+      });
+      observer.observe(layout);
+      return () => observer.disconnect();
+    }
+
+    const updateFromLayout = (): void => {
+      update(layout.getBoundingClientRect().width);
+    };
+    updateFromLayout();
+    window.addEventListener("resize", updateFromLayout);
+    return () => window.removeEventListener("resize", updateFromLayout);
   }, []);
 
   useEffect(() => {
-    const enteredNarrow = narrowWorkspace && !wasNarrowRef.current;
-    wasNarrowRef.current = narrowWorkspace;
-    if (enteredNarrow && surface === "doc" && panelOpen) {
+    const isCompact = workspaceWidth === "compact";
+    const enteredCompact = isCompact && !wasCompactRef.current;
+    wasCompactRef.current = isCompact;
+    if (enteredCompact && surface === "doc" && panelOpen) {
       setPanelOpen(false);
     }
-  }, [narrowWorkspace, panelOpen, setPanelOpen, surface]);
+  }, [workspaceWidth, panelOpen, setPanelOpen, surface]);
 
   // Scheduled in-app ingest: while the app is open and auto-apply is on, run the
   // ingest loop every N minutes (0 = off). Reconfigures live on a prefs change.
@@ -198,7 +224,10 @@ export function App() {
         const list: string[] = stored ? JSON.parse(stored) : [];
         const filtered = list.filter((id) => id !== page);
         filtered.unshift(page);
-        localStorage.setItem("sps-recent-visited-pages", JSON.stringify(filtered.slice(0, 10)));
+        localStorage.setItem(
+          "sps-recent-visited-pages",
+          JSON.stringify(filtered.slice(0, 10)),
+        );
       } catch (err) {
         console.error("Failed to track visited page:", err);
       }
@@ -210,11 +239,11 @@ export function App() {
       className="app"
       data-rail={sidebar}
       data-panel={panelOpen && surface === "doc" ? "open" : "closed"}
-      data-workspace-width={narrowWorkspace ? "narrow" : "wide"}
+      data-workspace-width={workspaceWidth}
     >
       <Sidebar />
 
-      <div className="sps-main-layout">
+      <div className="sps-main-layout" ref={mainLayoutRef}>
         <main className="main">
           {surface === "doc" ? (
             <>

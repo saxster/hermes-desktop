@@ -24,6 +24,32 @@ const componentCalls = vi.hoisted(() => ({
   whatsNew: vi.fn(),
 }));
 
+let observedWorkspaceWidth = 1024;
+
+class MockResizeObserver {
+  private readonly callback: ResizeObserverCallback;
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+
+  observe(target: Element): void {
+    this.callback(
+      [
+        {
+          target,
+          contentRect: { width: observedWorkspaceWidth },
+        } as ResizeObserverEntry,
+      ],
+      this as unknown as ResizeObserver,
+    );
+  }
+
+  disconnect(): void {
+    return;
+  }
+}
+
 vi.mock("./store", () => {
   const useStore = Object.assign(
     (selector: (s: typeof store) => unknown): unknown => selector(store),
@@ -56,7 +82,9 @@ vi.mock("./shell/DocHeader", () => ({
 vi.mock("./editor/Editor", () => ({
   Editor: () => <div data-testid="editor">Editor</div>,
 }));
-vi.mock("./panel/RightPanel", () => ({ RightPanel: () => <aside>Panel</aside> }));
+vi.mock("./panel/RightPanel", () => ({
+  RightPanel: () => <aside>Panel</aside>,
+}));
 vi.mock("./shell/Overlays", () => ({ Overlays: () => null }));
 vi.mock("./components/Toast", () => ({ Toast: () => null }));
 vi.mock("./components/SaveStatus", () => ({ SaveStatus: () => null }));
@@ -135,6 +163,9 @@ beforeEach(() => {
   store.surface = "doc";
   store.panelOpen = false;
   store.page = "home";
+  store.setPanelOpen.mockClear();
+  observedWorkspaceWidth = 1024;
+  vi.stubGlobal("ResizeObserver", MockResizeObserver);
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: vi.fn((query: string) => ({
@@ -167,8 +198,35 @@ describe("SpsAgent App doc surface", () => {
     expect(componentCalls.whatsNew).toHaveBeenCalledWith(
       expect.objectContaining({ variant: "compact" }),
     );
-    expect(container.querySelectorAll(".doc-scroll > .ob-checklist")).toHaveLength(
-      0,
-    );
+    expect(
+      container.querySelectorAll(".doc-scroll > .ob-checklist"),
+    ).toHaveLength(0);
+  });
+
+  it.each([
+    [680, "compact"],
+    [900, "standard"],
+    [1280, "expanded"],
+  ])(
+    "derives the %s workspace width from usable content",
+    (width, expected) => {
+      observedWorkspaceWidth = width as number;
+
+      const { container } = render(<App />);
+
+      expect(container.querySelector(".app")).toHaveAttribute(
+        "data-workspace-width",
+        expected,
+      );
+    },
+  );
+
+  it("closes the document inspector when usable content enters compact mode", () => {
+    store.panelOpen = true;
+    observedWorkspaceWidth = 680;
+
+    render(<App />);
+
+    expect(store.setPanelOpen).toHaveBeenCalledWith(false);
   });
 });

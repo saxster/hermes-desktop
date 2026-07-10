@@ -16,15 +16,15 @@ the named validation evidence both exist.
 
 ## Shell and visual system
 
-- [ ] Replace window-only responsive behavior with explicit compact, standard,
+- [x] Replace window-only responsive behavior with explicit compact, standard,
       and expanded workspace states derived from usable content width.
 - [ ] Prevent horizontal clipping at the 900px minimum window and the smoke
       harness's 1100x802 logical viewport.
-- [ ] Keep a meaningful macOS title/drag region and platform-like toolbar.
-- [ ] Make the trailing inspector collapse or overlay before document content
+- [x] Keep a meaningful macOS title/drag region and platform-like toolbar.
+- [x] Make the trailing inspector collapse or overlay before document content
       becomes cramped.
 - [ ] Consolidate surface, separator, text, control, focus, and semantic tokens.
-- [ ] Make the macOS system font the first UI font; reserve serif for authored
+- [x] Make the macOS system font the first UI font; reserve serif for authored
       content and mono for code/data.
 - [ ] Standardize buttons, fields, page headers, sections, inspectors, tabs,
       status messages, toasts, and empty states.
@@ -57,7 +57,7 @@ the named validation evidence both exist.
 - [ ] Search: use a compact command/search presentation and show preview only
       for document results.
 - [ ] Document editor: one title, subordinate metadata, readable line length.
-- [ ] Document inspector: labels never clip; less-used tabs move to overflow.
+- [x] Document inspector: labels never clip; less-used tabs move to overflow.
 - [ ] Query database: use available width and make row creation on demand.
 - [ ] Graph: remove dashboard-card framing; toolbar owns graph controls and the
       inspector owns selection detail.
@@ -109,3 +109,15 @@ the named validation evidence both exist.
 - [ ] Compact, standard, and expanded screenshot sets visually reviewed against
       this matrix.
 
+## Implementation evidence
+
+### Shell phase
+
+- `App.test.tsx`: compact, standard, and expanded content-width states plus
+  compact inspector closure; 5 tests passing.
+- `RightPanel.test.tsx`: explicit close and labelled overflow navigation; 2
+  tests passing.
+- Both TypeScript projects and touched-file ESLint pass.
+- `npm run build` passes.
+- Primary Electron smoke passes all 29 steps after the inspector navigation
+  harness was updated to exercise the overflow menu.

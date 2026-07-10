@@ -1,6 +1,6 @@
 // RightPanel.tsx — tabbed right panel: Assistant · Outline · Comments · Info.
 // Ported from panel.jsx RightPanel. The Assistant body is filled in Phase 8.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/iconPaths";
 import { useStore } from "../store";
@@ -14,6 +14,7 @@ import { InfoPane } from "./InfoPane";
 import { BacklinksPane } from "./BacklinksPane";
 
 export function RightPanel() {
+  const [moreOpen, setMoreOpen] = useState(false);
   const tab = useStore((s) => s.rightTab);
   const setTab = useStore((s) => s.openPanelTab);
   const setPanelOpen = useStore((s) => s.setPanelOpen);
@@ -31,13 +32,16 @@ export function RightPanel() {
   const removeComment = useStore((s) => s.removeComment);
 
   const openCmts = comments.filter((c) => !c.resolved).length;
-  const tabs: [RightTab, string, IconName, number | null][] = [
+  const primaryTabs: [RightTab, string, IconName, number | null][] = [
     ["assistant", "Page assistant", "sparkle", null],
     ["outline", "Outline", "list", null],
     ["comments", "Notes", "comment", openCmts || null],
-    ["backlinks", "Backlinks", "share", null],
-    ["info", "Info", "clock", null],
   ];
+  const secondaryTabs: [RightTab, string, IconName][] = [
+    ["backlinks", "Backlinks", "share"],
+    ["info", "Info", "clock"],
+  ];
+  const secondaryActive = secondaryTabs.some(([id]) => id === tab);
 
   const commentApi: CommentApi = {
     reply: replyComment,
@@ -49,7 +53,7 @@ export function RightPanel() {
   return (
     <aside className="rp">
       <div className="rp-tabs">
-        {tabs.map(([id, label, icon, badge]) => (
+        {primaryTabs.map(([id, label, icon, badge]) => (
           <button
             key={id}
             className={`rp-tab ${tab === id ? "active" : ""}`}
@@ -64,6 +68,17 @@ export function RightPanel() {
         ))}
         <button
           type="button"
+          className={`rp-tab ${secondaryActive || moreOpen ? "active" : ""}`}
+          onClick={() => setMoreOpen(!moreOpen)}
+          title="More inspector tabs"
+          aria-label="More inspector tabs"
+          aria-expanded={moreOpen}
+        >
+          <Icon name="dots" size={15} />
+          <span className="rp-tab-label">More</span>
+        </button>
+        <button
+          type="button"
           className="rp-tab rp-close"
           onClick={() => setPanelOpen(false)}
           title="Close side panel"
@@ -72,6 +87,25 @@ export function RightPanel() {
           <Icon name="x" size={15} />
         </button>
       </div>
+      {moreOpen && (
+        <div className="rp-more-menu" role="menu" aria-label="Inspector tabs">
+          {secondaryTabs.map(([id, label, icon]) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitem"
+              className={tab === id ? "active" : ""}
+              onClick={() => {
+                setTab(id);
+                setMoreOpen(false);
+              }}
+            >
+              <Icon name={icon} size={15} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="rp-body-wrapper">
         {tab === "assistant" && <AgentBody />}
         {tab === "outline" && (
