@@ -1,32 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
-import { JournalCalendar } from "./JournalCalendar";
-import { DayTimeline } from "./DayTimeline";
-import { useJournalEntries, groupByDate } from "./useJournalEntries";
-import {
-  addMonths,
-  isoFromDate,
-  monthLabel,
-  parseISO,
-} from "../lib/journalDates";
-import {
-  QuickActions,
-  Glance,
-  PinnedNotes,
-  AgentStatus,
-} from "../cockpit/CockpitSurface";
 import { ActiveWorkSurface } from "../activeWork/ActiveWorkSurface";
 import { ReviewQueueSurface } from "../review/ReviewQueueSurface";
-import { openSettings } from "../../../lib/openSettings";
-import { OperatorReadinessPanel } from "../../../components/OperatorReadinessPanel";
 import { cadenceLabel } from "../../../../../shared/scheduledResearch";
 import { appLaunchCadenceLabel } from "../../../../../shared/app-launcher";
 import type { CronJob } from "../../../../../shared/cronjobs";
 import type { AppLaunchSchedule } from "../../../../../shared/app-launcher";
-import type { OperatorReadinessAction } from "../../../../../shared/operator-readiness";
+import type { Task } from "../types";
 
-type WorkTab = "tasks" | "delegated" | "scheduled" | "review";
+type WorkTab = "today" | "next" | "scheduled" | "delegated" | "review";
 type Schedule = Awaited<ReturnType<typeof window.hermesAPI.srList>>[number];
 
 function fmtTime(ms: number): string {
@@ -224,38 +207,64 @@ function WorkScheduledPanel(): React.JSX.Element {
   );
 }
 
-export function MyWorkSurface() {
-  const selected = useStore((s) => s.journalDate);
-  const setJournalDate = useStore((s) => s.setJournalDate);
-  const createJournalEntry = useStore((s) => s.createJournalEntry);
-  const setSurface = useStore((s) => s.setSurface);
-  const setScheduledOpen = useStore((s) => s.setScheduledOpen);
-  const [tab, setTab] = useState<WorkTab>("tasks");
-
-  const [monthAnchor, setMonthAnchor] = useState(selected);
-
-  const entries = useJournalEntries();
-  const byDate = groupByDate(entries);
-  const today = isoFromDate(new Date());
-
-  const parts = parseISO(monthAnchor) ?? parseISO(today)!;
-  const goToday = (): void => {
-    setMonthAnchor(today);
-    setJournalDate(today);
-  };
-  const handleReadinessAction = useCallback(
-    (action: OperatorReadinessAction): void => {
-      const target = action.target;
-      if (target.kind === "settings") {
-        openSettings(target.view);
-      } else if (target.kind === "surface") {
-        setSurface(target.surface);
-      } else {
-        setScheduledOpen(true);
-      }
-    },
-    [setScheduledOpen, setSurface],
+function WorkTaskPanel({ mode }: { mode: "today" | "next" }): React.JSX.Element {
+  const docs = useStore((state) => state.docs);
+  const setOpenTask = useStore((state) => state.setOpenTask);
+  const today = new Date().toISOString().slice(0, 10);
+  const tasks = useMemo(
+    () =>
+      Object.values(docs)
+        .flatMap((blocks) => blocks)
+        .flatMap((block) => block.rows || [])
+        .filter((task) => task.status !== "done"),
+    [docs],
   );
+  const visible = tasks.filter((task) => {
+    const isToday =
+      task.due === today ||
+      task.status === "doing" ||
+      task.status === "review" ||
+      task.status === "blocked";
+    return mode === "today" ? isToday : !isToday;
+  });
+
+  return (
+    <section className="work-task-panel" aria-labelledby={`work-${mode}-title`}>
+      <div className="work-rule-head">
+        <div>
+          <h2 id={`work-${mode}-title`}>
+            {mode === "today" ? "Today" : "Next"}
+          </h2>
+          <p>
+            {mode === "today"
+              ? "In progress, blocked, in review, or due today."
+              : "Open tasks without an immediate status or due date."}
+          </p>
+        </div>
+      </div>
+      {visible.length === 0 ? (
+        <p className="work-task-empty">
+          {mode === "today" ? "Nothing needs attention today." : "No next tasks queued."}
+        </p>
+      ) : (
+        <ul className="work-task-list">
+          {visible.map((task: Task) => (
+            <li key={task.id}>
+              <button type="button" onClick={() => setOpenTask(task)}>
+                <span className={`dot s-${task.status}`} aria-hidden="true" />
+                <span>{task.title || "Untitled task"}</span>
+                <small>{task.due || task.status.replaceAll("_", " ")}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export function MyWorkSurface() {
+  const [tab, setTab] = useState<WorkTab>("today");
 
   return (
     <div className="doc-scroll scroll">
@@ -263,14 +272,15 @@ export function MyWorkSurface() {
         <header className="work-shell-head">
           <div>
             <h1>Work</h1>
-            <p>Tasks, delegated goals, scheduled items, and review queue.</p>
+            <p>What needs attention now, what comes next, and work in motion.</p>
           </div>
         </header>
         <div className="work-tabs" role="tablist" aria-label="Work sections">
           {[
-            ["tasks", "Tasks"],
-            ["delegated", "Delegated"],
+            ["today", "Today"],
+            ["next", "Next"],
             ["scheduled", "Scheduled"],
+            ["delegated", "Delegated"],
             ["review", "Review"],
           ].map(([id, label]) => (
             <button
@@ -286,103 +296,8 @@ export function MyWorkSurface() {
           ))}
         </div>
 
-        {tab === "tasks" && (
-          <div className="work-unified-container">
-            <div className="work-unified-left">
-              <div className="jr">
-                <div className="jr-head">
-                  <span className="jr-title">
-                    {monthLabel(parts.year, parts.month)}
-                  </span>
-                  <span className="jr-spacer" />
-                  <button
-                    className="jr-icon-btn"
-                    title="Previous month"
-                    onClick={() => setMonthAnchor(addMonths(monthAnchor, -1))}
-                  >
-                    <Icon
-                      name="chevR"
-                      size={15}
-                      style={{ transform: "rotate(180deg)" }}
-                    />
-                  </button>
-                  <button className="jr-btn" onClick={goToday}>
-                    Today
-                  </button>
-                  <button
-                    className="jr-icon-btn"
-                    title="Next month"
-                    onClick={() => setMonthAnchor(addMonths(monthAnchor, 1))}
-                  >
-                    <Icon name="chevR" size={15} />
-                  </button>
-                  <button
-                    className="jr-btn primary"
-                    onClick={() => createJournalEntry(selected)}
-                  >
-                    <Icon name="plus" size={14} /> New entry
-                  </button>
-                </div>
-
-                <JournalCalendar
-                  monthAnchor={monthAnchor}
-                  selected={selected}
-                  today={today}
-                  byDate={byDate}
-                  onSelectDay={setJournalDate}
-                />
-
-                <DayTimeline
-                  date={selected}
-                  byDate={byDate}
-                  onNewEntry={() => createJournalEntry(selected)}
-                />
-              </div>
-            </div>
-
-            <div className="work-unified-right">
-              <div className="work-right-section-title">
-                <Icon name="checkbox" size={16} />
-                <span>Operator Readiness</span>
-              </div>
-              <div className="work-widget-card">
-                <OperatorReadinessPanel onAction={handleReadinessAction} />
-              </div>
-
-              <div className="work-right-section-title">
-                <Icon name="board" size={16} />
-                <span>At a Glance</span>
-              </div>
-              <div className="work-widget-card">
-                <Glance />
-              </div>
-
-              <div className="work-right-section-title">
-                <Icon name="wand" size={16} />
-                <span>Quick Actions</span>
-              </div>
-              <div className="work-widget-card">
-                <QuickActions />
-              </div>
-
-              <div className="work-right-section-title">
-                <Icon name="code" size={16} />
-                <span>Assistant Status</span>
-              </div>
-              <div className="work-widget-card">
-                <AgentStatus />
-              </div>
-
-              <div className="work-right-section-title">
-                <Icon name="comment" size={16} />
-                <span>Pinned Notes</span>
-              </div>
-              <div className="work-widget-card">
-                <PinnedNotes />
-              </div>
-            </div>
-          </div>
-        )}
+        {tab === "today" && <WorkTaskPanel mode="today" />}
+        {tab === "next" && <WorkTaskPanel mode="next" />}
         {tab === "delegated" && <ActiveWorkSurface />}
         {tab === "scheduled" && <WorkScheduledPanel />}
         {tab === "review" && <ReviewQueueSurface profile="default" />}

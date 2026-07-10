@@ -337,6 +337,15 @@ async function openCommand(label) {
   await win.locator(".pal-item", { hasText: label }).first().click();
 }
 
+async function openPageFromPalette(title) {
+  await win.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("sps:search"));
+  });
+  await win.waitForSelector(".palette", { timeout: 8000 });
+  await win.getByPlaceholder("Search or open in new tab…").fill(title);
+  await win.locator(".pal-item", { hasText: title }).first().click();
+}
+
 async function waitForInputValue(locator, predicate, label, timeoutMs = 8000) {
   const start = Date.now();
   let value = "";
@@ -449,18 +458,14 @@ await win.getByText("Home", { exact: true }).first().click();
 // 02a — Learning surface, opened from command palette.
 await shot("02a-learning", async () => {
   await openCommand("Open Learning");
-  await win.getByRole("button", { name: "Advanced" }).click();
-  await win.getByRole("button", { name: "Skills" }).click();
+  await win.getByRole("button", { name: "Memories" }).waitFor({ timeout: 8000 });
 });
 
-// 02b — Research (OpenAlex) modal, opened from the first-class sidebar rail item.
-// Offline-safe: we screenshot the modal's initial state (no network dependency).
-// Proves the "Research" rail affordance → ResearchModal mount → ensure-agent-tool.
+// 02b — persistent Research workspace, offline-safe at its initial state.
 await shot("02b-research", async () => {
   await openCommand("Research papers");
-  await win.waitForSelector(".modal", { timeout: 8000 });
+  await win.getByLabel("Research workspace").waitFor({ timeout: 8000 });
 });
-await win.keyboard.press("Escape").catch(() => {});
 
 // 02c — empty "Research" folder shows the "No papers yet → Search for papers"
 // nudge (DocHeader teaches the folder's use). Click the tree node, not the rail
@@ -573,7 +578,7 @@ await shot("09-getstarted", async () => {
 
 // 10 — Journal calendar surface (month grid + day timeline).
 await shot("10-journal", async () => {
-  await openCommand("Open Work");
+  await openCommand("Open Journal");
   await win.waitForSelector(".jr .cal-grid", { timeout: 8000 });
 });
 
@@ -598,7 +603,9 @@ await shot("12-content-studio", async () => {
     timeout: 8000,
   });
   await win.getByText("Content cockpit").waitFor({ timeout: 8000 });
-  await win.getByText("Workspace pack ready").waitFor({ timeout: 8000 });
+  await win
+    .getByRole("navigation", { name: "Content workflow" })
+    .waitFor({ timeout: 8000 });
 });
 
 // 13 — low-score ideas are blocked unless explicitly overridden.
@@ -622,6 +629,10 @@ await shot("14-content-studio-run", async () => {
 
 // 15 — manual analytics entry computes the BM/Like signal.
 await shot("15-content-studio-analytics", async () => {
+  await win
+    .getByRole("navigation", { name: "Content workflow" })
+    .getByRole("button", { name: /Analytics/ })
+    .click();
   await win.getByLabel("Analytics slug").fill("smoke-post");
   await win.getByLabel("Views").fill("1000");
   await win.getByLabel("Bookmarks").fill("45");
@@ -634,6 +645,10 @@ await shot("15-content-studio-analytics", async () => {
 
 // 16 — claim-level approval is blocked until evidence is attached.
 await shot("16-content-studio-evidence-block", async () => {
+  await win
+    .getByRole("navigation", { name: "Content workflow" })
+    .getByRole("button", { name: /Evidence/ })
+    .click();
   await win
     .getByLabel("Final draft")
     .fill("This workflow always saves 30 minutes.");
@@ -656,6 +671,10 @@ await shot("17-content-studio-evidence-approve", async () => {
 // 18 — publishing remains manual, but the packet can be marked published.
 await shot("18-content-studio-publish", async () => {
   await win
+    .getByRole("navigation", { name: "Content workflow" })
+    .getByRole("button", { name: /Publish/ })
+    .click();
+  await win
     .getByLabel("Manual publish URL")
     .fill("https://x.com/example/status/1");
   await win.getByRole("button", { name: "Mark published" }).click();
@@ -668,10 +687,10 @@ await shot("18-content-studio-publish", async () => {
 // smoke directory, not from the developer's real screenshot folders.
 await shot("19-sources-screenshot", async () => {
   await openCommand("Open RSS Reader");
-  await win.getByText("SPS RSS Intel Reader").waitFor({ timeout: 8000 });
+  await win.getByText("RSS Reader", { exact: true }).waitFor({ timeout: 8000 });
   await win
     .getByRole("main")
-    .getByRole("button", { name: "Capture" })
+    .getByRole("button", { name: "Manage Feeds" })
     .click();
   await win.getByRole("tab", { name: "Screenshot" }).click();
   await win.getByText(SEEDED_SCREENSHOT_NAME).waitFor({ timeout: 8000 });
@@ -775,7 +794,7 @@ try {
   await captureWin.screenshot({
     path: join(OUT, "24-quick-capture-task.png"),
   });
-  await captureWin.getByRole("button", { name: "Save Task" }).click();
+  await captureWin.getByRole("button", { name: "Save" }).click();
   try {
     await captureWin.getByText(/On your list/).waitFor({ timeout: 10000 });
   } catch (err) {
@@ -788,6 +807,81 @@ try {
   const message = e instanceof Error ? e.message : String(e);
   shotFailures.push({ name: "24-quick-capture-task", message });
   console.log("SHOT FAIL:", "24-quick-capture-task", "-", message);
+}
+
+// Acceptance-width matrix. Every primary workspace is opened at the minimum,
+// standard, and expanded logical sizes; the main page itself must never become
+// a horizontal scroll container. Purpose-built canvases may still pan inside
+// their own bounded region.
+const acceptanceSizes = [
+  { id: "compact", width: 900, height: 700 },
+  { id: "standard", width: 1100, height: 802 },
+  { id: "expanded", width: 1440, height: 900 },
+];
+const acceptanceSurfaces = [
+  {
+    id: "home",
+    open: () => win.getByRole("button", { name: "Home" }).click({ force: true }),
+  },
+  { id: "dashboard", open: () => openCommand("Open Dashboard") },
+  { id: "work", open: () => openCommand("Open Work") },
+  { id: "assistant", open: () => openCommand("Open My Assistant") },
+  { id: "journal", open: () => openCommand("Open Journal") },
+  { id: "learning", open: () => openCommand("Open Learning") },
+  { id: "research", open: () => openCommand("Research papers") },
+  { id: "graph", open: () => openCommand("Open Graph") },
+  { id: "insights", open: () => openCommand("Open Insights") },
+  { id: "health", open: () => openCommand("Open Health") },
+  { id: "rss", open: () => openCommand("Open RSS Reader") },
+  { id: "content", open: () => openCommand("Open Content Studio") },
+  { id: "deck", open: () => openCommand("Open Deck Studio") },
+  { id: "querydb", open: () => openPageFromPalette("Projects DB") },
+];
+
+async function assertMainDoesNotClip(label) {
+  const overflow = await win.locator(".main").evaluate((main) => ({
+    clientWidth: main.clientWidth,
+    scrollWidth: main.scrollWidth,
+  }));
+  if (overflow.scrollWidth - overflow.clientWidth > 2) {
+    throw new Error(
+      `${label} clips horizontally (${overflow.scrollWidth}px > ${overflow.clientWidth}px)`,
+    );
+  }
+}
+
+for (const size of acceptanceSizes) {
+  await win.setViewportSize({ width: size.width, height: size.height });
+  await win.waitForTimeout(250);
+  for (const surface of acceptanceSurfaces) {
+    const name = `responsive-${size.id}-${surface.id}`;
+    expectedShots.push(name);
+    await shot(name, async () => {
+      await surface.open();
+      await assertMainDoesNotClip(name);
+    });
+  }
+  const settingsName = `responsive-${size.id}-settings`;
+  expectedShots.push(settingsName);
+  await shot(settingsName, async () => {
+    await win.getByLabel("Open profile menu").click();
+    await win.getByRole("menuitem", { name: /Settings/ }).click();
+    await win.getByRole("dialog", { name: "SPS Control Center" }).waitFor({
+      timeout: 8000,
+    });
+    await assertMainDoesNotClip(settingsName);
+  });
+  await win.getByRole("button", { name: "Close settings" }).click();
+  const searchName = `responsive-${size.id}-search`;
+  expectedShots.push(searchName);
+  await shot(searchName, async () => {
+    await win.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("sps:search"));
+    });
+    await win.waitForSelector(".palette", { timeout: 8000 });
+    await assertMainDoesNotClip(searchName);
+  });
+  await win.keyboard.press("Escape");
 }
 
 console.log("SHOTS_OK:", shots.length, "—", shots.join(", "));

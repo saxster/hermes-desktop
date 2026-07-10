@@ -34,12 +34,14 @@ type Tab = "recipes" | "experts" | "memories" | "skills" | "curator";
 
 export function LearningSurface({
   profile = "default",
+  developerOnly = false,
 }: {
   profile?: string;
+  developerOnly?: boolean;
 }): React.JSX.Element {
   const defaultRecipe = ASSISTANT_RECIPE_TEMPLATES[0];
   const setSurface = useStore((s) => s.setSurface);
-  const [tab, setTab] = useState<Tab>("memories");
+  const [tab, setTab] = useState<Tab>(developerOnly ? "skills" : "memories");
   const [recipes, setRecipes] = useState<AssistantRecipe[]>([]);
   const [recipeRuns, setRecipeRuns] = useState<AssistantRecipeRunRecord[]>([]);
   const [localExperts, setLocalExperts] = useState<LocalExpertPackSummary[]>(
@@ -576,9 +578,26 @@ export function LearningSurface({
     await loadCurator();
   }
 
+  const visibleTabs: Tab[] = developerOnly
+    ? ["skills", "curator"]
+    : ["memories", "recipes", "experts"];
+  const tabLabel: Record<Tab, string> = {
+    memories: "Memories",
+    recipes: "Assistants",
+    experts: "Experts",
+    skills: "Skills",
+    curator: "Curator",
+  };
+
   return (
-    <div className="settings-container">
-      <header className="memory-header">
+    <div
+      className={
+        developerOnly
+          ? "learning-developer-settings"
+          : "settings-container learning-workspace"
+      }
+    >
+      {!developerOnly && <header className="memory-header">
         <div>
           <h1 className="settings-header learning-surface-header-title">
             Learning
@@ -588,54 +607,26 @@ export function LearningSurface({
             should remember before opening builder controls.
           </p>
         </div>
-      </header>
+      </header>}
 
       <div className="settings-subnav">
-        {(["memories", "recipes", "experts"] as const).map((id) => (
+        {visibleTabs.map((id) => (
           <button
             key={id}
             type="button"
             className={`settings-subnav-tab ${tab === id ? "active" : ""}`}
             onClick={() => setTab(id)}
           >
-            {id === "memories"
-              ? "Memories"
-              : id === "recipes"
-                ? "Assistants"
-                : "Experts"}
+            {tabLabel[id]}
           </button>
         ))}
-        <button
-          type="button"
-          className={`settings-subnav-tab ${
-            tab === "skills" || tab === "curator" ? "active" : ""
-          }`}
-          onClick={() => setTab("skills")}
-        >
-          Advanced
-        </button>
       </div>
-
-      {(tab === "skills" || tab === "curator") && (
-        <div className="settings-subnav learning-advanced-subnav">
-          {(["skills", "curator"] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              className={`settings-subnav-tab ${tab === id ? "active" : ""}`}
-              onClick={() => setTab(id)}
-            >
-              {id === "skills" ? "Skills" : "Curator"}
-            </button>
-          ))}
-        </div>
-      )}
 
       {notice && (
         <div className="memory-error learning-surface-notice">{notice}</div>
       )}
 
-      {tab === "recipes" && (
+      {!developerOnly && tab === "recipes" && (
         <AssistantRecipesTab
           recipes={recipes}
           runs={recipeRuns}
@@ -669,7 +660,7 @@ export function LearningSurface({
           busy={busy}
         />
       )}
-      {tab === "experts" && (
+      {!developerOnly && tab === "experts" && (
         <LocalExpertsTab
           packs={localExperts}
           selectedPackId={selectedExpertId}
@@ -690,7 +681,7 @@ export function LearningSurface({
           busy={busy}
         />
       )}
-      {tab === "memories" && (
+      {!developerOnly && tab === "memories" && (
         <MemoriesTab
           pending={pendingMemories}
           memoryDraft={memoryDraft}

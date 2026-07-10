@@ -110,7 +110,6 @@ export function Sidebar() {
   const surface = useStore((s) => s.surface);
   const setSurface = useStore((s) => s.setSurface);
   const selectPage = useStore((s) => s.selectPage);
-  const setResearchOpen = useStore((s) => s.setResearchOpen);
   // Selecting a page always returns to the document surface.
   const selectDoc = (id: string): void => {
     selectPage(id);
@@ -127,6 +126,7 @@ export function Sidebar() {
   const setTweaksOpen = useStore((s) => s.setTweaksOpen);
   const setTweak = useStore((s) => s.setTweak);
   const importPdf = useStore((s) => s.importPdf);
+  const openJournal = useStore((s) => s.openJournal);
 
   const [drag, setDrag] = useState<string | null>(null);
   const [over, setOver] = useState<{ id: string; where: DropWhere } | null>(
@@ -244,6 +244,9 @@ export function Sidebar() {
       </div>
 
       <div className="rail-scroll scroll">
+        <div className="sec sec-static">
+          <span className="sec-label">Core</span>
+        </div>
         <button
           type="button"
           className="nav-item"
@@ -384,7 +387,7 @@ export function Sidebar() {
           <span className={`wing-chev ${packsOpen ? "open" : ""}`}>
             <Icon name="chevR" size={11} />
           </span>
-          <span className="wing-title">Workspace packs</span>
+          <span className="wing-title">Packs</span>
         </button>
 
         {(packsOpen || isIconsMode) && (
@@ -398,9 +401,10 @@ export function Sidebar() {
             ) ?? renderPackToggle("learning", "Learning")}
             {renderPackNav(
               "research",
-              "Deep Research",
-              "doc",
-              () => setResearchOpen(true),
+              "Research",
+              "search",
+              () => openSurface("research"),
+              surface === "research",
             ) ?? renderPackToggle("research", "Research")}
             {packs.research && (
               <button
@@ -410,7 +414,7 @@ export function Sidebar() {
                 title="RSS Reader"
                 aria-label="RSS Reader"
               >
-                <Icon name="doc" size={17} />
+                <Icon name="inbox" size={17} />
                 <span className="nav-label">RSS Reader</span>
               </button>
             )}
@@ -423,7 +427,7 @@ export function Sidebar() {
             ) ?? renderPackToggle("graph", "Graph")}
             {renderPackNav(
               "health",
-              "Health & Ledger",
+              "Health",
               "heart",
               () => openSurface("personal-health"),
               surface === "personal-health",
@@ -438,7 +442,7 @@ export function Sidebar() {
             {renderPackNav(
               "content",
               "Content Studio",
-              "sparkle",
+              "text",
               () => openSurface("contentStudio"),
               surface === "contentStudio",
             ) ?? renderPackToggle("content", "Content")}
@@ -474,6 +478,16 @@ export function Sidebar() {
         <div className="sec sec-static mt-12">
           <span className="sec-label">More</span>
         </div>
+        <button
+          type="button"
+          className={`nav-item ${surface === "journal" ? "active" : ""}`}
+          onClick={() => openJournal()}
+          title="Journal"
+          aria-label="Journal"
+        >
+          <Icon name="calendar" size={17} />
+          <span className="nav-label">Journal</span>
+        </button>
         <button
           type="button"
           className="nav-item"

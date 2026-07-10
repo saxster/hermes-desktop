@@ -2,6 +2,7 @@ import type {
   ContentStudioPlaybook,
   ContentStudioRubric,
 } from "../../../lib/content-studio";
+import { FeedbackMessage, type FeedbackTone } from "../components/FeedbackMessage";
 
 interface Props {
   playbooks: ContentStudioPlaybook[];
@@ -16,6 +17,8 @@ interface Props {
   scoreText: string;
   runMessage: string;
   variantMessage: string;
+  runMessageTone?: FeedbackTone;
+  variantMessageTone?: FeedbackTone;
   lastAssistantRunId: string;
   onIdeaTitleChange: (value: string) => void;
   onSourceUrlsChange: (value: string) => void;
@@ -168,10 +171,12 @@ export function ContentIdeaPanel(props: Props): React.JSX.Element {
       </div>
       <div className="content-studio-score">{props.scoreText}</div>
       {props.runMessage && (
-        <div className="active-work-error">{props.runMessage}</div>
+        <FeedbackMessage tone={props.runMessageTone}>{props.runMessage}</FeedbackMessage>
       )}
       {props.variantMessage && (
-        <div className="content-studio-quality">{props.variantMessage}</div>
+        <FeedbackMessage tone={props.variantMessageTone}>
+          {props.variantMessage}
+        </FeedbackMessage>
       )}
     </section>
   );

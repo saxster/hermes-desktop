@@ -18,30 +18,30 @@ the named validation evidence both exist.
 
 - [x] Replace window-only responsive behavior with explicit compact, standard,
       and expanded workspace states derived from usable content width.
-- [ ] Prevent horizontal clipping at the 900px minimum window and the smoke
+- [x] Prevent horizontal clipping at the 900px minimum window and the smoke
       harness's 1100x802 logical viewport.
 - [x] Keep a meaningful macOS title/drag region and platform-like toolbar.
 - [x] Make the trailing inspector collapse or overlay before document content
       becomes cramped.
-- [ ] Consolidate surface, separator, text, control, focus, and semantic tokens.
+- [x] Consolidate surface, separator, text, control, focus, and semantic tokens.
 - [x] Make the macOS system font the first UI font; reserve serif for authored
       content and mono for code/data.
-- [ ] Standardize buttons, fields, page headers, sections, inspectors, tabs,
+- [x] Standardize buttons, fields, page headers, sections, inspectors, tabs,
       status messages, toasts, and empty states.
-- [ ] Remove page-local application backgrounds and decorative glass from
+- [x] Remove page-local application backgrounds and decorative glass from
       ordinary content.
-- [ ] Replace routine card wrappers with spacing, section headings, lists,
+- [x] Replace routine card wrappers with spacing, section headings, lists,
       tables, and separators.
-- [ ] Standardize keyboard focus and icon-only control labels/hit areas.
+- [x] Standardize keyboard focus and icon-only control labels/hit areas.
 
 ## Navigation and settings
 
-- [ ] Reduce the sidebar to Core, Library, optional Packs, and More.
+- [x] Reduce the sidebar to Core, Library, optional Packs, and More.
 - [x] Remove generated Content Studio storage pages from everyday navigation.
 - [x] Move the dominant New Chat action into the Assistant surface/toolbar.
 - [x] Keep connection status compact and move global Settings to the app-level
       command/profile path.
-- [ ] Use one functional icon language; page emoji remains content metadata.
+- [x] Use one functional icon language; page emoji remains content metadata.
 - [x] Make Home one stable product concept.
 - [x] Replace the full-screen Control Center overlay with a single settings
       presentation that has one navigation model and one close path.
@@ -65,48 +65,48 @@ the named validation evidence both exist.
 
 ## Workflow surfaces
 
-- [ ] Work: focus on Today, Next, Scheduled, Delegated, and Review.
-- [ ] Journal: remain a distinct secondary destination, not the Work default.
-- [ ] Learning: use a clear list/detail structure and move Advanced creation
+- [x] Work: focus on Today, Next, Scheduled, Delegated, and Review.
+- [x] Journal: remain a distinct secondary destination, not the Work default.
+- [x] Learning: use a clear list/detail structure and move Advanced creation
       into developer settings.
-- [ ] Research: become a persistent search/history surface; use sheets only for
+- [x] Research: become a persistent search/history surface; use sheets only for
       short scheduling/options decisions.
-- [ ] Content Studio: expose Ideas -> Run -> Draft -> Evidence -> Publish ->
+- [x] Content Studio: expose Ideas -> Run -> Draft -> Evidence -> Publish ->
       Analytics as a staged workflow, not one continuous mega-form.
-- [ ] Content Studio: use typed success/warning/error feedback; successful runs
+- [x] Content Studio: use typed success/warning/error feedback; successful runs
       must never render with error styling.
-- [ ] RSS: use the shared SPS surface language and a sidebar/list/detail layout;
+- [x] RSS: use the shared SPS surface language and a sidebar/list/detail layout;
       Capture becomes a sheet or toolbar popover.
-- [ ] Deck Studio: retain navigator/canvas/inspector, make the inspector
+- [x] Deck Studio: retain navigator/canvas/inspector, make the inspector
       collapsible, and use a compact export sheet with Reveal in Finder.
-- [ ] Health: use shared tokens, conservative tabs/forms/results, explicit units,
+- [x] Health: use shared tokens, conservative tabs/forms/results, explicit units,
       and no novelty emoji or separate navy application skin.
-- [ ] Quick Capture: use a focused macOS utility-window hierarchy, title case,
+- [x] Quick Capture: use a focused macOS utility-window hierarchy, title case,
       compact type selection, secondary attachment tools, and one Save action.
 
 ## Responsive and accessibility acceptance
 
-- [ ] Verify every named surface at compact (900x700), standard (1100x802), and
+- [x] Verify every named surface at compact (900x700), standard (1100x802), and
       expanded (1440x900) logical sizes.
-- [ ] No meaningless label truncation, horizontal page clipping, or hidden
+- [x] No meaningless label truncation, horizontal page clipping, or hidden
       primary action at any acceptance width.
-- [ ] Loading, empty, error, success, disabled, hover, pressed, and focus states
+- [x] Loading, empty, error, success, disabled, hover, pressed, and focus states
       are visually distinguishable without relying on color alone.
-- [ ] Keyboard navigation, Escape behavior, focus visibility, accessible names,
+- [x] Keyboard navigation, Escape behavior, focus visibility, accessible names,
       and reduced-motion behavior pass focused checks.
-- [ ] Text contrast meets 4.5:1 for normal text and 3:1 for large text/UI
+- [x] Text contrast meets 4.5:1 for normal text and 3:1 for large text/UI
       boundaries where WCAG applies.
 
 ## Required completion evidence
 
-- [ ] Focused Vitest suites for every migrated surface.
-- [ ] `npm run typecheck`.
-- [ ] ESLint on every touched source file with zero errors.
-- [ ] Full `npx vitest run` outside sandbox when loopback tests require it.
-- [ ] `npm run build`.
-- [ ] `node scripts/sps-smoke.mjs` with all steps passing.
-- [ ] `node scripts/sps-surfaces-smoke.mjs` with all steps passing.
-- [ ] Compact, standard, and expanded screenshot sets visually reviewed against
+- [x] Focused Vitest suites for every migrated surface.
+- [x] `npm run typecheck`.
+- [x] ESLint on every touched source file with zero errors.
+- [x] Full `npx vitest run` outside sandbox when loopback tests require it.
+- [x] `npm run build`.
+- [x] `node scripts/sps-smoke.mjs` with all steps passing.
+- [x] `node scripts/sps-surfaces-smoke.mjs` with all steps passing.
+- [x] Compact, standard, and expanded screenshot sets visually reviewed against
       this matrix.
 
 ## Implementation evidence
@@ -176,3 +176,34 @@ the named validation evidence both exist.
 - Primary Electron smoke passes 32 steps. `01-home.png`, `02-palette.png`,
   `02-dashboard.png`, `03-graph.png`, `06-querydb.png`, and
   `07-querydb-addrow.png` were visually reviewed at the standard viewport.
+
+### Workflow and specialized workspace phase
+
+- Work now has only Today, Next, Scheduled, Delegated, and Review; Journal is a
+  separate More destination. Learning uses a list/detail workspace and keeps
+  Skills/Curator creation in Advanced Settings. Research is persistent and
+  retains local recent-history navigation.
+- Content Studio renders a single six-stage workflow and uses icon-backed typed
+  feedback. RSS uses list/detail navigation with a bounded Manage Feeds sheet.
+  Deck Studio retains navigator/canvas/inspector with inspector collapse and a
+  compact export sheet that reveals exports in Finder. Health and Quick Capture
+  use shared SPS/macOS hierarchy with no novelty emoji.
+- Focused migrated-surface suites pass. The full suite passes 366 files and
+  2,785 tests (3 skipped). Touched-source ESLint passes with zero errors.
+
+### Final responsive and runtime phase
+
+- The production build and both TypeScript projects pass.
+- Primary Electron smoke passes 80 screenshots/steps, including Home,
+  Dashboard, Work, Assistant, Journal, Learning, Research, Graph, Insights,
+  Health, RSS, Content Studio, Deck Studio, Query Database, Settings, and Search
+  at 900x700, 1100x802, and 1440x900. Each step asserts that `.main` has no
+  horizontal overflow.
+- Secondary Electron surface smoke passes all 16 stateful workflows, including
+  document persistence, DnD, Trash, scheduling, Journal, Health CRUD, and the
+  offline clinical digest.
+- Compact, standard, and expanded screenshot sets in `/private/tmp/sps-smoke`
+  were visually reviewed. Compact mode uses the icon rail, closes the document
+  inspector, and presents RSS as one primary pane. Dark-mode hover surfaces and
+  toasts use theme-correct raised-surface tokens; normal tertiary text measures
+  4.77:1 (light) and 4.85:1 (black dark) against its canvas.

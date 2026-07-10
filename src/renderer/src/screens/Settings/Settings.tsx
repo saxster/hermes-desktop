@@ -33,6 +33,7 @@ import type { SettingsSection } from "./settingsSections";
 import { SETTINGS_SECTION_COPY } from "./settingsSections";
 import { WorkspaceAppearanceSettings } from "./WorkspaceAppearanceSettings";
 import { StorageSettings } from "../SpsAgent/tweaks/TweaksPanel";
+import { LearningSurface } from "../SpsAgent/learning/LearningSurface";
 
 const TELEGRAM_COMMUNITY_URL = "https://t.me/hermes_agent_desktop";
 
@@ -1082,6 +1083,11 @@ function Settings({
             </div>
           </>
         )}
+      </div>
+
+      <div className="settings-section" data-section-tab="advanced">
+        <div className="settings-section-title">Learning developer tools</div>
+        <LearningSurface profile={profile} developerOnly />
       </div>
 
       <div className="settings-section" data-section-tab="preferences">

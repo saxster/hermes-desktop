@@ -5,6 +5,12 @@
   color: #151716;
 }
 
+/* Shared SPS shell; deck preview content keeps its own theme inside the canvas. */
+.sps-scope .deck-studio {
+  background: var(--canvas);
+  color: var(--tx-1);
+}
+
 .sps-scope .deck-header {
   display: flex;
   align-items: end;
@@ -523,6 +529,40 @@
   max-width: 760px;
 }
 
+.sps-scope .deck-slide-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sps-scope .deck-slide-toolbar .secondary {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--tx-1);
+}
+
+.sps-scope .deck-workbench.inspector-hidden {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+.sps-scope .deck-export {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  width: min(620px, 100%);
+  margin: 36px auto 0;
+  border-color: var(--hair-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.sps-scope .deck-export > div {
+  grid-column: 1 / -1;
+}
+
 .sps-scope .deck-export p {
   margin: 6px 0 0;
   color: #55615d;
@@ -700,4 +740,38 @@
   .sps-scope .deck-canvas {
     grid-template-columns: 1fr;
   }
+}
+
+.sps-scope .app[data-workspace-width="standard"] .deck-workbench {
+  grid-template-columns: 130px minmax(0, 1fr) 260px;
+}
+
+.sps-scope .app[data-workspace-width="standard"] .deck-workbench.inspector-hidden {
+  grid-template-columns: 130px minmax(0, 1fr);
+}
+
+.sps-scope .app[data-workspace-width="compact"] .deck-studio {
+  width: 100%;
+  padding: 16px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .deck-header,
+.sps-scope .app[data-workspace-width="compact"] .deck-brief-grid,
+.sps-scope .app[data-workspace-width="compact"] .deck-workbench,
+.sps-scope .app[data-workspace-width="compact"] .deck-workbench.inspector-hidden {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sps-scope .app[data-workspace-width="compact"] .deck-thumb-rail {
+  display: flex;
+  overflow-x: auto;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .deck-tabs {
+  width: 100%;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .deck-tabs button {
+  flex: 1;
 }

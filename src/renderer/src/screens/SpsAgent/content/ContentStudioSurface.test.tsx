@@ -360,6 +360,7 @@ describe("ContentStudioSurface", () => {
   it("blocks final approval for unsupported claims and persists publish packets", async () => {
     render(<ContentStudioSurface />);
 
+    fireEvent.click(screen.getByRole("button", { name: /Evidence/ }));
     fireEvent.change(screen.getByLabelText("Final draft"), {
       target: { value: "This free workflow always gets 300K views." },
     });
@@ -374,9 +375,11 @@ describe("ContentStudioSurface", () => {
       expect.any(String),
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /Ideas/ }));
     fireEvent.change(screen.getByLabelText("Source URLs"), {
       target: { value: "https://example.com/proof" },
     });
+    fireEvent.click(screen.getByRole("button", { name: /Evidence/ }));
     fireEvent.change(screen.getByLabelText("Evidence source URL"), {
       target: { value: "https://example.com/proof" },
     });
@@ -409,6 +412,7 @@ describe("ContentStudioSurface", () => {
   it("computes BM/Like when analytics are logged", async () => {
     render(<ContentStudioSurface />);
 
+    fireEvent.click(screen.getByRole("button", { name: /^6\s*Analytics$/ }));
     fireEvent.change(screen.getByLabelText("Analytics slug"), {
       target: { value: "agent-reach-setup" },
     });
@@ -448,6 +452,7 @@ describe("ContentStudioSurface", () => {
       .mockResolvedValueOnce([]);
     render(<ContentStudioSurface />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
     fireEvent.click(screen.getByRole("button", { name: "Run weekly review" }));
 
     await waitFor(() => {
@@ -529,11 +534,12 @@ describe("ContentStudioSurface", () => {
   it("requires evidence before approving detected claims", async () => {
     render(<ContentStudioSurface />);
 
-    fireEvent.change(screen.getByLabelText("Final draft"), {
-      target: { value: "This workflow always saves 30 minutes." },
-    });
     fireEvent.change(screen.getByLabelText("Source URLs"), {
       target: { value: "https://example.com/proof" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Evidence/ }));
+    fireEvent.change(screen.getByLabelText("Final draft"), {
+      target: { value: "This workflow always saves 30 minutes." },
     });
     const callCountBeforeApproval = api.spsExportRow.mock.calls.length;
     fireEvent.click(
@@ -579,6 +585,7 @@ describe("ContentStudioSurface", () => {
   it("marks publish packets as published and logs historical analytics", async () => {
     render(<ContentStudioSurface />);
 
+    fireEvent.click(screen.getByRole("button", { name: /Publish/ }));
     fireEvent.change(screen.getByLabelText("Manual publish URL"), {
       target: { value: "https://x.com/example/status/1" },
     });
@@ -592,6 +599,7 @@ describe("ContentStudioSurface", () => {
       ),
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /^6\s*Analytics$/ }));
     fireEvent.change(screen.getByLabelText("Analytics slug"), {
       target: { value: "agent-reach-setup" },
     });

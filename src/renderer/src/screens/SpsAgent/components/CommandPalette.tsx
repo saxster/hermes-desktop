@@ -69,7 +69,6 @@ export function CommandPalette() {
   const setTrashOpen = useStore((s) => s.setTrashOpen);
   const resetWorkspace = useStore((s) => s.resetWorkspace);
   const startNewChat = useStore((s) => s.startNewChat);
-  const setResearchOpen = useStore((s) => s.setResearchOpen);
   const setExternalSessionsOpen = useStore((s) => s.setExternalSessionsOpen);
   const setSurface = useStore((s) => s.setSurface);
   const openInboxImageCapture = useStore((s) => s.openInboxImageCapture);
@@ -249,6 +248,14 @@ export function CommandPalette() {
       },
       {
         kind: "action",
+        id: "journal",
+        icon: "calendar",
+        label: "Open Journal",
+        desc: "Browse dated reflections and create a journal entry.",
+        run: () => useStore.getState().openJournal(),
+      },
+      {
+        kind: "action",
         id: "dashboard",
         icon: "board",
         label: "Open Dashboard",
@@ -277,7 +284,7 @@ export function CommandPalette() {
         icon: "search",
         label: "Research papers…",
         desc: "Search OpenAlex's 250M+ scholarly works and save a plain-language summary into your workspace.",
-        run: () => setResearchOpen(true),
+        run: () => setSurface("research"),
       },
       {
         kind: "action",
@@ -315,7 +322,7 @@ export function CommandPalette() {
         kind: "action",
         id: "personal-health",
         icon: "info",
-        label: "Open Health & Ledger",
+        label: "Open Health",
         desc: "Open the optional personal health workspace pack.",
         run: () => setSurface("personal-health"),
       },
@@ -575,7 +582,6 @@ export function CommandPalette() {
     setTrashOpen,
     resetWorkspace,
     startNewChat,
-    setResearchOpen,
     setExternalSessionsOpen,
     setSurface,
     openInboxImageCapture,

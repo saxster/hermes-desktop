@@ -12,6 +12,8 @@ const store = vi.hoisted(() => ({
   flash: vi.fn(),
   openContentStudioIdea: vi.fn(),
   openDeckStudioInput: vi.fn(),
+  selectPage: vi.fn(),
+  setSurface: vi.fn(),
 }));
 
 const api = vi.hoisted(() => ({
@@ -100,6 +102,14 @@ beforeEach(() => {
 });
 
 describe("ResearchModal", () => {
+  it("renders as a persistent workspace without modal chrome", () => {
+    const { container } = render(<ResearchModal embedded />);
+
+    expect(screen.getByLabelText("Research workspace")).toBeInTheDocument();
+    expect(container.querySelector(".scrim")).toBeNull();
+    expect(screen.getByText("Recent research")).toBeInTheDocument();
+  });
+
   it("warns when social source coverage is not ready", async () => {
     api.getResearchReachStatus.mockResolvedValue({
       installed: true,

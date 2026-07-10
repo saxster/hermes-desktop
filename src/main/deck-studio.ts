@@ -544,6 +544,6 @@ export async function openDeckExport(
       error: "Deck export path is outside the export folder.",
     };
   }
-  const error = await shell.openPath(filePath);
-  return error ? { ok: false, error } : { ok: true };
+  shell.showItemInFolder(filePath);
+  return { ok: true };
 }

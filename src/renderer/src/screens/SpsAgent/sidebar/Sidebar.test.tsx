@@ -86,7 +86,8 @@ describe("Sidebar", () => {
     fireEvent.click(screen.getByText("Work"));
     fireEvent.click(screen.getByText("Assistant"));
 
-    expect(screen.getByText("Workspace packs")).toBeTruthy();
+    expect(screen.getByText("Packs")).toBeTruthy();
+    expect(screen.getByText("Core")).toBeTruthy();
     expect(screen.queryByText("Content Studio")).toBeNull();
     expect(store.setSurface).toHaveBeenCalledWith("inbox");
     expect(store.setSurface).toHaveBeenCalledWith("work");

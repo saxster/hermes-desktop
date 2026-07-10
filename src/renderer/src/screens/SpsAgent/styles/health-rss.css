@@ -1432,6 +1432,8 @@
 
 .sps-scope .content-studio-surface {
   padding: 28px;
+  width: 100%;
+  min-width: 0;
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -1590,4 +1592,492 @@
   .sps-scope .content-studio-variant-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* macOS consolidation: these are SPS workspaces, not separate skinned apps. */
+.sps-scope .health-dashboard,
+.sps-scope .rss-dashboard {
+  height: 100%;
+  min-height: 0;
+  background: var(--canvas);
+  color: var(--tx-1);
+  font-family: var(--font-sans);
+}
+
+.sps-scope .health-header,
+.sps-scope .rss-header {
+  min-height: 62px;
+  padding: 14px 24px;
+  border-color: var(--hair);
+  background: var(--canvas);
+}
+
+.sps-scope .health-title,
+.sps-scope .rss-title {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.sps-scope .tabs-bar {
+  gap: 0;
+  padding: 0 24px;
+  border-color: var(--hair);
+}
+
+.sps-scope .tab-btn {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 0;
+  color: var(--tx-2);
+  transition: none;
+}
+
+.sps-scope .tab-btn:hover {
+  color: var(--tx-1);
+  background: var(--row-hover);
+}
+
+.sps-scope .tab-btn.active {
+  color: var(--tx-1);
+  background: transparent;
+  box-shadow: inset 0 -2px var(--accent);
+}
+
+.sps-scope .glass-panel {
+  border: 0;
+  border-top: 1px solid var(--hair);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.sps-scope .timeline-card:hover {
+  transform: none;
+  border-color: var(--hair-strong);
+  background: var(--row-hover);
+}
+
+.sps-scope .log-input-group label {
+  color: var(--tx-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sps-scope .log-input-group input,
+.sps-scope .log-input-group select,
+.sps-scope .journal-textarea {
+  background: var(--surface);
+  color: var(--tx-1);
+  border: 1px solid var(--hair-strong);
+  border-radius: 6px;
+}
+
+.sps-scope .log-submit-btn {
+  min-height: 32px;
+  padding: 6px 12px;
+  background: var(--surface);
+  color: var(--tx-1);
+  border: 1px solid var(--hair-strong);
+  border-radius: 6px;
+  transition: none;
+}
+
+.sps-scope .log-submit-btn:hover {
+  background: var(--row-hover);
+}
+
+.sps-scope .rss-three-pane {
+  grid-template-columns: 210px minmax(260px, 330px) minmax(0, 1fr);
+  background: var(--canvas);
+}
+
+.sps-scope .rss-feed-tree,
+.sps-scope .rss-article-list,
+.sps-scope .rss-article-reader {
+  background: var(--canvas);
+  border-color: var(--hair);
+}
+
+.sps-scope .rss-article-reader {
+  padding: 28px clamp(24px, 5vw, 64px);
+}
+
+.sps-scope .feed-tree-item,
+.sps-scope .feed-tree-item-title,
+.sps-scope .article-card {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--tx-2);
+  font: inherit;
+  text-align: left;
+}
+
+.sps-scope .feed-tree-item:hover,
+.sps-scope .feed-tree-item.active,
+.sps-scope .article-card:hover,
+.sps-scope .article-card.active {
+  background: var(--row-hover);
+  color: var(--tx-1);
+}
+
+.sps-scope .article-card {
+  border-bottom: 1px solid var(--hair-soft);
+}
+
+.sps-scope .article-card.active {
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+.sps-scope .article-card.unread {
+  border-left: 0;
+  font-weight: 600;
+}
+
+.sps-scope .article-card-title,
+.sps-scope .reader-title,
+.sps-scope .reader-body {
+  color: var(--tx-1);
+}
+
+.sps-scope .reader-meta-bar {
+  border-color: var(--hair);
+}
+
+.sps-scope .reader-publish-info,
+.sps-scope .article-card-header,
+.sps-scope .article-card-footer {
+  color: var(--tx-3);
+}
+
+.sps-scope .rss-capture-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 24px 24px;
+  background: var(--scrim);
+}
+
+.sps-scope .rss-capture-sheet {
+  width: min(680px, 100%);
+  max-height: min(720px, calc(100% - 24px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.sps-scope .rss-capture-sheet > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sps-scope .rss-capture-sheet h2,
+.sps-scope .rss-capture-sheet p {
+  margin: 0;
+}
+
+.sps-scope .rss-capture-sheet p {
+  color: var(--tx-3);
+  font-size: 13px;
+}
+
+.sps-scope .rss-capture-sheet .source-intake-panel {
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sps-scope .content-studio-workflow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 22px 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hair);
+  overflow-x: auto;
+}
+
+.sps-scope .content-studio-workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tx-4);
+}
+
+.sps-scope .content-studio-workflow button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tx-2);
+  white-space: nowrap;
+}
+
+.sps-scope .content-studio-workflow button:hover {
+  background: var(--row-hover);
+  color: var(--tx-1);
+}
+
+.sps-scope .content-studio-workflow button.active {
+  background: var(--row-sel);
+  color: var(--tx-1);
+  font-weight: 650;
+}
+
+.sps-scope .content-studio-workflow button span {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 50%;
+  font-size: 11px;
+}
+
+.sps-scope .content-studio-review-button {
+  margin-left: auto;
+}
+
+.sps-scope .content-studio-dashboard-card,
+.sps-scope .content-studio-variant-card,
+.sps-scope .content-studio-claim-row,
+.sps-scope .content-studio-packet > div,
+.sps-scope .content-studio-analytics > div {
+  border-radius: 0;
+  border-width: 0 0 1px;
+  background: transparent;
+}
+
+.sps-scope .sps-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--info-border);
+  border-radius: 6px;
+  background: var(--info-bg);
+  color: var(--info-fg);
+  font-size: 13px;
+}
+
+.sps-scope .sps-feedback.success {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.sps-scope .sps-feedback.warning {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.sps-scope .sps-feedback.error {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+@media (max-width: 980px) {
+  .sps-scope .rss-three-pane {
+    grid-template-columns: 180px minmax(240px, 1fr);
+  }
+
+  .sps-scope .rss-article-reader {
+    display: none;
+  }
+}
+
+.sps-scope .rss-reader-back {
+  display: none;
+}
+
+.sps-scope .app[data-workspace-width="standard"] .rss-three-pane {
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+}
+
+.sps-scope .app[data-workspace-width="standard"] .rss-feed-tree {
+  display: none;
+}
+
+.sps-scope .app[data-workspace-width="standard"] .content-studio-workflow,
+.sps-scope .app[data-workspace-width="compact"] .content-studio-workflow {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.sps-scope .app[data-workspace-width="standard"] .content-studio-review-button,
+.sps-scope .app[data-workspace-width="compact"] .content-studio-review-button {
+  margin-left: 0;
+}
+
+.sps-scope .app[data-workspace-width="standard"] .content-studio-section-head,
+.sps-scope .app[data-workspace-width="compact"] .content-studio-section-head {
+  flex-wrap: wrap;
+}
+
+.sps-scope .app[data-workspace-width="standard"]
+  :is(.content-studio-packet, .content-studio-dashboard),
+.sps-scope .app[data-workspace-width="compact"]
+  :is(
+    .content-studio-grid,
+    .content-studio-packet,
+    .content-studio-dashboard,
+    .content-studio-variant-grid
+  ) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sps-scope .content-studio-surface :is(section, div, label, input, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sps-scope .content-studio-surface :is(p, span, strong) {
+  overflow-wrap: anywhere;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-three-pane {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sps-scope
+  .app[data-rail="icons"][data-workspace-width="standard"]
+  .rss-three-pane {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-feed-tree,
+.sps-scope .app[data-workspace-width="compact"] .rss-article-reader,
+.sps-scope
+  .app[data-rail="icons"][data-workspace-width="standard"]
+  .rss-feed-tree,
+.sps-scope
+  .app[data-rail="icons"][data-workspace-width="standard"]
+  .rss-article-reader {
+  display: none;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-three-pane.reading .rss-article-list {
+  display: none;
+}
+
+.sps-scope
+  .app[data-rail="icons"][data-workspace-width="standard"]
+  .rss-three-pane.reading
+  .rss-article-list {
+  display: none;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-three-pane.reading .rss-article-reader {
+  display: block;
+  padding: 20px;
+}
+
+.sps-scope
+  .app[data-rail="icons"][data-workspace-width="standard"]
+  .rss-three-pane.reading
+  .rss-article-reader {
+  display: block;
+  padding: 20px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-reader-back {
+  display: inline-flex;
+  margin-bottom: 12px;
+}
+
+.sps-scope
+  .app[data-rail="icons"][data-workspace-width="standard"]
+  .rss-reader-back {
+  display: inline-flex;
+  margin-bottom: 12px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-header,
+.sps-scope .app[data-workspace-width="compact"] .health-header {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .rss-header .flex-row-gap-12 {
+  gap: 6px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .content-studio-surface {
+  width: 100%;
+  padding: 20px 16px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .content-studio-workflow {
+  gap: 2px;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .content-studio-workflow-step > span {
+  display: none;
+}
+
+.sps-scope .app[data-workspace-width="compact"] .content-studio-workflow button {
+  padding-inline: 6px;
+}
+
+.sps-scope .health-dashboard .tabs-bar {
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+
+.sps-scope .rss-capture-sheet .source-intake-header h3,
+.sps-scope .rss-capture-sheet .source-intake-preview-title {
+  color: var(--tx-1);
+}
+
+.sps-scope .rss-capture-sheet .source-intake-status,
+.sps-scope .rss-capture-sheet .source-intake-preview-excerpt {
+  color: var(--tx-3);
+}
+
+.sps-scope .rss-capture-sheet .source-intake-tabs {
+  gap: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--hair);
+  border-radius: 0;
+  background: transparent;
+}
+
+.sps-scope .rss-capture-sheet .source-intake-tab {
+  border-radius: 0;
+  color: var(--tx-2);
+}
+
+.sps-scope .rss-capture-sheet .source-intake-tab.active {
+  background: transparent;
+  color: var(--tx-1);
+  box-shadow: inset 0 -2px var(--accent);
+}
+
+.sps-scope .rss-capture-sheet .source-intake-preview {
+  border-color: var(--hair-strong);
+  border-radius: 6px;
+  background: var(--canvas);
+}
+
+.sps-scope .rss-capture-sheet .source-intake-preview-url {
+  color: var(--info-fg);
 }

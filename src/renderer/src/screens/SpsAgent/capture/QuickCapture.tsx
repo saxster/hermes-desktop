@@ -52,14 +52,14 @@ function routeChipLabel(
 ): string {
   if (outcome.route === "ai") {
     return outcome.dispatched
-      ? "🤖 Hermes is on it"
-      : "🔍 Flagged for your review";
+      ? "Hermes is on it"
+      : "Flagged for your review";
   }
   const due = triage.due ? ` · due ${triage.due}` : "";
   if (outcome.fellBackToHuman) {
-    return `⏰ Added to your list (agent unavailable)${due}`;
+    return `Added to your list (agent unavailable)${due}`;
   }
-  return `⏰ On your list — I'll remind you${due}`;
+  return `On your list — I'll remind you${due}`;
 }
 
 interface QuickVisualCapture {
@@ -365,7 +365,7 @@ export function QuickCapture() {
         setSaving(false);
         return;
       }
-      setRouteChip(`👤 Added ${name} to Contacts`);
+      setRouteChip(`Added ${name} to Contacts`);
       setTimeout(() => window.close(), TASK_CHIP_DISMISS_MS);
     } catch (err) {
       console.error("Failed to save contact:", err);
@@ -434,7 +434,7 @@ export function QuickCapture() {
       <div className="qc-panel">
         {/* Title/Header drag region */}
         <div className="qc-header">
-          <span className="qc-title">⚡ QUICK CAPTURE</span>
+          <span className="qc-title">Quick Capture</span>
           <button
             onClick={() => window.close()}
             className="qc-close-btn"
@@ -466,7 +466,7 @@ export function QuickCapture() {
             >
               {CAPTURE_KINDS.map((kind) => (
                 <option key={kind} value={kind}>
-                  {kind}
+                  {kind.charAt(0).toUpperCase() + kind.slice(1)}
                 </option>
               ))}
             </select>
@@ -479,7 +479,7 @@ export function QuickCapture() {
               aria-label="Capture screen snippet"
             >
               <Icon name="callout" size={14} />
-              <span>Snippet</span>
+              <span>Screen</span>
             </button>
 
             <button
@@ -518,15 +518,9 @@ export function QuickCapture() {
             disabled={(!body.trim() && !visualCapture) || saving}
             className="qc-save-btn"
             title={captureKind === "task" ? "Save task" : "Save note to inbox"}
-            aria-label={
-              captureKind === "task" ? "Save task" : "Save note to inbox"
-            }
+            aria-label="Save"
           >
-            {saving
-              ? "Saving…"
-              : captureKind === "task"
-                ? "Save Task"
-                : "Save to Inbox"}
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
         {routeChip && <div className="qc-visual-chip">{routeChip}</div>}

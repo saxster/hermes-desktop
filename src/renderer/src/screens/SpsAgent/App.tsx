@@ -42,6 +42,7 @@ import { RssReaderDashboard } from "./research/RssReaderDashboard";
 import { Dashboard } from "./components/Dashboard";
 import { ContentStudioSurface } from "./content/ContentStudioSurface";
 import { DeckStudioSurface } from "./deck/DeckStudioSurface";
+import { ResearchModal } from "./modals/ResearchModal";
 
 type WorkspaceWidth = "compact" | "standard" | "expanded";
 
@@ -54,6 +55,10 @@ function workspaceWidthFor(width: number): WorkspaceWidth {
 function initialWorkspaceWidth(): WorkspaceWidth {
   if (typeof window === "undefined") return "standard";
   return workspaceWidthFor(window.innerWidth);
+}
+
+function isNarrowWindow(): boolean {
+  return typeof window !== "undefined" && window.innerWidth <= 960;
 }
 
 export function App() {
@@ -69,11 +74,18 @@ export function App() {
   const [workspaceWidth, setWorkspaceWidth] = useState<WorkspaceWidth>(
     initialWorkspaceWidth,
   );
+  const [narrowWindow, setNarrowWindow] = useState(isNarrowWindow);
   const wasCompactRef = useRef(workspaceWidth === "compact");
 
   useEffect(() => {
     setScrollContainer(docScrollRef.current);
     return () => setScrollContainer(null);
+  }, []);
+
+  useEffect(() => {
+    const update = (): void => setNarrowWindow(isNarrowWindow());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
   useEffect(() => {
@@ -105,10 +117,10 @@ export function App() {
     const isCompact = workspaceWidth === "compact";
     const enteredCompact = isCompact && !wasCompactRef.current;
     wasCompactRef.current = isCompact;
-    if (enteredCompact && surface === "doc" && panelOpen) {
+    if ((enteredCompact || narrowWindow) && surface === "doc" && panelOpen) {
       setPanelOpen(false);
     }
-  }, [workspaceWidth, panelOpen, setPanelOpen, surface]);
+  }, [workspaceWidth, narrowWindow, panelOpen, setPanelOpen, surface]);
 
   // Scheduled in-app ingest: while the app is open and auto-apply is on, run the
   // ingest loop every N minutes (0 = off). Reconfigures live on a prefs change.
@@ -204,7 +216,7 @@ export function App() {
   return (
     <div
       className="app"
-      data-rail={sidebar}
+      data-rail={narrowWindow && sidebar === "full" ? "icons" : sidebar}
       data-panel={panelOpen && surface === "doc" ? "open" : "closed"}
       data-workspace-width={workspaceWidth}
     >
@@ -239,6 +251,8 @@ export function App() {
             <PersonalHealthDashboard />
           ) : surface === "rss-reader" ? (
             <RssReaderDashboard />
+          ) : surface === "research" ? (
+            <ResearchModal embedded />
           ) : surface === "contentStudio" ? (
             <ContentStudioSurface />
           ) : surface === "deckStudio" ? (

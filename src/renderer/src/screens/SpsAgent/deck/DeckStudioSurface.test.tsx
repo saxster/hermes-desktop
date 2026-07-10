@@ -227,10 +227,25 @@ describe("DeckStudioSurface", () => {
     await waitFor(() => expect(api.deckExportPptx).toHaveBeenCalled());
     expect(await screen.findByText(/PPTX exported:/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open export" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal in Finder" }));
     expect(api.deckOpenExport).toHaveBeenCalledWith(
       "/tmp/deck-project-wallet.pptx",
       "default",
     );
+  });
+
+  it("collapses and restores the slide inspector", async () => {
+    render(<DeckStudioSurface />);
+    fireEvent.change(screen.getByLabelText("Rough notes"), {
+      target: { value: "Wallet Club\nSmart auto-budgeting" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generate outline" }));
+    await screen.findByText("The Problem");
+    fireEvent.click(screen.getByRole("button", { name: "Approve outline" }));
+    await screen.findByTestId("deck-canvas");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Inspector" }));
+    expect(screen.getByRole("button", { name: "Show Inspector" })).toBeInTheDocument();
+    expect(document.querySelector(".deck-workbench")).toHaveClass("inspector-hidden");
   });
 });

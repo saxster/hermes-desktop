@@ -358,18 +358,15 @@ afterEach(() => {
 });
 
 describe("LearningSurface", () => {
-  it("renders memories, skills, and curator tabs with pending memory proposals", async () => {
+  it("renders a focused learning list without developer controls", async () => {
     render(<LearningSurface profile="default" />);
 
     expect(await screen.findByText("Learning")).toBeInTheDocument();
     expect(screen.getByText("Assistants")).toBeInTheDocument();
     expect(screen.getByText("Memories")).toBeInTheDocument();
-    expect(screen.getByText("Advanced")).toBeInTheDocument();
+    expect(screen.queryByText("Advanced")).toBeNull();
+    expect(screen.queryByText("Skills")).toBeNull();
     expect(await screen.findByText("Prefers terse answers.")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Advanced"));
-    expect(screen.getByText("Skills")).toBeInTheDocument();
-    expect(screen.getByText("Curator")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Assistants"));
     expect(await screen.findByText("Build an Assistant")).toBeInTheDocument();
@@ -466,10 +463,9 @@ describe("LearningSurface", () => {
   });
 
   it("creates a pending skill proposal from a repo draft", async () => {
-    render(<LearningSurface profile="default" />);
+    render(<LearningSurface profile="default" developerOnly />);
 
-    fireEvent.click(screen.getByText("Advanced"));
-    fireEvent.click(await screen.findByText("Skills"));
+    expect(await screen.findByText("Skills")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Repository path"), {
       target: { value: "/tmp/repo" },
     });
@@ -493,9 +489,8 @@ describe("LearningSurface", () => {
   });
 
   it("restores archived curator skills", async () => {
-    render(<LearningSurface profile="default" />);
+    render(<LearningSurface profile="default" developerOnly />);
 
-    fireEvent.click(screen.getByText("Advanced"));
     fireEvent.click(await screen.findByText("Curator"));
     fireEvent.click(await screen.findByText("Restore old-skill"));
 

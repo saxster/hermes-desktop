@@ -50,7 +50,7 @@ describe("QuickCapture task captures", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Capture type")).toHaveValue("task");
     });
-    expect(screen.getByRole("button", { name: /save task/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("persists a task before classifying and routing it", async () => {
@@ -61,7 +61,7 @@ describe("QuickCapture task captures", () => {
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Ask Priya to send the launch checklist\nBefore noon." },
     });
-    fireEvent.click(await screen.findByRole("button", { name: /save task/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(api.spsRouteTask).toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe("QuickCapture visual captures", () => {
       screen.getByRole("button", { name: /capture screen snippet/i }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: /save note to inbox/i }),
+      await screen.findByRole("button", { name: "Save" }),
     );
 
     await waitFor(() => {

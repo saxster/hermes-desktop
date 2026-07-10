@@ -50,6 +50,7 @@ export type Surface =
   | "memory"
   | "you"
   | "learning"
+  | "research"
   | "activeWork"
   | "ask"
   | "chats"

@@ -10,7 +10,7 @@
 // Secondary mode ("Academic papers"): the original OpenAlex scholarly search —
 // type a topic, pick a paper, and Hermes saves a plain-language summary under
 // Sources/Research. Preserved so the scholar workflow doesn't regress.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import { SpsModal } from "./SpsModal";
@@ -36,6 +36,16 @@ import {
 type Mode = "research" | "papers" | "study" | "brief" | "card";
 type Phase = "idle" | "running" | "done" | "warn" | "error";
 type NotebookState = "idle" | "checking" | "working" | "done" | "failed";
+type ResearchHistoryEntry = { pageId: string; title: string; savedAt: number };
+const RESEARCH_HISTORY_KEY = "sps-research-history-v1";
+
+function loadResearchHistory(): ResearchHistoryEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(RESEARCH_HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
 
 interface NotebookLmMcpStatus {
   registered: boolean;
@@ -49,7 +59,51 @@ interface NotebookLmMcpStatus {
   message: string;
 }
 
-export function ResearchModal() {
+function ResearchFrame({
+  embedded,
+  busy,
+  onClose,
+  headerActions,
+  children,
+}: {
+  embedded: boolean;
+  busy: boolean;
+  onClose: () => void;
+  headerActions: ReactNode;
+  children: ReactNode;
+}): React.JSX.Element {
+  if (!embedded) {
+    return (
+      <SpsModal
+        title="Research"
+        onClose={onClose}
+        width={640}
+        closeGuard={() => !busy}
+        headerActions={headerActions}
+      >
+        {children}
+      </SpsModal>
+    );
+  }
+  return (
+    <main className="research-workspace" aria-label="Research workspace">
+      <header className="research-workspace-head">
+        <div>
+          <h1>Research</h1>
+          <p>Search, study, and revisit source-grounded work.</p>
+        </div>
+        {headerActions}
+      </header>
+      {children}
+    </main>
+  );
+}
+
+export function ResearchModal({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const setResearchOpen = useStore((s) => s.setResearchOpen);
   const setScheduledOpen = useStore((s) => s.setScheduledOpen);
   const setScheduledDraftTopic = useStore((s) => s.setScheduledDraftTopic);
@@ -59,9 +113,14 @@ export function ResearchModal() {
   const flash = useStore((s) => s.flash);
   const openContentStudioIdea = useStore((s) => s.openContentStudioIdea);
   const openDeckStudioInput = useStore((s) => s.openDeckStudioInput);
+  const selectPage = useStore((s) => s.selectPage);
+  const setSurface = useStore((s) => s.setSurface);
   const onClose = () => setResearchOpen(false);
 
   const [mode, setMode] = useState<Mode>("research");
+  const [history, setHistory] = useState<ResearchHistoryEntry[]>(
+    loadResearchHistory,
+  );
 
   // ── general topic research ──
   const [topic, setTopic] = useState("");
@@ -200,6 +259,14 @@ export function ResearchModal() {
       setPhase("done");
       setResultSummary(res.summary || t);
       undoRef.current = res.undo ?? null;
+      if (res.pageId) {
+        const next = [
+          { pageId: res.pageId, title: res.summary || t, savedAt: Date.now() },
+          ...history.filter((entry) => entry.pageId !== res.pageId),
+        ].slice(0, 8);
+        setHistory(next);
+        localStorage.setItem(RESEARCH_HISTORY_KEY, JSON.stringify(next));
+      }
       flash("Saved to your Knowledge Base");
     } else if (res.error === "no-sources" || res.error === "no-result") {
       setPhase("warn");
@@ -494,11 +561,10 @@ export function ResearchModal() {
     cardMode && studyResult ? extractTimeSavedLine(studyResult) : null;
 
   return (
-    <SpsModal
-      title="🔬 My Research"
+    <ResearchFrame
+      embedded={embedded}
+      busy={busy}
       onClose={onClose}
-      width={640}
-      closeGuard={() => !busy}
       headerActions={
         <div className="res-header-actions">
           <button
@@ -540,6 +606,32 @@ export function ResearchModal() {
       }
     >
       <div className="modal-body">
+        {embedded && phase === "idle" && (
+          <section className="research-history" aria-labelledby="research-history-title">
+            <h2 id="research-history-title">Recent research</h2>
+            {history.length === 0 ? (
+              <p className="research-history-empty">
+                Completed research will appear here for quick return.
+              </p>
+            ) : <div className="research-history-list">
+              {history.map((entry) => (
+                <button
+                  key={entry.pageId}
+                  type="button"
+                  onClick={() => {
+                    selectPage(entry.pageId);
+                    setSurface("doc");
+                  }}
+                >
+                  <span>{entry.title}</span>
+                  <time dateTime={new Date(entry.savedAt).toISOString()}>
+                    {new Date(entry.savedAt).toLocaleDateString()}
+                  </time>
+                </button>
+              ))}
+            </div>}
+          </section>
+        )}
         {mode === "research" ? (
           <>
             {webEnabled === false && (
@@ -583,7 +675,7 @@ export function ResearchModal() {
                 disabled={researchBusy || !topic.trim()}
                 onClick={() => void onScheduleThis()}
               >
-                ⏱ Schedule
+                <Icon name="clock" size={14} /> Schedule
               </button>
             </div>
 
@@ -961,7 +1053,7 @@ export function ResearchModal() {
           </>
         )}
       </div>
-    </SpsModal>
+    </ResearchFrame>
   );
 }
 

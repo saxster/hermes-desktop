@@ -779,6 +779,15 @@ export function ContentStudioSurface({
     setActivePanel(panel);
   }
 
+  const workflowSteps: Array<{ panel: ContentStudioPanel; label: string }> = [
+    { panel: "ideas", label: "Ideas" },
+    { panel: "runs", label: "Run" },
+    { panel: "drafts", label: "Draft" },
+    { panel: "evidence", label: "Evidence" },
+    { panel: "publish", label: "Publish" },
+    { panel: "analytics", label: "Analytics" },
+  ];
+
   function openIdeaDeck(): void {
     const idea = currentIdea || buildIdea();
     openDeckStudioInput(buildDeckInputFromContentIdea(idea));
@@ -808,19 +817,40 @@ export function ContentStudioSurface({
             assets, publish manually, and learn from analytics.
           </p>
         </div>
-        <div className="content-studio-pill">
-          {contentRootId ? "Workspace pack ready" : "Creating workspace pack"}
-        </div>
       </div>
 
-      <ContentStudioDashboard
-        summary={dashboardSummary}
-        onSelectPanel={selectPanel}
-      />
+      <nav className="content-studio-workflow" aria-label="Content workflow">
+        {workflowSteps.map((step, index) => (
+          <div key={step.panel} className="content-studio-workflow-step">
+            <button
+              type="button"
+              className={activePanel === step.panel ? "active" : ""}
+              aria-current={activePanel === step.panel ? "step" : undefined}
+              onClick={() => selectPanel(step.panel)}
+            >
+              <span>{index + 1}</span>
+              {step.label}
+            </button>
+            {index < workflowSteps.length - 1 && <span aria-hidden="true">›</span>}
+          </div>
+        ))}
+        <button
+          type="button"
+          className={`content-studio-review-button ${activePanel === "review" ? "active" : ""}`}
+          onClick={() => selectPanel("review")}
+        >
+          Review
+        </button>
+      </nav>
 
-      <div className="content-studio-pill">Selected: {activePanel}</div>
+      {activePanel === "ideas" && (
+        <ContentStudioDashboard
+          summary={dashboardSummary}
+          onSelectPanel={selectPanel}
+        />
+      )}
 
-      <ContentIdeaPanel
+      {(activePanel === "ideas" || activePanel === "runs") && <ContentIdeaPanel
         playbooks={CONTENT_STUDIO_PLAYBOOKS}
         selectedPlaybookId={selectedPlaybookId}
         onSelectPlaybook={selectPlaybook}
@@ -833,6 +863,14 @@ export function ContentStudioSurface({
         scoreText={`Score: ${score.total}/${score.max} - ${score.recommendation}`}
         runMessage={runMessage}
         variantMessage={variantMessage}
+        runMessageTone={runMessage.startsWith("Created") ? "success" : "error"}
+        variantMessageTone={
+          variantMessage.startsWith("Saved") || variantMessage.startsWith("Generated")
+            ? "success"
+            : variantMessage.includes("...")
+              ? "info"
+              : "warning"
+        }
         lastAssistantRunId={lastAssistantRunId}
         onIdeaTitleChange={setIdeaTitle}
         onSourceUrlsChange={setSourceUrlsText}
@@ -845,9 +883,9 @@ export function ContentStudioSurface({
         onGenerateCuratedBrief={() => void generateCuratedBrief()}
         onGenerateVariants={() => void generateVariants()}
         onSaveAssistantResult={() => void saveAssistantResult()}
-      />
+      />}
 
-      <section className="active-work-section">
+      {(activePanel === "ideas" || activePanel === "runs") && <section className="active-work-section">
         <h2>Deck handoff</h2>
         <p className="content-studio-quality">
           Turn the current idea or active run into a source-grounded deck brief.
@@ -870,12 +908,13 @@ export function ContentStudioSurface({
             Deck from run
           </button>
         </div>
-      </section>
+      </section>}
 
-      <DraftWorkbench
+      {(activePanel === "drafts" || activePanel === "evidence") && <DraftWorkbench
         draftText={draftText}
         variants={draftVariants}
         qualityMessage={qualityMessage}
+        qualityMessageTone={qualityMessage.startsWith("Draft approved") ? "success" : "warning"}
         onDraftTextChange={setDraftText}
         onApproveDraft={() => void runQualityGate()}
         onApproveVariant={approveVariant}
@@ -929,18 +968,18 @@ export function ContentStudioSurface({
           onEvidenceSnippetChange={setEvidenceSnippet}
           onAttachEvidence={() => void attachEvidence()}
         />
-      </DraftWorkbench>
+      </DraftWorkbench>}
 
-      <PublishQueue
+      {activePanel === "publish" && <PublishQueue
         manualPublishUrl={manualPublishUrl}
         plannedPublishedAt={plannedPublishedAt}
         onManualPublishUrlChange={setManualPublishUrl}
         onPlannedPublishedAtChange={setPlannedPublishedAt}
         onMarkPublished={() => void markPublished()}
         onRunWeeklyReview={() => void runWeeklyReview()}
-      />
+      />}
 
-      <AnalyticsLoop
+      {activePanel === "analytics" && <AnalyticsLoop
         analyticsSlug={analyticsSlug}
         views={views}
         bookmarks={bookmarks}
@@ -953,9 +992,11 @@ export function ContentStudioSurface({
         onLikesChange={setLikes}
         onCommentsChange={setComments}
         onLogAnalytics={logAnalytics}
-      />
+      />}
 
-      <WeeklyReviewPanel onRunWeeklyReview={() => void runWeeklyReview()} />
+      {activePanel === "review" && (
+        <WeeklyReviewPanel onRunWeeklyReview={() => void runWeeklyReview()} />
+      )}
     </div>
   );
 }

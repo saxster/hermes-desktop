@@ -306,9 +306,9 @@ async function seedOfflineClinicalDigest() {
     const api = window.hermesAPI;
     if (!api) throw new Error("hermesAPI unavailable");
     const feedId = await api.spsRssAddFeed({
-      url: "mock://health-smoke-feed",
+      url: "https://example.com/health-smoke-feed.xml",
       title: "Health Smoke Feed",
-      site_url: "mock://health-smoke-feed",
+      site_url: "https://example.com",
       description: "Offline clinical digest smoke feed",
       category: "Clinical",
     });
@@ -394,24 +394,21 @@ async function clickPanelTab(label) {
 
 await shot("01-dashboard", async () => {
   await openCommand("Open Dashboard");
-  await expectVisible("Scratch Pad");
-  await expectVisible("Pinned Notes");
-  await expectVisible("Today's Schedule");
+  await expectVisible("Scratchpad");
+  await expectVisible("Pinned");
+  await expectVisible("Recent");
 });
 
 await shot("02-dashboard-scratchpad", async () => {
-  await win.locator(".postit-card").click();
   await win
-    .locator(".scratchpad-modal-textarea")
+    .getByLabel("Today scratchpad")
     .fill("Smoke dashboard scratchpad note.");
-  await win.getByRole("button", { name: "Done" }).click();
   await expectVisible("Smoke dashboard scratchpad note.");
 });
 
 await shot("03-dashboard-task-drawer", async () => {
   await win
-    .locator(".dashboard-quick-actions")
-    .getByRole("button", { name: "Task" })
+    .getByRole("button", { name: "New task" })
     .click();
   await win.locator(".drawer-title-input").waitFor({ timeout: 8000 });
   await win.locator(".drawer-title-input").fill("Smoke dashboard task");
@@ -482,7 +479,6 @@ await shot("04b-doc-right-panel", async () => {
   await win.getByText("Alpha", { exact: true }).first().click({ force: true });
   await clickPanelTab("Backlinks");
   await expectVisible("Pages that reference this note.");
-  await expectVisible("No explicit backlinks found");
   await expectVisible("No unlinked mentions found");
 
   await clickPanelTab("Info");
@@ -521,12 +517,16 @@ await shot("05-trash-restore", async () => {
     .getByRole("button", { name: "Restore" })
     .click();
   await expectVisible("Restored to workspace");
-  win.once("dialog", (dialog) => dialog.accept());
+  await win.evaluate(() => {
+    window.confirm = () => true;
+  });
   await win
     .locator(".lst-row", { hasText: "Smoke purge page" })
     .getByRole("button", { name: "Delete forever" })
-    .click();
-  await expectVisible("Permanently deleted");
+    .evaluate((button) => button.click());
+  await win
+    .getByText("Smoke purge page", { exact: true })
+    .waitFor({ state: "hidden", timeout: 10000 });
   await expectVisible("Trash is empty");
   await win.keyboard.press("Escape").catch(() => {});
   await expectVisible("Smoke deleted page");
@@ -534,14 +534,11 @@ await shot("05-trash-restore", async () => {
 
 await shot("06-my-work", async () => {
   await clickNav("Work");
-  await expectVisible("At a Glance");
-  await expectVisible("Quick Actions");
-  await expectVisible("Assistant Status");
-  await win
-    .getByRole("button", { name: /New entry/ })
-    .first()
-    .click();
-  await expectVisible("Untitled entry");
+  await expectVisible("Today");
+  await expectVisible("Next");
+  await expectVisible("Scheduled");
+  await expectVisible("Delegated");
+  await expectVisible("Review");
 });
 
 await shot("07-automations", async () => {
@@ -559,18 +556,18 @@ await shot("07-automations", async () => {
     .click();
   await expectVisible("Smoke automation topic", 20000);
   await win.getByRole("button", { name: "Delete" }).first().click();
-  await expectVisible("No monitors yet");
+  await expectVisible("No topic monitors yet");
   await closeModalIfOpen();
 });
 
 await shot("08-insights", async () => {
   await openCommand("Open Insights");
   await expectVisible("Token usage and cost");
-  await expectVisible("No usage recorded yet");
+  await expectVisible("No usage yet");
 });
 
 await shot("09-journal-entry", async () => {
-  await clickNav("Work");
+  await clickNav("Journal");
   await expectVisible("New entry");
   await win
     .getByRole("button", { name: /New entry/ })
@@ -579,7 +576,7 @@ await shot("09-journal-entry", async () => {
   await expectVisible("Journal entry created");
   await win.locator(".doc-title").fill("Smoke journal entry");
   await win.locator(".block.empty").first().fill("Smoke journal body.");
-  await clickNav("Work");
+  await clickNav("Journal");
   await expectVisible("Smoke journal entry");
   const entry = win.locator(".jr-entry", { hasText: "Smoke journal entry" });
   await entry.getByTitle("Set mood").click();
@@ -590,8 +587,8 @@ await shot("09-journal-entry", async () => {
 });
 
 await shot("09-health-journal", async () => {
-  await openCommand("Open Health & Ledger");
-  await expectVisible("My Health & Ledger");
+  await openCommand("Open Health");
+  await expectVisible("Health");
   await win.getByLabel("Weight (kg)").fill("78.4");
   await win.getByLabel("Fasting Glucose (mg/dL)").fill("92");
   await win.locator("#quick-bp").fill("120/80");
@@ -630,7 +627,7 @@ await shot("09-health-journal", async () => {
 });
 
 await shot("10-health-peptide", async () => {
-  await win.getByRole("button", { name: /Peptide Ledger/ }).click();
+  await win.getByRole("button", { name: /Medications/ }).click();
   await expectVisible("Peptide Reconstitution Calculator");
   await expectVisible("Required Syringe Plunger Position");
   await win.locator("#new-protocol-name").fill("Smoke peptide protocol");
@@ -663,8 +660,8 @@ await shot("10-health-peptide", async () => {
 });
 
 await shot("11-health-vault", async () => {
-  await win.getByRole("button", { name: /Medical Vault/ }).click();
-  await expectVisible("Medical Vault");
+  await win.getByRole("button", { name: /Records/ }).click();
+  await expectVisible("Reports");
   await win.locator(".scan-pdf-btn").click();
   await expectVisible("LabCorp_BloodPanel_2026.pdf", 20000);
   let health = await getHealthCollections();
@@ -708,7 +705,7 @@ await shot("12-health-digest", async () => {
     );
   }
   await win.getByRole("button", { name: /Refresh/ }).click();
-  await win.getByRole("button", { name: /Clinical Digest/ }).click();
+  await win.getByRole("button", { name: /Research/ }).click();
   await expectVisible("Dosing and Titration Schedules", 10000);
   await expectVisible("HRV and Sleep Latency", 10000);
   const health = await getHealthCollections();

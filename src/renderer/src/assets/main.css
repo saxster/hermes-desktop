@@ -10114,13 +10114,13 @@ body {
 
 .qc-panel {
   width: 580px;
-  height: 330px;
-  background: rgba(25, 25, 27, 0.82);
-  backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  padding: 20px;
+  min-height: 300px;
+  max-height: calc(100vh - 24px);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -10136,9 +10136,9 @@ body {
 }
 
 .qc-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--sukhi-gold, #f2b705);
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-primary);
 }
 
 .qc-close-btn {
@@ -10155,12 +10155,12 @@ body {
 
 .qc-textarea {
   flex: 1;
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  padding: 12px;
-  color: #fff;
-  font-size: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 14px;
+  color: var(--text-primary);
+  font-size: 15px;
   line-height: 1.5;
   resize: none;
   outline: none;
@@ -10175,25 +10175,33 @@ body {
 
 .qc-left-buttons {
   display: flex;
-  gap: 10px;
+  gap: 6px;
 }
 
 .qc-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #fff;
-  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  padding: 7px 9px;
   font-size: 13px;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .qc-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.qc-left-buttons select.qc-btn {
+  max-width: 112px;
+  border-color: var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .qc-btn-voice-recording {
@@ -10234,7 +10242,7 @@ body {
   align-items: center;
   gap: 6px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
@@ -10250,6 +10258,14 @@ body {
 .qc-save-btn:not(:disabled) {
   background: var(--accent, #f2b705);
   color: #1a1810;
+}
+
+.qc-btn:focus-visible,
+.qc-save-btn:focus-visible,
+.qc-close-btn:focus-visible,
+.qc-textarea:focus-visible {
+  outline: 2px solid var(--accent, #f2b705);
+  outline-offset: 2px;
 }
 
 .qc-visual-chip,
@@ -10298,6 +10314,48 @@ body {
 }
 
 /* ---- Learning surface styling fixes (no-inline-styles) ---- */
+.learning-workspace {
+  max-width: 1120px;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-content: start;
+  column-gap: 28px;
+}
+.learning-workspace > .memory-header {
+  grid-column: 1 / -1;
+}
+.learning-workspace > .settings-subnav {
+  grid-column: 1;
+  grid-row: 2 / span 20;
+  align-self: start;
+  flex-direction: column;
+  align-items: stretch;
+  border-right: 1px solid var(--border);
+  border-bottom: 0;
+  padding: 0 16px 0 0;
+  background: transparent;
+}
+.learning-workspace > .settings-subnav ~ * {
+  grid-column: 2;
+}
+.learning-workspace .settings-subnav-tab {
+  text-align: left;
+}
+.learning-developer-settings > .settings-subnav {
+  position: static;
+  background: transparent;
+}
+@media (max-width: 760px) {
+  .learning-workspace {
+    display: block;
+  }
+  .learning-workspace > .settings-subnav {
+    flex-direction: row;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 12px;
+  }
+}
 .learning-surface-header-title {
   margin-bottom: 4px;
 }

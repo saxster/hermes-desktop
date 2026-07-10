@@ -1,9 +1,11 @@
 import type { DraftVariant } from "../../../lib/content-studio";
+import { FeedbackMessage, type FeedbackTone } from "../components/FeedbackMessage";
 
 interface Props {
   draftText: string;
   variants: DraftVariant[];
   qualityMessage: string;
+  qualityMessageTone?: FeedbackTone;
   onDraftTextChange: (value: string) => void;
   onApproveDraft: () => void;
   onApproveVariant: (variant: DraftVariant) => void;
@@ -13,6 +15,7 @@ export function DraftWorkbench({
   draftText,
   variants,
   qualityMessage,
+  qualityMessageTone,
   onDraftTextChange,
   onApproveDraft,
   onApproveVariant,
@@ -53,7 +56,7 @@ export function DraftWorkbench({
         Approve final draft
       </button>
       {qualityMessage && (
-        <div className="content-studio-quality">{qualityMessage}</div>
+        <FeedbackMessage tone={qualityMessageTone}>{qualityMessage}</FeedbackMessage>
       )}
     </section>
   );

@@ -20,6 +20,7 @@ vi.mock("electron", () => ({
   }),
   shell: {
     openPath: vi.fn(() => Promise.resolve("")),
+    showItemInFolder: vi.fn(),
   },
 }));
 

@@ -199,8 +199,7 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
     <div className="rss-dashboard">
       <header className="rss-header">
         <div className="rss-title">
-          <span className="emoji-large">📰</span>
-          <span>SPS RSS Intel Reader</span>
+          <span>RSS Reader</span>
         </div>
         <div className="flex-row-gap-12">
           <button
@@ -208,7 +207,7 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
             onClick={() => setShowSources((prev) => !prev)}
           >
             <Icon name="plus" size={13} className="refresh-icon-style" />{" "}
-            Capture
+            Manage Feeds
           </button>
           <button
             className="log-submit-btn refresh-btn-style"
@@ -221,45 +220,67 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
         </div>
       </header>
 
-      {showSources && <SourceIntakePanel onFeedsChanged={loadData} />}
+      {showSources && (
+        <div className="rss-capture-scrim" role="presentation">
+          <section className="rss-capture-sheet" role="dialog" aria-modal="true" aria-label="Manage RSS feeds">
+            <header>
+              <div>
+                <h2>Manage Feeds</h2>
+                <p>Add a feed or import a collection.</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowSources(false)}
+              >
+                Close
+              </button>
+            </header>
+            <SourceIntakePanel onFeedsChanged={loadData} />
+          </section>
+        </div>
+      )}
 
       {/* Main Three-Pane layout */}
-      <div className="rss-three-pane">
+      <div className={`rss-three-pane ${activeArticle ? "reading" : ""}`}>
         {/* Pane 1: Feed Tree */}
         <div className="rss-feed-tree scroll">
           <h3 className="feed-tree-heading-1">Filters</h3>
-          <div
+          <button
+            type="button"
             className={`feed-tree-item ${activeFeedId === null && filterMode === "all" ? "active" : ""}`}
             onClick={() => {
               setActiveFeedId(null);
               setFilterMode("all");
             }}
           >
-            <span>📥 All Inbox</span>
-          </div>
-          <div
+            <span>All Articles</span>
+          </button>
+          <button
+            type="button"
             className={`feed-tree-item ${filterMode === "unread" ? "active" : ""}`}
             onClick={() => {
               setActiveFeedId(null);
               setFilterMode("unread");
             }}
           >
-            <span>🔵 Unread Articles</span>
-          </div>
-          <div
+            <span>Unread</span>
+          </button>
+          <button
+            type="button"
             className={`feed-tree-item ${filterMode === "starred" ? "active" : ""}`}
             onClick={() => {
               setActiveFeedId(null);
               setFilterMode("starred");
             }}
           >
-            <span>⭐ Starred Articles</span>
-          </div>
+            <span>Starred</span>
+          </button>
 
           <h3 className="feed-tree-heading-2">Feed Folders</h3>
           {categories.map((cat) => (
             <div key={cat} className="feed-folder-container">
-              <div className="feed-tree-folder-title">📁 {cat}</div>
+              <div className="feed-tree-folder-title">{cat}</div>
               {feeds
                 .filter((f) => f.category === cat)
                 .map((feed) => (
@@ -271,7 +292,16 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
                       setFilterMode("all");
                     }}
                   >
-                    <span className="feed-tree-item-title">{feed.title}</span>
+                    <button
+                      type="button"
+                      className="feed-tree-item-title"
+                      onClick={() => {
+                        setActiveFeedId(feed.id);
+                        setFilterMode("all");
+                      }}
+                    >
+                      {feed.title}
+                    </button>
                     <button
                       className="feed-tree-item-delete-btn"
                       onClick={(e) => {
@@ -297,14 +327,15 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
               className="search-input rss-search-input"
               title="Search indexed articles"
               aria-label="Search indexed articles"
-              placeholder="🔍 Search indexed articles..."
+              placeholder="Search indexed articles…"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />
           </div>
 
           {articles.map((art) => (
-            <div
+            <button
+              type="button"
               key={art.id}
               className={`article-card ${activeArticle?.id === art.id ? "active" : ""} ${art.read_status === 0 ? "unread" : ""}`}
               onClick={() => selectArticle(art)}
@@ -319,10 +350,10 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
                   Match: {art.relevance_score}%
                 </span>
                 {art.star_status === 1 && (
-                  <span className="star-indicator">⭐</span>
+                  <Icon name="star" size={13} className="star-indicator" />
                 )}
               </div>
-            </div>
+            </button>
           ))}
 
           {articles.length === 0 && (
@@ -337,14 +368,19 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
           {activeArticle ? (
             <div>
               <div className="reader-meta-bar">
+                <button
+                  type="button"
+                  className="rss-reader-back btn btn-ghost btn-sm"
+                  onClick={() => setActiveArticle(null)}
+                >
+                  Back to Articles
+                </button>
                 <div className="reader-header-row">
                   <button
                     className="log-submit-btn protocol-record-btn"
                     onClick={() => toggleStarArticle(activeArticle)}
                   >
-                    {activeArticle.star_status === 1
-                      ? "⭐ Starred"
-                      : "☆ Star Article"}
+                    {activeArticle.star_status === 1 ? "Starred" : "Star"}
                   </button>
                   <div className="reader-buttons-group">
                     <button
@@ -367,7 +403,7 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
                       className="log-submit-btn protocol-record-btn ingest-rss-btn"
                       onClick={() => saveToSpsPage(activeArticle)}
                     >
-                      📥 Ingest to SPS Page
+                      Save to Workspace
                     </button>
                     <button
                       className="log-submit-btn protocol-record-btn"
@@ -404,8 +440,8 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
             </div>
           ) : (
             <div className="reader-empty-placeholder">
-              <span className="reader-empty-icon">📖</span>
-              Select an article to read in full distraction-free reader mode.
+              <Icon name="doc" size={22} />
+              Select an article to read it here.
             </div>
           )}
         </div>

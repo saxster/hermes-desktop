@@ -374,8 +374,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
     <div className="health-dashboard">
       <header className="health-header">
         <div className="health-title">
-          <span className="emoji-large">❤️</span>
-          <span>My Health & Ledger</span>
+          <span>Health</span>
         </div>
         <div className="flex-row-gap-12">
           <button
@@ -393,28 +392,25 @@ export function PersonalHealthDashboard(): React.JSX.Element {
           className={`tab-btn ${activeTab === "journal" ? "active" : ""}`}
           onClick={() => setActiveTab("journal")}
         >
-          <Icon name="comment" size={14} className="tab-icon-style" /> Apple
-          Journal (Timeline)
+          <Icon name="comment" size={14} className="tab-icon-style" /> Daily Log
         </button>
         <button
           className={`tab-btn ${activeTab === "peptide" ? "active" : ""}`}
           onClick={() => setActiveTab("peptide")}
         >
-          <Icon name="board" size={14} className="tab-icon-style" /> Peptide
-          Ledger & Math
+          <Icon name="board" size={14} className="tab-icon-style" /> Medications
         </button>
         <button
           className={`tab-btn ${activeTab === "vault" ? "active" : ""}`}
           onClick={() => setActiveTab("vault")}
         >
-          <Icon name="doc" size={14} className="tab-icon-style" /> Medical Vault
-          & Trends
+          <Icon name="doc" size={14} className="tab-icon-style" /> Records
         </button>
         <button
           className={`tab-btn ${activeTab === "news" ? "active" : ""}`}
           onClick={() => setActiveTab("news")}
         >
-          <span className="tab-icon-style">📰</span> Clinical Digest (
+          <Icon name="inbox" size={14} className="tab-icon-style" /> Research (
           {clinicalDigest.length})
         </button>
       </div>
@@ -424,9 +420,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
           <div className="journal-timeline">
             {/* Autonomous reflection prompt */}
             <div className="glass-panel reflection-banner">
-              <div className="reflection-title">
-                💡 Personal Reflection Prompts
-              </div>
+              <div className="reflection-title">Reflection Prompt</div>
               <p className="reflection-text">
                 {biometricLogs.length > 0 &&
                 biometricLogs[biometricLogs.length - 1].weight_kg
@@ -498,14 +492,14 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     onClick={simulateVoiceRecording}
                     disabled={isRecording}
                   >
-                    🎙️ {isRecording ? "Listening..." : "Record Audio Note"}
+                    <Icon name="mic" size={14} /> {isRecording ? "Listening..." : "Record Audio"}
                   </button>
                   <button
                     className="log-submit-btn snap-food-btn"
                     onClick={simulateFoodUpload}
                     disabled={isUploadingFood}
                   >
-                    📸{" "}
+                    <Icon name="file" size={14} />{" "}
                     {isUploadingFood
                       ? `Scanning food (${uploadProgress}%)`
                       : "Snap Food Photo"}
@@ -557,7 +551,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                 <div className="card-text">{entry.text_raw}</div>
                 {entry.voice_transcription && (
                   <div className="voice-transcription-row">
-                    <span>🎙️ Voice Transcribed:</span>
+                    <span>Voice transcription:</span>
                     <span>{entry.voice_transcription}</span>
                   </div>
                 )}
@@ -566,7 +560,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     {entry.media.map((m) => (
                       <div key={m.id} className="media-item-box">
                         <div className="media-item-placeholder">
-                          <span className="media-emoji">🥗</span>
+                          <Icon name="file" size={22} />
                         </div>
                         <div className="media-overlay-info">
                           <div className="media-overlay-title">
@@ -905,7 +899,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                           className="log-submit-btn protocol-record-btn"
                           onClick={() => logAdministration(p)}
                         >
-                          ⚡ Record Administration
+                          Record Administration
                         </button>
                       </div>
                     </div>
@@ -923,7 +917,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                 className="log-submit-btn scan-pdf-btn"
                 onClick={simulateOcrDocument}
               >
-                📁 Scan Lab PDF (Simulate OCR)
+                <Icon name="plus" size={14} /> Add Sample Lab Report
               </button>
 
               <h3 className="doc-list-heading">Reports</h3>
@@ -949,8 +943,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                         key={b.name}
                         className={`biomarker-tag ${b.isOutOfRange ? "out-of-range" : "normal-range"}`}
                       >
-                        {b.name}: {b.value}
-                        {b.unit}
+                        {b.name}: {b.value} {b.unit}
                       </span>
                     ))}
                   </div>

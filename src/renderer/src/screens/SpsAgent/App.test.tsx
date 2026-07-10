@@ -149,6 +149,9 @@ vi.mock("./health/PersonalHealthDashboard", () => ({
 vi.mock("./research/RssReaderDashboard", () => ({
   RssReaderDashboard: () => null,
 }));
+vi.mock("./modals/ResearchModal", () => ({
+  ResearchModal: () => <div data-testid="research-workspace" />,
+}));
 vi.mock("./components/Dashboard", () => ({ Dashboard: () => null }));
 vi.mock("./content/ContentStudioSurface", () => ({
   ContentStudioSurface: () => null,
@@ -165,6 +168,10 @@ beforeEach(() => {
   store.page = "home";
   store.setPanelOpen.mockClear();
   observedWorkspaceWidth = 1024;
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1100,
+  });
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -212,5 +219,31 @@ describe("SpsAgent App doc surface", () => {
     render(<App />);
 
     expect(store.setPanelOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("uses the icon rail at the 900px minimum without changing the saved preference", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 900,
+    });
+
+    store.panelOpen = true;
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".app")).toHaveAttribute(
+      "data-rail",
+      "icons",
+    );
+    expect(store.t.sidebar).toBe("full");
+    expect(store.setPanelOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("renders research as a persistent main workspace", () => {
+    store.surface = "research";
+
+    render(<App />);
+
+    expect(screen.getByTestId("research-workspace")).toBeInTheDocument();
+    expect(screen.queryByTestId("doc-header")).not.toBeInTheDocument();
   });
 });

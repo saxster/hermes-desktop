@@ -287,6 +287,7 @@ export function DeckStudioSurface({
   >([]);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<DeckMessageTone>("info");
+  const [inspectorVisible, setInspectorVisible] = useState(true);
   const [generationMode, setGenerationMode] = useState("");
   const [reviewedWarnings, setReviewedWarnings] = useState(false);
   const [lastExportPath, setLastExportPath] = useState("");
@@ -648,8 +649,16 @@ export function DeckStudioSurface({
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              className="secondary"
+              aria-pressed={inspectorVisible}
+              onClick={() => setInspectorVisible((visible) => !visible)}
+            >
+              {inspectorVisible ? "Hide Inspector" : "Show Inspector"}
+            </button>
           </div>
-          <section className="deck-workbench">
+          <section className={`deck-workbench ${inspectorVisible ? "" : "inspector-hidden"}`}>
             <SlideThumbRail
               slides={project.slides}
               selectedId={selectedSlide.id}
@@ -657,14 +666,14 @@ export function DeckStudioSurface({
               issues={issues}
             />
             <DeckCanvas project={project} slide={selectedSlide} />
-            <div className="deck-side-stack">
+            {inspectorVisible && <div className="deck-side-stack">
               <SlideInspector slide={selectedSlide} onChange={updateSlide} />
               <QaPanel
                 issues={issues}
                 reviewedWarnings={reviewedWarnings}
                 onReviewWarnings={() => setReviewedWarnings(true)}
               />
-            </div>
+            </div>}
           </section>
         </>
       )}
@@ -706,7 +715,7 @@ export function DeckStudioSurface({
           </button>
           {lastExportPath && (
             <button type="button" className="secondary" onClick={openLastExport}>
-              Open export
+              Reveal in Finder
             </button>
           )}
         </section>

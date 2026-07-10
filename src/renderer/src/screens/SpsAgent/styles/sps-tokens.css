@@ -1,8 +1,8 @@
 /* ==========================================================================
-   SPS Financial Control Plane — Colors & Type
-   Internal operator tool for accounting ops, reconciliation, controls.
-   Design goals: information-dense, tabular, functional color coding,
-   high contrast, no decorative gradients, no emoji, no rounded novelties.
+   SPS Agent — shared visual and interaction tokens.
+   All product surfaces consume these semantic roles instead of introducing a
+   local application skin. Brand gold indicates selection and primary action;
+   semantic colors retain one stable meaning across the workspace.
    ========================================================================== */
 
 /* Fonts (Inter / JetBrains Mono / Source Serif 4) are self-hosted via @fontsource
@@ -85,6 +85,11 @@
   --focus-ring-soft: rgba(46, 111, 198, 0.28);
   --row-hover: #f1eee7;
   --row-selected: var(--ink-primary-tint);
+  --control-bg: var(--surface-raised);
+  --control-border: var(--hairline-strong);
+  --control-radius: 6px;
+  --section-rule: var(--hairline);
+  --selection-bg: var(--sukhi-gold-tint);
 
   /* ---------- Type ------------------------------------------------------ */
   --font-sans:

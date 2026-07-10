@@ -6,38 +6,43 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OperatorReadinessReport } from "../../../../../shared/operator-readiness";
 
 const store = vi.hoisted(() => ({
-  journalDate: "2026-06-30",
-  setJournalDate: vi.fn(),
-  createJournalEntry: vi.fn(),
-  setSurface: vi.fn(),
+  docs: {
+    home: [
+      {
+        id: "db",
+        type: "database",
+        text: "",
+        rows: [
+          {
+            id: "task-1",
+            title: "Finish design audit",
+            status: "doing",
+            prio: "high",
+            who: "you",
+            due: "",
+            est: "",
+          },
+          {
+            id: "task-2",
+            title: "Plan next release",
+            status: "todo",
+            prio: "med",
+            who: "you",
+            due: "",
+            est: "",
+          },
+        ],
+      },
+    ],
+  },
+  setOpenTask: vi.fn(),
   setScheduledOpen: vi.fn(),
 }));
 
 vi.mock("../store", () => ({
   useStore: (selector: (state: typeof store) => unknown) => selector(store),
-}));
-
-vi.mock("./JournalCalendar", () => ({
-  JournalCalendar: () => <div>Journal calendar</div>,
-}));
-
-vi.mock("./DayTimeline", () => ({
-  DayTimeline: () => <div>Day timeline</div>,
-}));
-
-vi.mock("./useJournalEntries", () => ({
-  useJournalEntries: () => [],
-  groupByDate: () => ({}),
-}));
-
-vi.mock("../cockpit/CockpitSurface", () => ({
-  QuickActions: () => <div>Quick actions</div>,
-  Glance: () => <div>At a glance</div>,
-  PinnedNotes: () => <div>Pinned notes</div>,
-  AgentStatus: () => <div>Assistant status</div>,
 }));
 
 vi.mock("../activeWork/ActiveWorkSurface", () => ({
@@ -48,37 +53,14 @@ vi.mock("../review/ReviewQueueSurface", () => ({
   ReviewQueueSurface: () => <div>Review queue</div>,
 }));
 
-function readinessReport(): OperatorReadinessReport {
-  return {
-    profile: "default",
-    status: "attention",
-    headline: "Ready with follow-up work",
-    summary: "0 blocked, 1 need attention, 0 ready.",
-    generatedAt: 1,
-    items: [
-      {
-        id: "scheduler",
-        title: "Scheduler",
-        status: "attention",
-        summary: "1 scheduled job skip recorded.",
-        action: {
-          label: "Open Scheduled",
-          target: { kind: "modal", modal: "scheduled" },
-        },
-      },
-    ],
-  };
-}
-
 import { MyWorkSurface } from "./MyWorkSurface";
 
-describe("MyWorkSurface operator readiness", () => {
+describe("MyWorkSurface", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
-        getOperatorReadiness: vi.fn().mockResolvedValue(readinessReport()),
         srList: vi.fn().mockResolvedValue([]),
         appLaunchListSchedules: vi.fn().mockResolvedValue([]),
         appLaunchUpdateSchedule: vi.fn().mockResolvedValue({ ok: true }),
@@ -92,15 +74,18 @@ describe("MyWorkSurface operator readiness", () => {
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
 
-  it("shows readiness on the Work surface and opens Scheduled from the panel", async () => {
+  it("starts with Today and keeps Journal out of the Work task flow", () => {
     render(<MyWorkSurface />);
 
-    expect(
-      await screen.findByText("Ready with follow-up work"),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Open Scheduled" }));
+    expect(screen.getByRole("tab", { name: "Today" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Finish design audit")).toBeInTheDocument();
+    expect(screen.queryByText("Journal calendar")).toBeNull();
 
-    expect(store.setScheduledOpen).toHaveBeenCalledWith(true);
+    fireEvent.click(screen.getByRole("tab", { name: "Next" }));
+    expect(screen.getByText("Plan next release")).toBeInTheDocument();
   });
 
   it("uses Scheduled vocabulary on the scheduled tab", async () => {

@@ -10,6 +10,7 @@
   --app-bg: #f2efe7; /* warm sidebar/well */
   --canvas: #fbfaf6; /* document surface  */
   --surface: #ffffff;
+  --surface-raised: #ffffff;
   --sunk: #f1ede3;
   --hair: #e4dfd2;
   --hair-soft: #ece8dc;
@@ -17,7 +18,7 @@
 
   --tx-1: #1b1d21; /* primary  */
   --tx-2: #44484f; /* secondary*/
-  --tx-3: #797e87; /* tertiary */
+  --tx-3: #6b7079; /* tertiary; 4.5:1+ on canvas */
   --tx-4: #a7abb2; /* faint    */
 
   --row-hover: #f0ece2;
@@ -39,6 +40,7 @@
   --app-bg: #16150f;
   --canvas: #1c1b16;
   --surface: #232118;
+  --surface-raised: #2a281f;
   --sunk: #211f18;
   --hair: #322f25;
   --hair-soft: #2a2820;
@@ -73,13 +75,14 @@
   --app-bg: #0a0a0a;
   --canvas: #0f0f0f;
   --surface: #161616;
+  --surface-raised: #1c1c1c;
   --sunk: #131313;
   --hair: #2a2a2a;
   --hair-soft: #1f1f1f;
   --hair-strong: #3a3a3a;
   --tx-1: #e8e8e8;
   --tx-2: #a6a6a6;
-  --tx-3: #777777;
+  --tx-3: #808080;
   --tx-4: #555555;
   --row-hover: #1a1a1a;
   --row-sel: #222222;
