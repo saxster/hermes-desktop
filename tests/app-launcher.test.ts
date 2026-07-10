@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
+import { rmSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
 
 const {
   TEST_HOME,
@@ -10,9 +9,15 @@ const {
   showOpenDialogMock,
   appendAuditLogMock,
   connectionModeRef,
+  safeWriteFileMock,
 } = vi.hoisted(() => {
+  // These imports must remain inside vi.hoisted so the temporary test home is
+  // created before the module under test is evaluated.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require("fs");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const os = require("os");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path = require("path");
   return {
     TEST_HOME: fs.realpathSync(
@@ -23,6 +28,9 @@ const {
     showOpenDialogMock: vi.fn(),
     appendAuditLogMock: vi.fn(),
     connectionModeRef: { mode: "local" as "local" | "remote" | "ssh" },
+    safeWriteFileMock: vi.fn((filePath: string, content: string) => {
+      fs.writeFileSync(filePath, content, "utf-8");
+    }),
   };
 });
 
@@ -42,6 +50,7 @@ vi.mock("electron", () => ({
 
 vi.mock("../src/main/utils", () => ({
   profileHome: (profile?: string) => join(TEST_HOME, profile || "default"),
+  safeWriteFile: safeWriteFileMock,
 }));
 
 vi.mock("../src/main/audit-log", () => ({

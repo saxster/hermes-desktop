@@ -1,4 +1,4 @@
-import { spawn, execFile, execFileSync } from "child_process";
+import { spawn, execFile } from "child_process";
 import {
   existsSync,
   readFileSync,
@@ -22,7 +22,12 @@ import { getActiveProfileNameSync, stripAnsi } from "./utils";
 import { setupAskpass } from "./askpass";
 import { precacheSudoCredentials } from "./sudoCreds";
 import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
-import { isLocalBaseUrl } from "../shared/url-key-map";
+import {
+  hostDerivedEnvKeyForUrl,
+  isLocalBaseUrl,
+} from "../shared/url-key-map";
+import { providerEnvKey } from "../shared/provider-catalog";
+import { runHermesCli, runHermesCliSync } from "./hermes-cli-runner";
 
 // Re-exports of paths and env
 export {
@@ -101,58 +106,13 @@ function activeAuthFile(profile: string): string {
     : join(HERMES_HOME, "profiles", profile, "auth.json");
 }
 
-const PROVIDER_ENV_KEYS: Record<string, string> = {
-  openrouter: "OPENROUTER_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  openai: "OPENAI_API_KEY",
-  google: "GOOGLE_API_KEY",
-  xai: "XAI_API_KEY",
-  groq: "GROQ_API_KEY",
-  deepseek: "DEEPSEEK_API_KEY",
-  together: "TOGETHER_API_KEY",
-  fireworks: "FIREWORKS_API_KEY",
-  cerebras: "CEREBRAS_API_KEY",
-  mistral: "MISTRAL_API_KEY",
-  perplexity: "PERPLEXITY_API_KEY",
-  huggingface: "HF_TOKEN",
-  hf: "HF_TOKEN",
-  qwen: "QWEN_API_KEY",
-  minimax: "MINIMAX_API_KEY",
-  glm: "GLM_API_KEY",
-  zai: "GLM_API_KEY",
-  kimi: "KIMI_API_KEY",
-  "kimi-coding": "KIMI_API_KEY",
-  nvidia: "NVIDIA_API_KEY",
-  nous: "NOUS_API_KEY",
-  "nous-api": "NOUS_API_KEY",
-};
-
-const URL_TO_ENV_KEY: Array<[RegExp, string]> = [
-  [/openrouter\.ai/i, "OPENROUTER_API_KEY"],
-  [/anthropic\.com/i, "ANTHROPIC_API_KEY"],
-  [/openai\.com/i, "OPENAI_API_KEY"],
-  [/huggingface\.co/i, "HF_TOKEN"],
-  [/api\.groq\.com/i, "GROQ_API_KEY"],
-  [/api\.deepseek\.com/i, "DEEPSEEK_API_KEY"],
-  [/api\.moonshot\.ai/i, "KIMI_API_KEY"],
-  [/api\.z\.ai/i, "GLM_API_KEY"],
-  [/api\.together\.xyz/i, "TOGETHER_API_KEY"],
-  [/api\.fireworks\.ai/i, "FIREWORKS_API_KEY"],
-  [/api\.cerebras\.ai/i, "CEREBRAS_API_KEY"],
-  [/api\.mistral\.ai/i, "MISTRAL_API_KEY"],
-  [/api\.perplexity\.ai/i, "PERPLEXITY_API_KEY"],
-];
-
 export function expectedEnvKeyForModel(
   provider: string,
   baseUrl: string,
 ): string | null {
-  const direct = PROVIDER_ENV_KEYS[provider.trim().toLowerCase()];
+  const direct = providerEnvKey(provider);
   if (direct) return direct;
-  for (const [pattern, envKey] of URL_TO_ENV_KEY) {
-    if (pattern.test(baseUrl)) return envKey;
-  }
-  return null;
+  return hostDerivedEnvKeyForUrl(baseUrl);
 }
 
 function envHasUsableValue(
@@ -302,28 +262,9 @@ export async function verifyInstall(): Promise<boolean> {
   if (_verifyCache && Date.now() - _verifyCache.ts < VERIFY_TTL_MS) {
     return _verifyCache.ok;
   }
-  return new Promise((resolve) => {
-    execFile(
-      HERMES_PYTHON,
-      hermesCliArgs(["--version"]),
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error) => {
-        const ok = !error;
-        _verifyCache = { ok, ts: Date.now() };
-        resolve(ok);
-      },
-    );
-  });
+  const result = await runHermesCli(["--version"], { timeoutMs: 15000 });
+  _verifyCache = { ok: result.success, ts: Date.now() };
+  return result.success;
 }
 
 let _cachedVersion: string | null = null;
@@ -344,32 +285,11 @@ export async function getHermesVersion(): Promise<string | null> {
     });
   }
   _versionFetching = true;
-  return new Promise((resolve) => {
-    execFile(
-      HERMES_PYTHON,
-      hermesCliArgs(["--version"]),
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout) => {
-        _versionFetching = false;
-        if (error) {
-          resolve(null);
-        } else {
-          _cachedVersion = stdout.toString().trim();
-          resolve(_cachedVersion);
-        }
-      },
-    );
-  });
+  const result = await runHermesCli(["--version"], { timeoutMs: 15000 });
+  _versionFetching = false;
+  if (!result.success) return null;
+  _cachedVersion = result.stdout.trim();
+  return _cachedVersion;
 }
 
 export function clearVersionCache(): void {
@@ -381,19 +301,7 @@ export function runHermesDoctor(): string {
     return "Hermes is not installed.";
   }
   try {
-    const output = execFileSync(HERMES_PYTHON, hermesCliArgs(["doctor"]), {
-      cwd: HERMES_REPO,
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 30000,
-      ...HIDDEN_SUBPROCESS_OPTIONS,
-    });
-    return stripAnsi(output.toString());
+    return stripAnsi(runHermesCliSync(["doctor"], { timeoutMs: 30000 }));
   } catch (err) {
     const stderr = (err as { stderr?: Buffer }).stderr?.toString() || "";
     return stripAnsi(stderr) || "Doctor check failed.";
@@ -903,35 +811,15 @@ async function runInstallWindows(
   });
 }
 
-export function runHermesDump(): Promise<string> {
+export async function runHermesDump(): Promise<string> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
     return Promise.resolve("Hermes is not installed.");
   }
-  return new Promise((resolve) => {
-    execFile(
-      HERMES_PYTHON,
-      hermesCliArgs(["dump"]),
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-          TERM: "dumb",
-        },
-        timeout: 30000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          resolve(stripAnsi(stderr || error.message));
-        } else {
-          resolve(stripAnsi(stdout));
-        }
-      },
-    );
+  const result = await runHermesCli(["dump"], {
+    env: { TERM: "dumb" },
+    timeoutMs: 30000,
   });
+  return stripAnsi(result.success ? result.stdout : result.error || "");
 }
 
 export interface MemoryProviderInfo {
@@ -1067,31 +955,11 @@ export async function runSecurityAudit(profile?: string): Promise<string> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
     return "Hermes is not installed.";
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["security", "audit"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 60000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (_error, stdout, stderr) => {
-        const output = stdout.toString() + stderr.toString();
-        resolve(stripAnsi(output));
-      },
-    );
+  const result = await runHermesCli(["security", "audit"], {
+    profile,
+    timeoutMs: 60000,
   });
+  return stripAnsi(result.stdout + result.stderr);
 }
 
 export async function getPromptSizeBreakdown(
@@ -1100,30 +968,11 @@ export async function getPromptSizeBreakdown(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
     return JSON.stringify({ error: "Hermes is not installed." });
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["prompt-size", "--json"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (_error, stdout) => {
-        resolve(stdout.toString().trim() || "{}");
-      },
-    );
+  const result = await runHermesCli(["prompt-size", "--json"], {
+    profile,
+    timeoutMs: 15000,
   });
+  return result.stdout.trim() || "{}";
 }
 
 export async function getChangelog(): Promise<string> {

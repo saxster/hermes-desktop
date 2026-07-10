@@ -21,7 +21,7 @@ import { SubstackRadarPanel } from "./SubstackRadarPanel";
 import { saveContentIdea } from "../content/contentStudioStorage";
 import { useStore } from "../store";
 import { assetUrl, prettySize } from "../lib/assets";
-import { ocrImageBlobToText } from "../lib/ocr";
+import { ocrImageBlobToText } from "../lib/ocr-loader";
 import type {
   SpsRecentScreenshotCandidate,
   SpsRecentScreenshotImportResult,

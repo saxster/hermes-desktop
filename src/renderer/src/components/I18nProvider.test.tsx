@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import {
   DEFAULT_ACTIVE_LOCALE,
@@ -38,6 +38,7 @@ describe("I18nProvider", () => {
   });
 
   afterEach(() => {
+    cleanup();
     setSharedLocale(DEFAULT_ACTIVE_LOCALE);
     try {
       localStorage.removeItem("hermes-locale");

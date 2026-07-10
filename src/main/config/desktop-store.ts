@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { HERMES_HOME } from "../installer";
-import { getActiveProfileNameSync } from "../utils";
+import { getActiveProfileNameSync, safeWriteFile } from "../utils";
 import {
   canDecryptSecret,
   encryptSecret,
@@ -78,7 +78,7 @@ export function writeDesktopConfig(data: Record<string, unknown>): void {
       }
     }
   }
-  writeFileSync(desktopConfigFile(), JSON.stringify(clone, null, 2), "utf-8");
+  safeWriteFile(desktopConfigFile(), `${JSON.stringify(clone, null, 2)}\n`);
 }
 
 export function migrateDesktopConfigSecrets(): void {

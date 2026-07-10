@@ -1,14 +1,7 @@
-import { execFileSync } from "child_process";
 import { join } from "path";
-import { homedir } from "os";
 import { promises as fs } from "fs";
 import { existsSync } from "fs";
-import {
-  HERMES_HOME,
-  HERMES_PYTHON,
-  hermesCliArgs,
-  getEnhancedPath,
-} from "./installer";
+import { HERMES_HOME } from "./installer";
 import {
   getActiveProfileNameSync,
   isValidNamedProfileName,
@@ -16,7 +9,7 @@ import {
   pidIsAliveAs,
   PROFILE_NAME_ERROR,
 } from "./utils";
-import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import { runHermesCliSync } from "./hermes-cli-runner";
 import type { ProfileInfo } from "../shared/profiles";
 export type { ProfileInfo };
 
@@ -209,18 +202,7 @@ export function createProfile(
     const args = clone
       ? ["profile", "create", name, "--clone"]
       : ["profile", "create", name];
-    execFileSync(HERMES_PYTHON, hermesCliArgs(args), {
-      cwd: join(HERMES_HOME, "hermes-agent"),
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
-      },
-      stdio: "pipe",
-      timeout: 30000,
-      ...HIDDEN_SUBPROCESS_OPTIONS,
-    });
+    runHermesCliSync(args, { timeoutMs: 30000 });
     return { success: true };
   } catch (err) {
     return { success: false, error: commandErrorMessage(err) };
@@ -238,22 +220,9 @@ export function deleteProfile(name: string): {
   }
 
   try {
-    execFileSync(
-      HERMES_PYTHON,
-      hermesCliArgs(["profile", "delete", name, "--yes"]),
-      {
-        cwd: join(HERMES_HOME, "hermes-agent"),
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        stdio: "pipe",
-        timeout: 30000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-    );
+    runHermesCliSync(["profile", "delete", name, "--yes"], {
+      timeoutMs: 30000,
+    });
     return { success: true };
   } catch (err) {
     return { success: false, error: commandErrorMessage(err) };
@@ -266,18 +235,7 @@ export function setActiveProfile(name: string): void {
   }
 
   try {
-    execFileSync(HERMES_PYTHON, hermesCliArgs(["profile", "use", name]), {
-      cwd: join(HERMES_HOME, "hermes-agent"),
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
-      },
-      stdio: "pipe",
-      timeout: 10000,
-      ...HIDDEN_SUBPROCESS_OPTIONS,
-    });
+    runHermesCliSync(["profile", "use", name], { timeoutMs: 10000 });
   } catch {
     // ignore
   }

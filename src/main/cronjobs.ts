@@ -1,8 +1,6 @@
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { execFile } from "child_process";
-import { HERMES_HOME, HERMES_PYTHON, hermesCliArgs } from "./installer";
 import { profileHome } from "./utils";
 import {
   isRemoteMode,
@@ -11,7 +9,7 @@ import {
   normaliseRemoteUrl,
 } from "./hermes";
 import { getConnectionConfig } from "./config";
-import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import { runHermesCli } from "./hermes-cli-runner";
 import {
   type CronQualityOpts,
   augmentPrompt,
@@ -190,38 +188,19 @@ export async function listCronJobs(
 /**
  * Run a hermes cron CLI command and return the result.
  */
-function runCronCommand(
+async function runCronCommand(
   args: string[],
   profile?: string,
 ): Promise<{ success: boolean; output: string; error?: string }> {
-  const cliArgs = hermesCliArgs();
-  if (profile && profile !== "default") {
-    cliArgs.push("-p", profile);
-  }
-  cliArgs.push("cron", ...args);
-
-  return new Promise((resolve) => {
-    execFile(
-      HERMES_PYTHON,
-      cliArgs,
-      {
-        cwd: join(HERMES_HOME, "hermes-agent"),
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (err, stdout, stderr) => {
-        if (err) {
-          resolve({
-            success: false,
-            output: stdout || "",
-            error: stderr || err.message,
-          });
-        } else {
-          resolve({ success: true, output: stdout || "" });
-        }
-      },
-    );
+  const result = await runHermesCli(["cron", ...args], {
+    profile,
+    timeoutMs: 15000,
   });
+  return {
+    success: result.success,
+    output: result.stdout,
+    error: result.error,
+  };
 }
 
 /**
@@ -399,38 +378,19 @@ export async function triggerCronJob(
   return { success: result.success, error: result.error };
 }
 
-function runCuratorCommand(
+async function runCuratorCommand(
   args: string[],
   profile?: string,
 ): Promise<{ success: boolean; output: string; error?: string }> {
-  const cliArgs = hermesCliArgs();
-  if (profile && profile !== "default") {
-    cliArgs.push("-p", profile);
-  }
-  cliArgs.push("curator", ...args);
-
-  return new Promise((resolve) => {
-    execFile(
-      HERMES_PYTHON,
-      cliArgs,
-      {
-        cwd: join(HERMES_HOME, "hermes-agent"),
-        timeout: 60000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (err, stdout, stderr) => {
-        if (err) {
-          resolve({
-            success: false,
-            output: stdout || "",
-            error: stderr || err.message,
-          });
-        } else {
-          resolve({ success: true, output: stdout || "" });
-        }
-      },
-    );
+  const result = await runHermesCli(["curator", ...args], {
+    profile,
+    timeoutMs: 60000,
   });
+  return {
+    success: result.success,
+    output: result.stdout,
+    error: result.error,
+  };
 }
 
 export async function getCuratorStatus(profile?: string): Promise<string> {

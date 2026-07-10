@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperatorReadinessReport } from "../../../../../shared/operator-readiness";
 
@@ -82,6 +88,7 @@ describe("MyWorkSurface operator readiness", () => {
   });
 
   afterEach(() => {
+    cleanup();
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
 
@@ -154,21 +161,18 @@ describe("MyWorkSurface operator readiness", () => {
     render(<MyWorkSurface />);
     fireEvent.click(screen.getByRole("tab", { name: "Scheduled" }));
 
-    expect(
-      await screen.findByText(
-        "Topic monitors and agent jobs stay visible here. New output goes to review before it changes your workspace.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Topic monitor ·/)).toBeInTheDocument();
+    expect(await screen.findByText(/Launch recipe ·/)).toBeInTheDocument();
+    expect(await screen.findByText(/Agent job ·/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Manage scheduled items" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Topic monitor ·/)).toBeInTheDocument();
-    expect(screen.getByText(/Launch recipe ·/)).toBeInTheDocument();
-    expect(screen.getByText(/Agent job ·/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Pause" })[1]);
-    expect(api.appLaunchUpdateSchedule).toHaveBeenCalledWith("launch_1", {
-      enabled: false,
-    });
+    await waitFor(() =>
+      expect(api.appLaunchUpdateSchedule).toHaveBeenCalledWith("launch_1", {
+        enabled: false,
+      }),
+    );
     expect(screen.queryByText(/Signal Brief/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/background jobs/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Manage rules/i)).not.toBeInTheDocument();

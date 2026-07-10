@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
-import Settings from "../Settings/Settings";
-import Gateway from "../Gateway/Gateway";
-import Models from "../Models/Models";
-import CouncilSettings from "../Council/CouncilSettings";
-import Providers from "../Providers/Providers";
-import ControlCenterOverview from "./ControlCenterOverview";
+import { lazy, Suspense, useState, useCallback, useEffect } from "react";
+const Settings = lazy(() => import("../Settings/Settings"));
+const Gateway = lazy(() => import("../Gateway/Gateway"));
+const Models = lazy(() => import("../Models/Models"));
+const CouncilSettings = lazy(() => import("../Council/CouncilSettings"));
+const Providers = lazy(() => import("../Providers/Providers"));
+const ControlCenterOverview = lazy(() => import("./ControlCenterOverview"));
 import RemoteNotice from "../../components/RemoteNotice";
 import VerifyWarningBanner from "../../components/VerifyWarningBanner";
 import hermeslogo from "../../assets/hermes.png";
@@ -484,6 +484,7 @@ function Layout({
         </div>
       </aside>
 
+      <Suspense fallback={<main className="content" />}>
       <main className="content">
         {verifyWarning && onReinstall && onDismissVerifyWarning && (
           <VerifyWarningBanner
@@ -561,6 +562,7 @@ function Layout({
           </div>
         )}
       </main>
+      </Suspense>
 
       {/* Desktop app release notes modal */}
       {showAppUpdateModal && (

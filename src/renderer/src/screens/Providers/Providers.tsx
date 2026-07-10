@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { SETTINGS_SECTIONS, PROVIDERS, OAUTH_PROVIDERS } from "../../constants";
+import { PROVIDERS, OAUTH_PROVIDERS } from "../../constants";
 import { useI18n } from "../../components/useI18n";
 import BrandLogo from "../../components/common/BrandLogo";
 import { useDiscoveredModels } from "../../hooks/useDiscoveredModels";
@@ -11,16 +11,16 @@ import type {
   EngineContractVerificationResult,
   EngineContractVerificationStatus,
 } from "../../../../shared/engine-contract";
+import {
+  ProviderCredentialsSections,
+  type ProviderSetup,
+  type ProviderTestResult,
+} from "./ProviderCredentialsSections";
 
 type OAuthProviderStatus = {
   provider: string;
   signedIn: boolean;
   source: "providers" | "credential_pool" | null;
-};
-
-type ProviderTestResult = {
-  type: "success" | "error";
-  message: string;
 };
 
 type AgentUpdateRoutineResult = {
@@ -80,12 +80,6 @@ type UpstreamWatchState = {
   classifiedCounts: Partial<Record<UpstreamWatchCategory, number>>;
   lastError?: string;
 };
-
-type ProviderSetup = (typeof PROVIDERS.setup)[number];
-
-function providerSetupForEnvKey(envKey: string): ProviderSetup | undefined {
-  return PROVIDERS.setup.find((provider) => provider.envKey === envKey);
-}
 
 function Providers({
   profile,
@@ -992,165 +986,25 @@ function Providers({
         </div>
       </div>
 
-      {SETTINGS_SECTIONS.map((section) => {
-        const isLlmProviders =
-          section.title === "constants.sectionLlmProviders";
-        return (
-          <div key={section.title} className="settings-section">
-            <div className="settings-section-title">{t(section.title)}</div>
-            <div className={isLlmProviders ? "provider-keys-grid" : undefined}>
-              {section.items.map((field) => {
-                const setup = providerSetupForEnvKey(field.key);
-                const hasKey = Boolean(env[field.key]?.trim());
-                const isActive = isSetupActive(setup);
-                const testResult = providerTestResults[field.key];
-
-                return (
-                  <div
-                    key={field.key}
-                    className={
-                      isLlmProviders ? "provider-key-card" : "settings-field"
-                    }
-                  >
-                    {isLlmProviders && (
-                      <>
-                        <div className="provider-key-card-head">
-                          <BrandLogo
-                            provider={setup?.id || field.key}
-                            size={22}
-                          />
-                          <span className="provider-key-card-title">
-                            {t(field.label)}
-                          </span>
-                          {savedKey === field.key && (
-                            <span className="settings-saved">
-                              {t("common.saved")}
-                            </span>
-                          )}
-                        </div>
-                        <div className="provider-card-status-row">
-                          {isActive && (
-                            <span className="provider-status-pill provider-status-active">
-                              {t("providers.status.activeModel")}
-                            </span>
-                          )}
-                          <span
-                            className={`provider-status-pill ${
-                              hasKey
-                                ? "provider-status-success"
-                                : "provider-status-warning"
-                            }`}
-                          >
-                            {hasKey
-                              ? t("providers.status.apiKeySaved")
-                              : t("providers.status.missingCredential")}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    {!isLlmProviders && (
-                      <label className="settings-field-label">
-                        {t(field.label)}
-                        {savedKey === field.key && (
-                          <span className="settings-saved">
-                            {t("common.saved")}
-                          </span>
-                        )}
-                      </label>
-                    )}
-                    <div className="settings-input-row">
-                      <input
-                        ref={(node) => {
-                          if (node) keyInputRefs.current.set(field.key, node);
-                          else keyInputRefs.current.delete(field.key);
-                        }}
-                        className="input"
-                        type={
-                          field.type === "password" &&
-                          !visibleKeys.has(field.key)
-                            ? "password"
-                            : "text"
-                        }
-                        value={env[field.key] || ""}
-                        onChange={(e) =>
-                          handleChange(field.key, e.target.value)
-                        }
-                        onBlur={() => handleBlur(field.key)}
-                        placeholder={t(field.label)}
-                      />
-                      {field.type === "password" && (
-                        <button
-                          className="btn-ghost settings-toggle-btn"
-                          onClick={() => toggleVisibility(field.key)}
-                        >
-                          {visibleKeys.has(field.key)
-                            ? t("common.hide")
-                            : t("common.show")}
-                        </button>
-                      )}
-                    </div>
-                    <div className="settings-field-hint">{t(field.hint)}</div>
-                    {isLlmProviders && (
-                      <>
-                        <div className="provider-key-actions">
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => void handleAddKey(field.key)}
-                          >
-                            {t("providers.status.addKey")}
-                          </button>
-                          {hasKey && (
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              aria-label={`${t("settings.remove")} ${t(field.label)}`}
-                              onClick={() => void handleRemoveKey(field.key)}
-                            >
-                              {t("settings.remove")}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            disabled={
-                              !setup ||
-                              !hasKey ||
-                              testingProviderKey === field.key
-                            }
-                            onClick={() =>
-                              void handleTestProvider(field.key, setup)
-                            }
-                          >
-                            {testingProviderKey === field.key
-                              ? t("providers.status.testing")
-                              : t("providers.status.test")}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            disabled={!setup || isActive}
-                            onClick={() => handleUseProviderSetup(setup)}
-                          >
-                            {t("providers.status.use")}
-                          </button>
-                        </div>
-                        {testResult && (
-                          <div
-                            className={`provider-test-result provider-test-${testResult.type}`}
-                          >
-                            {testResult.message}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      <ProviderCredentialsSections
+        env={env}
+        savedKey={savedKey}
+        visibleKeys={visibleKeys}
+        testingProviderKey={testingProviderKey}
+        providerTestResults={providerTestResults}
+        setInputRef={(key, node) => {
+          if (node) keyInputRefs.current.set(key, node);
+          else keyInputRefs.current.delete(key);
+        }}
+        onChange={handleChange}
+        onBlur={(key) => void handleBlur(key)}
+        onToggleVisibility={toggleVisibility}
+        onAddKey={(key) => void handleAddKey(key)}
+        onRemoveKey={(key) => void handleRemoveKey(key)}
+        onTestProvider={(key, setup) => void handleTestProvider(key, setup)}
+        onUseProvider={handleUseProviderSetup}
+        isSetupActive={isSetupActive}
+      />
 
       <div className="settings-section">
         <div className="settings-section-title">

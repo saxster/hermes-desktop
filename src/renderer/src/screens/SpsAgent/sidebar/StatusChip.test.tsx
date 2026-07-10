@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../lib/openSettings", () => ({ openSettings: vi.fn() }));
@@ -35,6 +42,7 @@ describe("StatusChip", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
@@ -62,12 +70,12 @@ describe("StatusChip", () => {
       await screen.findByRole("button", { name: /Gateway recovering/ }),
     ).toBeInTheDocument();
 
-    gatewayHealthCallback?.({ status: "unhealthy" });
+    act(() => gatewayHealthCallback?.({ status: "unhealthy" }));
     expect(
       await screen.findByRole("button", { name: /Gateway unhealthy/ }),
     ).toBeInTheDocument();
 
-    gatewayHealthCallback?.({ status: "down" });
+    act(() => gatewayHealthCallback?.({ status: "down" }));
     expect(
       await screen.findByRole("button", { name: /Gateway down/ }),
     ).toBeInTheDocument();

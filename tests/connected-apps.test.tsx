@@ -51,7 +51,7 @@ afterEach(cleanup);
 beforeEach(() => setPlatform("darwin"));
 
 describe("<ConnectedApps>", () => {
-  it("on macOS, renders the Connected Apps section and a sync button", () => {
+  it("on macOS, renders the Connected Apps section and a sync button", async () => {
     mockApi(
       { available: true, authorized: true },
       { available: true, authorized: true, added: 0, updated: 0 },
@@ -59,6 +59,9 @@ describe("<ConnectedApps>", () => {
     render(<ConnectedApps profile="default" />);
     expect(screen.getByText("settings.connectedAppsSection")).toBeTruthy();
     expect(screen.getByText("settings.macContactsSync")).toBeTruthy();
+    await waitFor(() =>
+      expect(window.hermesAPI.macContactsStatus).toHaveBeenCalledOnce(),
+    );
   });
 
   it("clicking sync calls macContactsSync(profile) and shows the counts", async () => {

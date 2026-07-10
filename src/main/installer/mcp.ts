@@ -5,6 +5,7 @@ import { execFileSync } from "child_process";
 import { app } from "electron";
 import { escapeRegex, profileHome } from "../utils";
 import { admitMcpCapability } from "../capability-risk-store";
+import { parseMcpServersFromConfig } from "../mcp-config";
 
 export interface McpServerEntry {
   command: string;
@@ -27,52 +28,12 @@ export function listMcpServers(
     const configPath = join(profileHome(profile), "config.yaml");
     if (!existsSync(configPath)) return [];
     const content = readFileSync(configPath, "utf-8");
-    // Simple YAML parse for mcp_servers section
-    const match = content.match(/^mcp_servers:\s*\n((?:[ \t]+.+\n)*)/m);
-    if (!match) return [];
-
-    const servers: Array<{
-      name: string;
-      type: string;
-      enabled: boolean;
-      detail: string;
-    }> = [];
-    const block = match[1];
-    // Each top-level key under mcp_servers is a server name (2-space indent)
-    const nameRe = /^[ ]{2}(\w[\w-]*):\s*$/gm;
-    let m: RegExpExecArray | null;
-    while ((m = nameRe.exec(block)) !== null) {
-      const name = m[1];
-      // Extract following indented block for this server.
-      // Find the next line at exactly 2-space indent (next server name).
-      const start = m.index + m[0].length;
-      const nextMatch = /\n {2}\w/g;
-      nextMatch.lastIndex = start;
-      const next = nextMatch.exec(block);
-      const serverBlock = block.slice(start, next ? next.index : undefined);
-      const hasUrl = /url:/.test(serverBlock);
-      const hasCommand = /command:/.test(serverBlock);
-      const enabledMatch = serverBlock.match(/enabled:\s*(true|false)/i);
-      const enabled =
-        enabledMatch === null || enabledMatch[1].toLowerCase() === "true";
-
-      let detail = "";
-      if (hasUrl) {
-        const urlMatch = serverBlock.match(/url:\s*["']?([^\s"']+)/);
-        detail = urlMatch?.[1] || "HTTP";
-      } else if (hasCommand) {
-        const cmdMatch = serverBlock.match(/command:\s*["']?([^\s"']+)/);
-        detail = cmdMatch?.[1] || "stdio";
-      }
-
-      servers.push({
-        name,
-        type: hasUrl ? "http" : "stdio",
-        enabled,
-        detail,
-      });
-    }
-    return servers;
+    return parseMcpServersFromConfig(content).map((server) => ({
+      name: server.name,
+      type: server.type === "http" ? "http" : "stdio",
+      enabled: server.enabled,
+      detail: server.detail,
+    }));
   } catch {
     return [];
   }
@@ -89,74 +50,22 @@ export function listMcpServerEntries(profile?: string): Array<{
     const configPath = join(profileHome(profile), "config.yaml");
     if (!existsSync(configPath)) return [];
     const content = readFileSync(configPath, "utf-8");
-    const match = content.match(/^mcp_servers:\s*\n((?:[ \t]+.+\n)*)/m);
-    if (!match) return [];
-
-    const servers: Array<{
-      name: string;
-      type: "stdio" | "http";
-      enabled: boolean;
-      detail: string;
-      entry: McpServerEntry;
-    }> = [];
-    const block = match[1];
-    const nameRe = /^[ ]{2}(\w[\w-]*):\s*$/gm;
-    let m: RegExpExecArray | null;
-    while ((m = nameRe.exec(block)) !== null) {
-      const name = m[1];
-      const start = m.index + m[0].length;
-      const nextMatch = /\n {2}\w/g;
-      nextMatch.lastIndex = start;
-      const next = nextMatch.exec(block);
-      const serverBlock = block.slice(start, next ? next.index : undefined);
-      const scalar = (key: string): string | undefined => {
-        const found = serverBlock.match(
-          new RegExp(`${key}:\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"']+))`),
-        );
-        return found?.[1] || found?.[2] || found?.[3];
-      };
-      const listItem = (line: string): string | undefined => {
-        const found = line.match(/^\s*-\s*(?:"([^"]*)"|'([^']*)'|(.+?))\s*$/);
-        return found?.[1] || found?.[2] || found?.[3];
-      };
-      const commandValue = scalar("command");
-      const urlValue = scalar("url");
-      const enabledMatch = serverBlock.match(/enabled:\s*(true|false)/i);
-      const argsMatch = serverBlock.match(/args:\s*\n((?:[ \t]{6}- .+\n?)*)/);
-      const envMatch = serverBlock.match(
-        /env:\s*\n((?:[ \t]{6}\w[\w-]*: .+\n?)*)/,
-      );
-      const args =
-        argsMatch?.[1]
-          .split("\n")
-          .map(listItem)
-          .filter((arg): arg is string => !!arg) || [];
-      const env: Record<string, string> = {};
-      if (envMatch?.[1]) {
-        for (const line of envMatch[1].split("\n")) {
-          const pair = line.match(/^\s*(\w[\w-]*):\s*["']?(.*?)["']?\s*$/);
-          if (pair) env[pair[1]] = pair[2];
-        }
-      }
-      const enabled =
-        enabledMatch === null || enabledMatch[1].toLowerCase() === "true";
-      const type: "stdio" | "http" = urlValue ? "http" : "stdio";
-      const command = commandValue || "";
-      const detail = urlValue || command || type;
-      servers.push({
-        name,
+    return parseMcpServersFromConfig(content).map((server) => {
+      const type: "stdio" | "http" =
+        server.type === "http" ? "http" : "stdio";
+      return {
+        name: server.name,
         type,
-        enabled,
-        detail,
+        enabled: server.enabled,
+        detail: server.detail || type,
         entry: {
-          command: command || urlValue || "",
-          args,
-          env,
-          enabled,
+          command: server.command || server.url || "",
+          args: server.args,
+          env: server.env,
+          enabled: server.enabled,
         },
-      });
-    }
-    return servers;
+      };
+    });
   } catch {
     return [];
   }

@@ -616,6 +616,10 @@ describe("ContentStudioSurface", () => {
   it("applies playbook defaults without bypassing scoring", async () => {
     render(<ContentStudioSurface />);
 
+    await waitFor(() =>
+      expect(api.spsListAssistantRecipes).toHaveBeenCalled(),
+    );
+
     fireEvent.change(screen.getByLabelText("Creator playbook"), {
       target: { value: "ai-tool-teardown" },
     });

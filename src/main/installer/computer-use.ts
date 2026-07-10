@@ -1,8 +1,9 @@
-import { execFile, spawn } from "child_process";
+import { spawn } from "child_process";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { stripAnsi } from "../utils";
 import { HIDDEN_SUBPROCESS_OPTIONS } from "../process-options";
+import { runHermesCli } from "../hermes-cli-runner";
 import {
   HERMES_PYTHON,
   HERMES_SCRIPT,
@@ -19,33 +20,14 @@ export async function getComputerUseStatus(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
     return { installed: false, output: "Hermes is not installed." };
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["computer-use", "status"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 10000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (_error, stdout) => {
-        const out = stdout.toString().trim();
-        const installed =
-          out.includes("installed") && !out.includes("not installed");
-        resolve({ installed, output: stripAnsi(out) });
-      },
-    );
+  const result = await runHermesCli(["computer-use", "status"], {
+    profile,
+    timeoutMs: 10000,
   });
+  const output = result.stdout.trim();
+  const installed =
+    output.includes("installed") && !output.includes("not installed");
+  return { installed, output: stripAnsi(output) };
 }
 
 export async function installComputerUseDriver(

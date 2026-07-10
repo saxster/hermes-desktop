@@ -3,8 +3,8 @@
 // Unlike sps-smoke.mjs (which writes its OWN workspace.json fixture), this probe
 // launches the BUILT app against a fresh profile with NO sps-agent/workspace.json
 // so the renderer falls back to buildInitialWorkspace() — the real first-run path.
-// It asserts the seeded "Start here" page lands and the dismissible 3-step
-// onboarding checklist renders. Run `npm run build` first.
+// It asserts the seeded "Start here" page lands and the dismissible compact
+// 3-action onboarding affordance renders. Run `npm run build` first.
 //
 // Usage:  node scripts/verify-firstrun-seed.mjs
 import { _electron as electron } from "playwright";
@@ -134,13 +134,17 @@ await check("inbox explainer page seeded", async () => {
   );
 });
 
-// The dismissible 3-step checklist renders on first run.
-await check("onboarding checklist renders", async () => {
-  return (await win.locator(".ob-checklist").count()) > 0;
+// The dismissible compact 3-action affordance renders on first run.
+await check("onboarding affordance renders", async () => {
+  return (await win.locator(".home-affordance-onboarding").count()) > 0;
 });
 
-await check("checklist has 3 steps", async () => {
-  return (await win.locator(".ob-step-card").count()) === 3;
+await check("onboarding affordance has 3 actions", async () => {
+  return (
+    (await win
+      .locator(".home-affordance-onboarding .home-affordance-action")
+      .count()) === 3
+  );
 });
 
 await check("Capture opens Inbox image screenshot intake", async () => {
@@ -175,15 +179,17 @@ await check("return to Start here after capture path", async () => {
     .locator(".tree-label, .nav-label", { hasText: "Start here" })
     .first()
     .click();
-  await win.locator(".ob-checklist").waitFor({ timeout: 8000 });
-  return (await win.locator(".ob-checklist").count()) > 0;
+  await win.locator(".home-affordance-onboarding").waitFor({ timeout: 8000 });
+  return (await win.locator(".home-affordance-onboarding").count()) > 0;
 });
 
-// Dismiss persists: click ×, the checklist disappears.
-await check("checklist dismiss hides it", async () => {
-  await win.locator(".ob-checklist-dismiss").click();
+// Dismiss persists: click ×, the onboarding affordance disappears.
+await check("onboarding dismiss hides it", async () => {
+  await win
+    .locator(".home-affordance-onboarding .home-affordance-dismiss")
+    .click();
   await win.waitForTimeout(300);
-  return (await win.locator(".ob-checklist").count()) === 0;
+  return (await win.locator(".home-affordance-onboarding").count()) === 0;
 });
 
 // Discoverability (P2.9): the ⌘K palette now surfaces Ask / Vault health / Telos.

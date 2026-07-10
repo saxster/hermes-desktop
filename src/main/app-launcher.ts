@@ -3,13 +3,13 @@
 // This module intentionally accepts structured launch locators only. It never
 // accepts renderer-provided command strings.
 import { execFile } from "child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 import { dialog, shell } from "electron";
 import { appendAuditLog } from "./audit-log";
 import { getConnectionConfig } from "./config";
 import { isAllowedExternalUrl } from "./security";
-import { profileHome } from "./utils";
+import { profileHome, safeWriteFile } from "./utils";
 import {
   isAppLaunchScheduleDue,
   normalizeLaunchUrl,
@@ -73,7 +73,7 @@ function loadRegistry(profile?: string): AppLauncherRegistry {
 function saveRegistry(registry: AppLauncherRegistry, profile?: string): void {
   const dir = launcherDir(profile);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(registryFile(profile), JSON.stringify(registry, null, 2));
+  safeWriteFile(registryFile(profile), `${JSON.stringify(registry, null, 2)}\n`);
 }
 
 function cleanLabel(value: unknown): string {

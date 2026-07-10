@@ -47,6 +47,7 @@ import { createLearningProposal } from "./learning-proposals";
 import { safeFetch } from "./security/ssrf-guard";
 import { gatewayFetch } from "./security/network-policy";
 import { formatLogError, log } from "./log";
+import { extractJson } from "./gateway-chat";
 
 export { spsBackupWorkspace, spsLoad, spsSave } from "./sps-agent/persistence";
 
@@ -370,28 +371,6 @@ function validateResult(raw: unknown): AssistantResult | null {
     }
     default:
       return null;
-  }
-}
-
-function extractJson(text: string): unknown {
-  const trimmed = text
-    .trim()
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(trimmed.slice(start, end + 1));
-      } catch {
-        /* fall through */
-      }
-    }
-    return null;
   }
 }
 

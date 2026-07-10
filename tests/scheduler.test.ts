@@ -123,6 +123,7 @@ vi.mock("../src/main/app-launcher", () => ({
 vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),
   writeDesktopConfig: (c: unknown) => mockWriteDesktopConfig(c),
+  readEnv: () => ({}),
 }));
 
 // The nag engine is its own unit (see scheduler-nag.test.ts); stub it here so

@@ -5,10 +5,8 @@ import {
   net,
   protocol,
   screen,
-  shell,
   globalShortcut,
   Tray,
-  ipcMain,
 } from "electron";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -31,7 +29,6 @@ const execFileAsync = promisify(execFile);
 import { closeSharedDb } from "./db";
 import { closeAllNoteIndexes } from "./note-index";
 import { semanticManager } from "./semantic-index";
-import { isAllowedObsidianExternalUrl } from "./obsidian";
 import {
   stopHealthPolling,
   setSshRemoteApiKey,
@@ -43,7 +40,6 @@ import { activeChatAborts } from "./ipc/chat";
 import { stopSshTunnel, startSshTunnel } from "./ssh-tunnel";
 import { HERMES_HOME, ensureDesktopMcpRegistered } from "./installer";
 import {
-  isAllowedExternalUrl,
   isAllowedAppNavigationUrl,
   isAllowedWebviewUrl,
   hardenWebviewPreferences,
@@ -51,10 +47,20 @@ import {
 } from "./security";
 import { resolveSpsVaultDir } from "./sps-storage";
 import { resolveAssetPath, writeAsset } from "./sps-assets";
+import { openExternalUrl } from "./external-navigation";
 import { buildScreencaptureArgs } from "./screencapture";
-import { startEquityAlertWatcher } from "./equity-alerts";
-import { startScheduledResearch } from "./scheduled-research";
-import { startAssistantRecipeScheduler } from "./assistant-recipes";
+import {
+  startEquityAlertWatcher,
+  stopEquityAlertWatcher,
+} from "./equity-alerts";
+import {
+  startScheduledResearch,
+  stopScheduledResearch,
+} from "./scheduled-research";
+import {
+  startAssistantRecipeScheduler,
+  stopAssistantRecipeScheduler,
+} from "./assistant-recipes";
 import { updaterLogger } from "./updater-log";
 import { getConnectionConfig, migrateDesktopConfigSecrets } from "./config";
 import {
@@ -85,6 +91,7 @@ import { registerHealthRssIpc } from "./ipc/health-rss";
 import { registerSubstackRadarIpc } from "./ipc/substack-radar";
 import { registerSourceIntakeIpc } from "./ipc/source-intake";
 import { registerOperatorReadinessIpc } from "./ipc/operator-readiness";
+import { safeHandle } from "./ipc/safe-handle";
 import { closeExternalContextDb } from "./external-context/index";
 import { startScheduler, stopScheduler } from "./scheduler";
 import {
@@ -246,24 +253,6 @@ function createTray(): void {
   }
 }
 
-function openExternalUrl(rawUrl: unknown): void {
-  if (!isAllowedExternalUrl(rawUrl) && !isAllowedObsidianExternalUrl(rawUrl)) {
-    log.warn("security", {
-      msg: "blocked unsafe external URL",
-      url: typeof rawUrl === "string" ? rawUrl : undefined,
-    });
-    return;
-  }
-
-  shell.openExternal(rawUrl as string).catch((err) => {
-    log.error("security", {
-      msg: "failed to open external URL",
-      url: rawUrl as string,
-      error: formatLogError(err),
-    });
-  });
-}
-
 // The SPS asset store streams journal/editor media (photos, voice, video,
 // files) from the vault over a custom scheme instead of inlining base64. It
 // must be registered as privileged BEFORE app `ready`, and listed in the
@@ -413,11 +402,6 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow!.show();
-    // Watch the equity alert log → OS notification + renderer event per new line.
-    void startEquityAlertWatcher(() => mainWindow);
-    // Scheduled research: catch up on launch, then tick on a timer.
-    startScheduledResearch(() => mainWindow);
-    startAssistantRecipeScheduler(() => mainWindow);
   });
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -583,13 +567,13 @@ function setupIPC(): void {
 
   // Quick Capture reads (and clears) the pending capture kind on mount, so a
   // window freshly opened by the task hotkey defaults to Task mode.
-  ipcMain.handle("sps-take-capture-kind", () => {
+  safeHandle("sps-take-capture-kind", () => {
     const kind = pendingCaptureKind;
     pendingCaptureKind = null;
     return kind;
   });
 
-  ipcMain.handle(
+  safeHandle(
     "sps-trigger-screencapture",
     async (_event, profile?: string) => {
       if (captureWindow && !captureWindow.isDestroyed()) {
@@ -823,26 +807,6 @@ if (process.env.ENABLE_CDP === "1") {
   );
 }
 
-// MED-10 — durable local diagnostics: route uncaught failures into the
-// errors-only sink (<HERMES_HOME>/logs/hermes-errors.jsonl) that the
-// Diagnostics panel reads. Local file only; nothing leaves the machine.
-// Registering an uncaughtException listener replaces Electron's error dialog
-// with a durable record + continue, which is the desired headless behavior
-// for a long-lived tray-style app.
-process.on("uncaughtException", (err) => {
-  log.error("crash", {
-    msg: "uncaughtException",
-    error: formatLogError(err),
-    stack: err instanceof Error ? err.stack : undefined,
-  });
-});
-process.on("unhandledRejection", (reason) => {
-  log.error("crash", {
-    msg: "unhandledRejection",
-    error: formatLogError(reason),
-    stack: reason instanceof Error ? reason.stack : undefined,
-  });
-});
 app.on("render-process-gone", (_event, _webContents, details) => {
   log.error("crash", {
     msg: "render-process-gone",
@@ -939,6 +903,11 @@ app.whenReady().then(() => {
   buildMenu();
   setupIPC();
   createWindow();
+  // Process-owned background services start once, independent of window
+  // recreation on macOS. Their stop functions are paired in before-quit.
+  void startEquityAlertWatcher(() => mainWindow);
+  startScheduledResearch(() => mainWindow);
+  startAssistantRecipeScheduler(() => mainWindow);
   createTray();
   ensureDesktopMcpRegistered();
   setMainWindowGetter(() => mainWindow);
@@ -1009,6 +978,9 @@ app.on("before-quit", () => {
   stopCapabilityRiskScheduler();
   stopControlServer();
   stopHealthPolling();
+  stopEquityAlertWatcher();
+  stopScheduledResearch();
+  stopAssistantRecipeScheduler();
   abortAllChats();
   void closeObsidianWatcher();
   // Leave profile gateways running on quit (see window-all-closed) so bots

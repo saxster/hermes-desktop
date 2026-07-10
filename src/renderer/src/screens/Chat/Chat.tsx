@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ChatHeader } from "./ChatHeader";
 import { useChatSignals } from "./useChatSignals";
@@ -8,7 +8,10 @@ import { listCommand } from "../../lib/checkpoints";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { MessageList } from "./MessageList";
 import { ModelPicker } from "./ModelPicker";
-import { WorktreePanel } from "./WorktreePanel";
+const WorktreePanel = lazy(async () => {
+  const module = await import("./WorktreePanel");
+  return { default: module.WorktreePanel };
+});
 import { PreviewPanel } from "./PreviewPanel";
 import { selectPreviewItem } from "./previewSelect";
 import { useChatScroll } from "./hooks/useChatScroll";
@@ -704,7 +707,9 @@ function Chat({
           effectiveContextFolder &&
           worktreeVisible &&
           !contextFolderOverride && (
-            <WorktreePanel folderPath={effectiveContextFolder} />
+            <Suspense fallback={null}>
+              <WorktreePanel folderPath={effectiveContextFolder} />
+            </Suspense>
           )}
 
         {previewItem && previewVisible && (

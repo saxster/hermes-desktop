@@ -78,8 +78,8 @@ The SPS look is **not** re-derived in Tailwind — the prototype stylesheets are
 into `screens/SpsAgent/styles/` and confined to a `.sps-scope` container by `scripts/scope-sps-css.mjs`
 (so its global `:root`/`body`/`*` rules don't leak into the Hermes renderer). Theme/layout switches are
 pure attribute swaps on the scope element. The integrated renderer at
-`src/renderer/src/screens/SpsAgent/` is canonical. The archived standalone Vite app at
-`archive/sps-agent-standalone/` is historical reference material only.
+`src/renderer/src/screens/SpsAgent/` is canonical. The former standalone Vite reference app has been
+removed; use git history if its prototype lineage is needed.
 
 ## Conventions that bite if missed
 

@@ -1,45 +1,30 @@
-import { execFile } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
-import {
-  HERMES_HOME,
-  HERMES_REPO,
-  HERMES_PYTHON,
-  hermesCliArgs,
-  getEnhancedPath,
-} from "./installer";
+import { HERMES_HOME, HERMES_PYTHON } from "./installer";
 import { stripAnsi } from "./utils";
-import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import { runHermesCli } from "./hermes-cli-runner";
+
+async function runCheckpointsCommand(
+  args: string[],
+  profile: string | undefined,
+  timeoutMs: number,
+): Promise<{ success: boolean; output: string }> {
+  const result = await runHermesCli(["checkpoints", ...args], {
+    profile,
+    timeoutMs,
+  });
+  return {
+    success: result.success,
+    output: stripAnsi(result.stdout + result.stderr),
+  };
+}
 
 export async function getCheckpointsStatus(profile?: string): Promise<string> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return "Hermes is not installed.";
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["checkpoints", "status"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (_error, stdout, stderr) => {
-        resolve(stripAnsi(stdout.toString() + stderr.toString()));
-      },
-    );
-  });
+  const result = await runCheckpointsCommand(["status"], profile, 15000);
+  return result.output;
 }
 
 export async function pruneCheckpoints(
@@ -48,31 +33,7 @@ export async function pruneCheckpoints(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return { success: false, output: "Hermes is not installed." };
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["checkpoints", "prune"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 30000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        const output = stdout.toString() + stderr.toString();
-        resolve({ success: !error, output: stripAnsi(output) });
-      },
-    );
-  });
+  return runCheckpointsCommand(["prune"], profile, 30000);
 }
 
 export async function clearCheckpoints(
@@ -81,31 +42,7 @@ export async function clearCheckpoints(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return { success: false, output: "Hermes is not installed." };
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["checkpoints", "clear"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 30000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        const output = stdout.toString() + stderr.toString();
-        resolve({ success: !error, output: stripAnsi(output) });
-      },
-    );
-  });
+  return runCheckpointsCommand(["clear"], profile, 30000);
 }
 
 function HERMES_SCRIPT_PATH(): string {

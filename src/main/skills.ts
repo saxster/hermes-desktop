@@ -1,4 +1,3 @@
-import { execFileSync } from "child_process";
 import {
   existsSync,
   readdirSync,
@@ -13,15 +12,9 @@ import {
 } from "fs";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "path";
 import { homedir } from "os";
-import {
-  HERMES_HOME,
-  HERMES_PYTHON,
-  HERMES_REPO,
-  hermesCliArgs,
-  getEnhancedPath,
-} from "./installer";
+import { HERMES_HOME, HERMES_REPO } from "./installer";
 import { isValidNamedProfileName, profileHome } from "./utils";
-import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import { runHermesCliSync } from "./hermes-cli-runner";
 import { getApiUrl, getRemoteAuthHeader } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 import {
@@ -253,31 +246,12 @@ export function searchSkills(query: string): SkillSearchResult[] {
   if (!trimmedQuery) return [];
 
   try {
-    const output = execFileSync(
-      HERMES_PYTHON,
-      hermesCliArgs([
-        "skills",
-        "search",
-        trimmedQuery,
-        "--json",
-        "--limit",
-        "50",
-      ]),
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-        timeout: 30000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
+    const output = runHermesCliSync(
+      ["skills", "search", trimmedQuery, "--json", "--limit", "50"],
+      { timeoutMs: 30000 },
     );
 
-    const text = output.toString().trim();
+    const text = output.trim();
     if (!text) return [];
 
     // Try to parse JSON output
@@ -422,27 +396,17 @@ export function installSkill(
   profile?: string,
 ): SkillCliResult {
   try {
-    const args = hermesCliArgs(["skills", "install", identifier, "--yes"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-
-    const stdout = execFileSync(HERMES_PYTHON, args, {
-      cwd: HERMES_REPO,
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
+    const stdout = runHermesCliSync(
+      ["skills", "install", identifier, "--yes"],
+      {
+        profile,
+        timeoutMs: 60000,
       },
-      stdio: "pipe",
-      timeout: 60000,
-      ...HIDDEN_SUBPROCESS_OPTIONS,
-    });
+    );
     // Exit 0 alone is not proof of success — the CLI exits 0 on resolution
     // failure too. Inspect the captured stdout for known failure markers
     // (issue #310).
-    return classifySkillCliOutput(stdout?.toString() ?? "");
+    return classifySkillCliOutput(stdout);
   } catch (err) {
     const e = err as { stdout?: Buffer; stderr?: Buffer; message?: string };
     const msg = (e.stderr?.toString() || e.message || "").trim();
@@ -518,26 +482,13 @@ export function uninstallSkill(name: string, profile?: string): SkillCliResult {
   let cliSuccess = false;
   let cliError = "";
   try {
-    const args = hermesCliArgs(["skills", "uninstall", name]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-
-    const stdout = execFileSync(HERMES_PYTHON, args, {
-      cwd: HERMES_REPO,
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
-      },
-      stdio: "pipe",
-      timeout: 30000,
-      ...HIDDEN_SUBPROCESS_OPTIONS,
+    const stdout = runHermesCliSync(["skills", "uninstall", name], {
+      profile,
+      timeoutMs: 30000,
     });
     // Same exit-0-on-failure shape as install (#310) — classify the
     // captured output before claiming success.
-    const cliRes = classifySkillCliOutput(stdout?.toString() ?? "");
+    const cliRes = classifySkillCliOutput(stdout);
     cliSuccess = cliRes.success;
     if (!cliRes.success) {
       cliError = cliRes.error || "";

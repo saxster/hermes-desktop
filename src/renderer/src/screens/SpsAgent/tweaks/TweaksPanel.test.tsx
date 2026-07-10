@@ -2,7 +2,7 @@
 // control per authoritative mode. IPC is stubbed; storage mode lives in
 // localStorage (jsdom).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { TweaksPanel } from "./TweaksPanel";
 import { useStore } from "../store";
 import { setStorageMode } from "../lib/storageMode";
@@ -19,6 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   setStorageMode("blob");
   useStore.setState({ tweaksOpen: false });
@@ -26,16 +27,16 @@ afterEach(() => {
 });
 
 describe("TweaksPanel — Storage section", () => {
-  it("shows the migrate control + JSON-blob mode in blob mode", () => {
-    render(<TweaksPanel />);
+  it("shows the migrate control + JSON-blob mode in blob mode", async () => {
+    await act(async () => render(<TweaksPanel />));
     expect(screen.getByText("Storage")).toBeTruthy();
     expect(screen.getByText("JSON blob")).toBeTruthy();
     expect(screen.getByText("Switch to markdown storage")).toBeTruthy();
   });
 
-  it("shows the rollback control + vault mode in vault mode", () => {
+  it("shows the rollback control + vault mode in vault mode", async () => {
     setStorageMode("vault");
-    render(<TweaksPanel />);
+    await act(async () => render(<TweaksPanel />));
     expect(screen.getByText("Markdown vault")).toBeTruthy();
     expect(screen.getByText("Switch to JSON storage")).toBeTruthy();
   });
@@ -43,7 +44,7 @@ describe("TweaksPanel — Storage section", () => {
 
 describe("TweaksPanel — Learning split", () => {
   it("does not duplicate skill management", async () => {
-    render(<TweaksPanel />);
+    await act(async () => render(<TweaksPanel />));
 
     expect(await screen.findByText("Storage")).toBeTruthy();
     expect(screen.queryByText("Active skills")).toBeNull();

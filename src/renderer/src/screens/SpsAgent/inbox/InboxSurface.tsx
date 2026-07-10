@@ -60,7 +60,7 @@ import {
 } from "../../../../../shared/email-monitor";
 import { assetUrl } from "../lib/assets";
 import { getScrollContainer } from "../lib/scroll";
-import { ocrImageBlobToText } from "../lib/ocr";
+import { ocrImageBlobToText } from "../lib/ocr-loader";
 import {
   appendVisualCaptureOcr,
   buildTeachCaptureCorpus,
@@ -68,6 +68,7 @@ import {
   isVisualCaptureProps,
   visualAssetPath,
 } from "./visualCapture";
+import { PillEditor } from "./PillEditor";
 
 interface InboxSurfaceProps {
   profile?: string;
@@ -2022,70 +2023,6 @@ export function InboxSurface({
         >
           Install assistant vault skill
         </button>
-      </div>
-    </div>
-  );
-}
-
-function PillEditor({
-  label,
-  hint,
-  tags,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  hint?: string;
-  tags: string[];
-  onChange: (tags: string[]) => void;
-  placeholder?: string;
-}) {
-  const [input, setInput] = useState("");
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      const val = input.trim();
-      if (val && !tags.includes(val)) {
-        onChange([...tags, val]);
-      }
-      setInput("");
-    }
-  };
-
-  const removeTag = (index: number) => {
-    onChange(tags.filter((_, i) => i !== index));
-  };
-
-  return (
-    <div className="settings-field">
-      <label className="settings-field-label">{label}</label>
-      {hint && (
-        <div className="settings-field-hint inbox-settings-field-hint-mb6">
-          {hint}
-        </div>
-      )}
-      <div className="inbox-pill-input-container">
-        {tags.map((tag, i) => (
-          <span key={i} className="inbox-pill">
-            {tag}
-            <button
-              type="button"
-              className="inbox-pill-remove"
-              onClick={() => removeTag(i)}
-            >
-              &times;
-            </button>
-          </span>
-        ))}
-        <input
-          type="text"
-          className="inbox-pill-input"
-          placeholder={placeholder || "Type and press Enter..."}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
       </div>
     </div>
   );

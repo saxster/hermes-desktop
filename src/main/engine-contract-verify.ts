@@ -1,4 +1,3 @@
-import { execFile } from "child_process";
 import {
   ENGINE_CONTRACT,
   type EngineContractEntry,
@@ -7,14 +6,7 @@ import {
 } from "../shared/engine-contract";
 import { getEngineCapabilityState } from "./config";
 import { recordEngineContractVerification } from "./config";
-import {
-  HERMES_PYTHON,
-  hermesCliArgs,
-  HERMES_REPO,
-  getEnhancedPath,
-} from "./installer";
-import { HERMES_HOME } from "./installer/paths";
-import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import { runHermesCli } from "./hermes-cli-runner";
 import { stripAnsi } from "./utils";
 
 const HELP_TIMEOUT_MS = 15000;
@@ -55,32 +47,16 @@ export function parseHelpFlags(helpText: string): Set<string> {
   return flags;
 }
 
-function runHermesHelp(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      HERMES_PYTHON,
-      hermesCliArgs([...args, "--help"]),
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HERMES_HOME,
-          TERM: "dumb",
-        },
-        timeout: HELP_TIMEOUT_MS,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        const output = stripAnsi(`${stdout || ""}${stderr || ""}`);
-        if (error && !output.trim()) {
-          reject(error);
-          return;
-        }
-        resolve(output);
-      },
-    );
+async function runHermesHelp(args: string[]): Promise<string> {
+  const result = await runHermesCli([...args, "--help"], {
+    env: { TERM: "dumb" },
+    timeoutMs: HELP_TIMEOUT_MS,
   });
+  const output = stripAnsi(result.stdout + result.stderr);
+  if (!result.success && !output.trim()) {
+    throw new Error(result.error || "Hermes help command failed.");
+  }
+  return output;
 }
 
 function finding(

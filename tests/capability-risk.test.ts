@@ -79,6 +79,23 @@ describe("capability risk scanner", () => {
     expect(entry.entry.env).toEqual({ API_KEY: "secret" });
   });
 
+  it("keeps malformed MCP entries visible for risk scanning", () => {
+    writeFileSync(
+      join(TEST_HOME, "config.yaml"),
+      ["mcp_servers:", "  incomplete:", "    enabled: true", ""].join(
+        "\n",
+      ),
+    );
+
+    const [entry] = listMcpServerEntries();
+
+    expect(entry).toMatchObject({
+      name: "incomplete",
+      type: "stdio",
+      entry: { command: "", enabled: true },
+    });
+  });
+
   it("does not fingerprint MCP env values", () => {
     const base = {
       command: "node",

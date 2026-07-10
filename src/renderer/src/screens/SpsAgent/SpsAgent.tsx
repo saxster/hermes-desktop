@@ -26,7 +26,11 @@ import "./styles/health-rss.css";
 import "./styles/deck-studio.css";
 import "./screen.css";
 import { App } from "./App";
-import { useStore, hydrateWorkspace } from "./store";
+import { useStore } from "./store";
+import {
+  hydrateWorkspace,
+  startSpsStoreLifecycle,
+} from "./store/lifecycle";
 import { setThemeScope, applyTweaks, setSkinVars } from "./lib/theme";
 import { skinToSpsVars } from "./lib/skin";
 import { getActiveSkinId } from "../../utils/skin";
@@ -34,6 +38,7 @@ import { getActiveSkinId } from "../../utils/skin";
 export function SpsAgent() {
   const scopeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const stopStoreLifecycle = startSpsStoreLifecycle();
     setThemeScope(scopeRef.current);
     applyTweaks(useStore.getState().t);
     // Resume any OCR jobs persisted from a previous session once the workspace
@@ -53,6 +58,7 @@ export function SpsAgent() {
     })();
     return () => {
       useStore.getState().ocrStopScheduler();
+      stopStoreLifecycle();
       setThemeScope(null);
     };
   }, []);

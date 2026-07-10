@@ -19,10 +19,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import type { BrowserWindow } from "electron";
-import { getApiUrl, getRemoteAuthHeader } from "./hermes";
-import { gatewayFetch } from "./security/network-policy";
+import { gatewayChat, extractJson } from "./gateway-chat";
 import { resolveSpsVaultDir } from "./sps-storage";
-import { profileHome } from "./utils";
+import { profileHome, safeWriteFile } from "./utils";
 import { HERMES_HOME } from "./installer";
 import {
   createCronJob,
@@ -143,7 +142,7 @@ function saveRegistry(
 ): void {
   const dir = srDir(profile);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(registryFile(profile), JSON.stringify(reg, null, 2));
+  safeWriteFile(registryFile(profile), `${JSON.stringify(reg, null, 2)}\n`);
 }
 
 export function listSchedules(profile?: string): ScheduledResearchItem[] {
@@ -381,57 +380,6 @@ function recordHistory(
 }
 
 // ── gateway call ─────────────────────────────────────────────────────────────
-/** Minimal JSON extractor (mirrors sps-agent.extractJson, kept local to avoid a
- *  heavy import). Strips ```json fences, then slices the outer object. */
-function extractJson(text: string): unknown {
-  const t = text
-    .trim()
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
-  try {
-    return JSON.parse(t);
-  } catch {
-    const s = t.indexOf("{");
-    const e = t.lastIndexOf("}");
-    if (s >= 0 && e > s) {
-      try {
-        return JSON.parse(t.slice(s, e + 1));
-      } catch {
-        /* fall through */
-      }
-    }
-    return null;
-  }
-}
-
-async function gatewayChat(
-  messages: Array<{ role: string; content: string }>,
-  maxTokens: number,
-  profile?: string,
-): Promise<string> {
-  const url = `${getApiUrl(profile)}/v1/chat/completions`;
-  const res = await gatewayFetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
-    signal: AbortSignal.timeout(240000),
-    body: JSON.stringify({
-      model: "hermes-agent",
-      stream: false,
-      max_tokens: maxTokens,
-      messages,
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`gateway ${res.status}: ${body.slice(0, 160)}`);
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  return data?.choices?.[0]?.message?.content ?? "";
-}
-
 // ── the run ──────────────────────────────────────────────────────────────────
 function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");

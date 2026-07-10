@@ -1,16 +1,21 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 // safe-handle.ts imports electron (for ipcMain) and ../log (which pulls
 // ../installer → HERMES_HOME → the electron chain). Stub both so this unit can
 // exercise the pure error-shaping logic without Electron in the loop. Only
 // `describeIpcError` is tested here; `safeHandle`'s effects (ipcMain.handle
 // registration + log.error) live behind these boundaries by design.
-vi.mock("electron", () => ({ ipcMain: { handle: vi.fn() } }));
+const handleMock = vi.hoisted(() => vi.fn());
+vi.mock("electron", () => ({ ipcMain: { handle: handleMock } }));
 vi.mock("../installer", () => ({
   HERMES_HOME: "/tmp/hermes-safe-handle-test",
 }));
 
-import { describeIpcError } from "./safe-handle";
+import { describeIpcError, safeHandle } from "./safe-handle";
+
+beforeEach(() => {
+  handleMock.mockClear();
+});
 
 describe("describeIpcError", () => {
   it("carries the channel and message for a normal Error", () => {
@@ -50,5 +55,27 @@ describe("describeIpcError", () => {
     expect(fields.stack).toBeDefined();
     expect(fields.stack).not.toContain(key);
     expect(fields.stack).toContain("[REDACTED]");
+  });
+});
+
+describe("safeHandle runtime contracts", () => {
+  it("rejects invalid declared arguments before calling the handler", async () => {
+    const handler = vi.fn();
+    safeHandle("set-app-zoom-factor", handler);
+    const registered = handleMock.mock.calls[0][1];
+
+    await expect(registered({}, "large")).rejects.toThrow(
+      'Invalid IPC argument 1 for "set-app-zoom-factor": expected number.',
+    );
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("passes valid arguments and results through unchanged", async () => {
+    const handler = vi.fn((_event, factor: number) => factor * 2);
+    safeHandle("set-app-zoom-factor", handler);
+    const registered = handleMock.mock.calls[0][1];
+
+    await expect(registered({}, 1.25)).resolves.toBe(2.5);
+    expect(handler).toHaveBeenCalledOnce();
   });
 });

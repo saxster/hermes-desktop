@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "./index";
+import { startSpsStoreLifecycle } from "./lifecycle";
 import { blk } from "../lib/ids";
 
 // MED-8 regression: the blob-mode autosave subscriber historically mirrored
@@ -15,6 +16,7 @@ interface MirrorApi {
 }
 
 let api: MirrorApi;
+let stopLifecycle: (() => void) | null = null;
 
 function exportedIds(): string[] {
   return api.spsExportPage.mock.calls.map((call) => String(call[0]));
@@ -33,9 +35,12 @@ beforeEach(() => {
     spsDeletePage: vi.fn().mockResolvedValue(true),
   };
   (window as unknown as { hermesAPI: unknown }).hermesAPI = api;
+  stopLifecycle = startSpsStoreLifecycle();
 });
 
 afterEach(() => {
+  stopLifecycle?.();
+  stopLifecycle = null;
   vi.useRealTimers();
   delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
 });

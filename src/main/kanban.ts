@@ -1,14 +1,7 @@
-import { execFile, ExecFileOptions } from "child_process";
-import { join } from "path";
-import {
-  HERMES_HOME,
-  HERMES_PYTHON,
-  hermesCliArgs,
-  getEnhancedPath,
-} from "./installer";
 import { isRemoteOnlyMode } from "./hermes";
 import { getConnectionConfig } from "./config";
 import { sshRunKanban } from "./ssh-remote";
+import { runHermesCli } from "./hermes-cli-runner";
 import type {
   KanbanTask,
   KanbanBoard,
@@ -65,45 +58,34 @@ async function runKanban(
     });
   }
 
-  const cliArgs = hermesCliArgs();
-  if (opts.profile && opts.profile !== "default") {
-    cliArgs.push("-p", opts.profile);
-  }
-  cliArgs.push("kanban", ...args);
-
-  const execOpts: ExecFileOptions = {
-    cwd: join(HERMES_HOME, "hermes-agent"),
-    timeout: opts.timeoutMs ?? KANBAN_TIMEOUT_MS,
-    env: { ...process.env, PATH: getEnhancedPath() },
+  const result = await runHermesCli(["kanban", ...args], {
+    profile: opts.profile,
+    timeoutMs: opts.timeoutMs ?? KANBAN_TIMEOUT_MS,
     maxBuffer: 16 * 1024 * 1024,
-  };
-
-  return new Promise((resolve) => {
-    execFile(HERMES_PYTHON, cliArgs, execOpts, (err, stdout, stderr) => {
-      const out = (stdout || "").toString();
-      if (err) {
-        resolve({
-          success: false,
-          error: (stderr || err.message || "").toString().trim(),
-          stdout: out,
-        });
-        return;
-      }
-      if (opts.parseJson) {
-        try {
-          resolve({ success: true, data: JSON.parse(out), stdout: out });
-        } catch (parseErr) {
-          resolve({
-            success: false,
-            error: `Failed to parse JSON from 'hermes kanban': ${(parseErr as Error).message}`,
-            stdout: out,
-          });
-        }
-        return;
-      }
-      resolve({ success: true, stdout: out });
-    });
   });
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || "Hermes Kanban command failed.",
+      stdout: result.stdout,
+    };
+  }
+  if (opts.parseJson) {
+    try {
+      return {
+        success: true,
+        data: JSON.parse(result.stdout),
+        stdout: result.stdout,
+      };
+    } catch (parseErr) {
+      return {
+        success: false,
+        error: `Failed to parse JSON from 'hermes kanban': ${(parseErr as Error).message}`,
+        stdout: result.stdout,
+      };
+    }
+  }
+  return { success: true, stdout: result.stdout };
 }
 
 export function unsupportedInRemote<T>(): KanbanResult<T> {

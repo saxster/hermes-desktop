@@ -1,45 +1,29 @@
-import { execFile } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
-import {
-  HERMES_HOME,
-  HERMES_REPO,
-  HERMES_PYTHON,
-  hermesCliArgs,
-  getEnhancedPath,
-} from "./installer";
+import { HERMES_HOME, HERMES_PYTHON } from "./installer";
 import { stripAnsi } from "./utils";
-import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import { runHermesCli } from "./hermes-cli-runner";
+
+async function runPairingCommand(
+  args: string[],
+  profile?: string,
+): Promise<{ success: boolean; output: string }> {
+  const result = await runHermesCli(["pairing", ...args], {
+    profile,
+    timeoutMs: 15000,
+  });
+  return {
+    success: result.success,
+    output: stripAnsi(result.stdout + result.stderr),
+  };
+}
 
 export async function listPairings(profile?: string): Promise<string> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return "Hermes is not installed.";
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["pairing", "list"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (_error, stdout, stderr) => {
-        resolve(stripAnsi(stdout.toString() + stderr.toString()));
-      },
-    );
-  });
+  const result = await runPairingCommand(["list"], profile);
+  return result.output;
 }
 
 export async function approvePairing(
@@ -50,31 +34,7 @@ export async function approvePairing(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return { success: false, output: "Hermes is not installed." };
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["pairing", "approve", code]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        const output = stdout.toString() + stderr.toString();
-        resolve({ success: !error, output: stripAnsi(output) });
-      },
-    );
-  });
+  return runPairingCommand(["approve", code], profile);
 }
 
 export async function revokePairing(
@@ -85,31 +45,7 @@ export async function revokePairing(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return { success: false, output: "Hermes is not installed." };
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["pairing", "revoke", userId]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        const output = stdout.toString() + stderr.toString();
-        resolve({ success: !error, output: stripAnsi(output) });
-      },
-    );
-  });
+  return runPairingCommand(["revoke", userId], profile);
 }
 
 export async function clearPendingPairings(
@@ -118,31 +54,7 @@ export async function clearPendingPairings(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT_PATH())) {
     return { success: false, output: "Hermes is not installed." };
   }
-  return new Promise((resolve) => {
-    const args = hermesCliArgs(["pairing", "clear-pending"]);
-    if (profile && profile !== "default") {
-      args.splice(process.platform === "win32" ? 2 : 1, 0, "-p", profile);
-    }
-    execFile(
-      HERMES_PYTHON,
-      args,
-      {
-        cwd: HERMES_REPO,
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
-        timeout: 15000,
-        ...HIDDEN_SUBPROCESS_OPTIONS,
-      },
-      (error, stdout, stderr) => {
-        const output = stdout.toString() + stderr.toString();
-        resolve({ success: !error, output: stripAnsi(output) });
-      },
-    );
-  });
+  return runPairingCommand(["clear-pending"], profile);
 }
 
 function HERMES_SCRIPT_PATH(): string {

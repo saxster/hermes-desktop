@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../components/I18nProvider";
 import Models from "./Models";
@@ -85,7 +92,15 @@ function renderModels(): void {
 async function openEditDialog(modelName: string): Promise<HTMLInputElement> {
   renderModels();
 
-  fireEvent.click(await screen.findByText(modelName));
+  await waitFor(() =>
+    expect(window.hermesAPI.listModels).toHaveBeenCalledTimes(2),
+  );
+  await act(async () => {});
+
+  const model = await screen.findByText(modelName);
+  await act(async () => {
+    fireEvent.click(model);
+  });
 
   return screen.getByPlaceholderText("sk-...") as HTMLInputElement;
 }
@@ -96,6 +111,7 @@ describe("Models custom provider API keys", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
   });
 

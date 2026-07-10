@@ -12,8 +12,16 @@ import {
 
 const ROOT = join(__dirname, "..");
 const mainSrc = readFileSync(join(ROOT, "src/main/index.ts"), "utf-8");
+const navigationSrc = readFileSync(
+  join(ROOT, "src/main/external-navigation.ts"),
+  "utf-8",
+);
 const preloadSrc = readFileSync(join(ROOT, "src/preload/index.ts"), "utf-8");
 const installerSrc = readFileSync(join(ROOT, "src/main/installer.ts"), "utf-8");
+const cliRunnerSrc = readFileSync(
+  join(ROOT, "src/main/hermes-cli-runner.ts"),
+  "utf-8",
+);
 const systemIpcSrc = readFileSync(
   join(ROOT, "src/main/ipc/system.ts"),
   "utf-8",
@@ -81,11 +89,12 @@ describe("Electron main process hardening", () => {
   });
 
   it("routes shell.openExternal through the allowlist helper", () => {
-    const directShellOpens = mainSrc.match(/shell\.openExternal\(/g) ?? [];
+    const directShellOpens = navigationSrc.match(/shell\.openExternal\(/g) ?? [];
     expect(directShellOpens).toHaveLength(1);
-    expect(mainSrc).toContain(
+    expect(navigationSrc).toContain(
       "function openExternalUrl(rawUrl: unknown): void",
     );
+    expect(mainSrc).toContain('from "./external-navigation"');
   });
 
   it("keeps the sandboxed main preload free of external runtime imports", () => {
@@ -94,9 +103,14 @@ describe("Electron main process hardening", () => {
 
   it("runs hermes doctor without a shell-built command string", () => {
     expect(installerSrc).toContain(
-      'execFileSync(HERMES_PYTHON, hermesCliArgs(["doctor"])',
+      'runHermesCliSync(["doctor"], { timeoutMs: 30000 })',
     );
     expect(installerSrc).not.toContain("execSync(`");
+    expect(cliRunnerSrc).toContain("runtime.execFileSync(");
+    expect(cliRunnerSrc).toContain("HERMES_PYTHON,");
+    expect(cliRunnerSrc).toContain(
+      "hermesCliCommandArgs(commandArgs, options.profile)",
+    );
   });
 
   it("runs the Unix installer without a bash -c command string", () => {

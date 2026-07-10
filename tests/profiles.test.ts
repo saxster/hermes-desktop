@@ -27,6 +27,14 @@ vi.mock("../src/main/installer", () => ({
   getEnhancedPath: () => process.env.PATH || "",
 }));
 
+vi.mock("../src/main/installer/paths", () => ({
+  HERMES_HOME: TEST_HOME,
+  HERMES_REPO: `${TEST_HOME}/hermes-agent`,
+  HERMES_PYTHON: "/usr/bin/python3",
+  hermesCliArgs: (args: string[] = []) => ["/dev/null", ...args],
+  getEnhancedPath: () => process.env.PATH || "",
+}));
+
 vi.mock("child_process", () => ({
   default: { execFileSync: execFileSyncMock },
   execFileSync: execFileSyncMock,

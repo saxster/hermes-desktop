@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, shell } from "electron";
+import { BrowserWindow, dialog } from "electron";
 import { safeHandle } from "./safe-handle";
 import { readFile } from "fs/promises";
 import {
@@ -28,6 +28,7 @@ import {
 } from "../../shared/contacts";
 import { extractPdfToMarkdown } from "../pdf-extract";
 import { formatLogError, log } from "../log";
+import { openExternalUrl } from "../external-navigation";
 import {
   getObsidianConfig,
   setObsidianConfig,
@@ -39,7 +40,6 @@ import {
   buildObsidianOpenUri,
   callObsidianFunction,
   watchObsidian,
-  isAllowedObsidianExternalUrl,
   type ObsidianConfigInput,
   type ObsidianFunctionName,
 } from "../obsidian";
@@ -66,7 +66,6 @@ import {
 } from "../sps-backups";
 import { writeAsset, assetExists, gcAssets } from "../sps-assets";
 import { requireLocalWorkspace } from "./connection-guards";
-import { isAllowedExternalUrl } from "../security";
 import { HERMES_HOME } from "../installer/paths";
 import { assertGrantedFilePath, grantFilePath } from "../file-access-grants";
 import { assertFileWithinByteLimit } from "../file-size-limits";
@@ -107,24 +106,6 @@ export async function closeObsidianWatcher(): Promise<void> {
 
 function spsVaultDirFor(profile?: unknown): string {
   return resolveSpsVaultDir(normalizeIpcProfile(profile));
-}
-
-function openExternalUrl(rawUrl: unknown): void {
-  if (!isAllowedExternalUrl(rawUrl) && !isAllowedObsidianExternalUrl(rawUrl)) {
-    log.warn("security", {
-      msg: "blocked unsafe external URL",
-      url: typeof rawUrl === "string" ? rawUrl : undefined,
-    });
-    return;
-  }
-
-  shell.openExternal(rawUrl as string).catch((err) => {
-    log.error("security", {
-      msg: "failed to open external URL",
-      url: rawUrl as string,
-      error: formatLogError(err),
-    });
-  });
 }
 
 export function registerNotesIpc(

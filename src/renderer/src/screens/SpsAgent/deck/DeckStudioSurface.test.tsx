@@ -198,8 +198,10 @@ describe("DeckStudioSurface", () => {
 
     render(<DeckStudioSurface />);
 
-    expect(screen.getByLabelText("Rough notes")).toHaveValue(
-      "Research brief\nEvidence-backed thesis",
+    await waitFor(() =>
+      expect(screen.getByLabelText("Rough notes")).toHaveValue(
+        "Research brief\nEvidence-backed thesis",
+      ),
     );
     expect(screen.getByLabelText("Audience")).toHaveValue("partners");
     expect(screen.getByLabelText("Theme")).toHaveValue("research");

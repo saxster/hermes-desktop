@@ -3,7 +3,13 @@
 // row-files, and inline edits write merged frontmatter back to disk. IPC is
 // stubbed throughout.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { QueryDatabase } from "./QueryDatabase";
 import type { Block } from "../types";
 
@@ -18,6 +24,7 @@ function blockWith(view: Block["view"]): Block {
 }
 
 afterEach(() => {
+  cleanup();
   delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   vi.restoreAllMocks();
 });
@@ -97,6 +104,7 @@ describe("QueryDatabase", () => {
       spsExportRow: exportRow,
     });
     render(<QueryDatabase block={block} />);
+    await screen.findByText("No rows yet");
     fireEvent.click(screen.getByText("Add"));
     expect(exportRow).not.toHaveBeenCalled();
   });

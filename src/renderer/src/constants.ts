@@ -1,4 +1,8 @@
 import { WHATSAPP_CLOUD_FIELD_KEYS } from "../../shared/whatsappCloud";
+import {
+  PROVIDER_LABELS,
+  PROVIDER_OPTIONS,
+} from "../../shared/provider-catalog";
 
 // ── Shared Types ────────────────────────────────────────
 
@@ -22,68 +26,9 @@ export const PROVIDERS = {
   // hermes_cli/auth.py::resolve_provider — _PROVIDER_ALIASES + PROVIDER_REGISTRY)
   // so the gateway routes correctly when the user picks the entry.  The
   // catch-all `custom` stays last for unlisted OpenAI-compatible endpoints.
-  options: [
-    { value: "auto", label: "constants.autoDetect" },
-    // Aggregators
-    { value: "openrouter", label: "constants.openrouterName" },
-    // First-party API providers
-    { value: "anthropic", label: "constants.anthropicName" },
-    { value: "openai", label: "constants.openaiName" },
-    { value: "openai-codex", label: "constants.openaiCodexName" },
-    { value: "google", label: "constants.googleName" },
-    { value: "xai", label: "constants.xaiName" },
-    { value: "mistral", label: "Mistral" },
-    { value: "deepseek", label: "DeepSeek" },
-    { value: "groq", label: "Groq" },
-    { value: "together", label: "Together AI" },
-    { value: "fireworks", label: "Fireworks AI" },
-    { value: "cerebras", label: "Cerebras" },
-    { value: "perplexity", label: "Perplexity" },
-    { value: "huggingface", label: "Hugging Face" },
-    { value: "nvidia", label: "NVIDIA NIM" },
-    { value: "zai", label: "Z.ai / GLM" },
-    { value: "qwen", label: "Qwen" },
-    { value: "minimax", label: "MiniMax" },
-    { value: "nous", label: "constants.nousName" },
-    // Subscription / OAuth plans
-    // openai-codex is listed once above (first-party group) via #102 —
-    // not repeated here to avoid a duplicate <option> value.
-    { value: "xai-oauth", label: "xAI Grok (OAuth)" },
-    { value: "qwen-oauth", label: "Qwen (OAuth)" },
-    { value: "google-gemini-cli", label: "Gemini (CLI OAuth)" },
-    { value: "minimax-oauth", label: "MiniMax (OAuth)" },
-    { value: "kimi-coding", label: "Kimi (Coding Plan)" },
-    // Catch-all for any other OpenAI-compatible endpoint or local LLM
-    { value: "custom", label: "constants.customOpenAICompatibleName" },
-  ],
+  options: PROVIDER_OPTIONS,
 
-  labels: {
-    openrouter: "constants.openrouterName",
-    anthropic: "constants.anthropicName",
-    openai: "constants.openaiName",
-    "openai-codex": "constants.openaiCodexName",
-    google: "constants.googleName",
-    xai: "constants.xaiName",
-    mistral: "Mistral",
-    deepseek: "DeepSeek",
-    groq: "Groq",
-    together: "Together AI",
-    fireworks: "Fireworks AI",
-    cerebras: "Cerebras",
-    perplexity: "Perplexity",
-    huggingface: "Hugging Face",
-    nvidia: "NVIDIA NIM",
-    zai: "Z.ai / GLM",
-    qwen: "Qwen",
-    minimax: "MiniMax",
-    nous: "constants.nousName",
-    "xai-oauth": "xAI Grok (OAuth)",
-    "qwen-oauth": "Qwen (OAuth)",
-    "google-gemini-cli": "Gemini (CLI OAuth)",
-    "minimax-oauth": "MiniMax (OAuth)",
-    "kimi-coding": "Kimi (Coding Plan)",
-    custom: "OpenAI Compatible / Local",
-  } as Record<string, string>,
+  labels: PROVIDER_LABELS,
 
   setup: [
     {

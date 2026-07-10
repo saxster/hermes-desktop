@@ -173,7 +173,16 @@ export function TaskDrawer({ task, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [task.id, isFolderBacked, dbFolder, rowId]);
+  }, [
+    task.id,
+    task.title,
+    task.status,
+    task.prio,
+    task.who,
+    isFolderBacked,
+    dbFolder,
+    rowId,
+  ]);
 
   // General persistence dispatcher
   const saveChanges = async (

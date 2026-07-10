@@ -8,9 +8,15 @@
 // and the user's long-term memory, and renders a compact, token-budgeted preamble.
 //
 // ABI NOTE: the note-index + memory both open `better-sqlite3`, which is compiled
-// for Electron's node ABI and CANNOT load under vitest. So the DB-touching code is
-// behind a DYNAMIC import inside `assembleVaultContext`; the top of this file stays
-// dependency-free and the pure `formatVaultContext` helper is unit-testable.
+// for Electron's node ABI and CANNOT load under vitest. Those two DB-touching
+// modules stay behind dynamic imports; dependency-free readers are static so the
+// main bundle does not create ineffective mixed static/dynamic import edges.
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
+import { parseUserMd } from "../shared/userMd";
+import { parseTelos, formatTelosContext } from "../shared/telos";
+import { readAgentOrientationContext } from "./agent-orientation";
+import { readLatestOptedInDailyBrief } from "./daily-brief";
 
 /** One related note surfaced from the vault index. */
 export interface VaultHit {
@@ -201,13 +207,6 @@ export async function assembleVaultContext(
   try {
     const { getSpsNoteIndex } = await import("./note-index");
     const { readMemory } = await import("./memory");
-    const { parseUserMd } = await import("../shared/userMd");
-    const { parseTelos, formatTelosContext } = await import("../shared/telos");
-    const { existsSync, readFileSync } = await import("fs");
-    const { join } = await import("path");
-    const { readAgentOrientationContext } = await import("./agent-orientation");
-    const { readLatestOptedInDailyBrief } = await import("./daily-brief");
-
     const searchText = `${pageTitle} ${query}`.trim();
     const index = await getSpsNoteIndex(profile);
     const rawHits = searchText ? index.search(searchText, MAX_HITS) : [];

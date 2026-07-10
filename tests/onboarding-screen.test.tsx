@@ -54,6 +54,9 @@ describe("<Onboarding>", () => {
     expect(screen.getByText("onboarding.orientChatTitle")).toBeTruthy();
     expect(screen.getByText("onboarding.orientDocTitle")).toBeTruthy();
     expect(screen.getByText("onboarding.orientSettingsTitle")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByText("onboarding.ready")).toBeTruthy(),
+    );
 
     fireEvent.click(screen.getByText("onboarding.enterWorkspace"));
     expect(onFinish).toHaveBeenCalledTimes(1);

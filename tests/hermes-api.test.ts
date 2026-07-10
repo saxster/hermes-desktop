@@ -71,6 +71,7 @@ vi.mock("../src/main/installer", () => ({
   HERMES_REPO: "/dev/null",
   hermesCliArgs: () => ["/dev/null"],
   getEnhancedPath: () => process.env.PATH || "",
+  getHermesVersion: () => "test-version",
 }));
 
 vi.mock("../src/main/config", () => ({

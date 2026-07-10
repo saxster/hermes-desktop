@@ -2,7 +2,13 @@
 // stubbed and the store is seeded; we assert nodes/edges render and that
 // clicking a node opens that page on the doc surface.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { GraphView } from "./GraphView";
 import { useStore } from "../store";
 import type { PageMeta, TreeNode } from "../types";
@@ -29,6 +35,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   vi.restoreAllMocks();
 });
@@ -58,10 +65,12 @@ describe("GraphView", () => {
     expect(useStore.getState().surface).toBe("doc");
   });
 
-  it("shows an empty state when there are no pages", () => {
+  it("shows an empty state when there are no pages", async () => {
     useStore.setState({ tree: [], meta: {} });
-    stubApi({ spsIndexLinks: vi.fn().mockResolvedValue([]) });
+    const spsIndexLinks = vi.fn().mockResolvedValue([]);
+    stubApi({ spsIndexLinks });
     render(<GraphView />);
     expect(screen.getByText("No pages to graph yet.")).toBeTruthy();
+    await waitFor(() => expect(spsIndexLinks).toHaveBeenCalled());
   });
 });

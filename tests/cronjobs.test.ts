@@ -7,7 +7,10 @@ const { execFileSpy } = vi.hoisted(() => ({
       _args: string[],
       _options: Record<string, unknown>,
       callback: (err: Error | null, stdout: string, stderr: string) => void,
-    ) => callback(null, "ok", ""),
+    ) => {
+      callback(null, "ok", "");
+      return { stdin: { end: vi.fn() } };
+    },
   ),
 }));
 
@@ -29,6 +32,14 @@ vi.mock("../src/main/hermes", () => ({
 vi.mock("../src/main/installer", () => ({
   HERMES_HOME: "C:/hermes",
   HERMES_PYTHON: "C:/hermes/hermes-agent/venv/Scripts/pythonw.exe",
+  hermesCliArgs: (args: string[] = []) => ["-m", "hermes_cli.main", ...args],
+}));
+
+vi.mock("../src/main/installer/paths", () => ({
+  HERMES_HOME: "C:/hermes",
+  HERMES_REPO: "C:/hermes/hermes-agent",
+  HERMES_PYTHON: "C:/hermes/hermes-agent/venv/Scripts/pythonw.exe",
+  getEnhancedPath: () => process.env.PATH || "",
   hermesCliArgs: (args: string[] = []) => ["-m", "hermes_cli.main", ...args],
 }));
 

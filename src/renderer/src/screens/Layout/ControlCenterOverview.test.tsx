@@ -1,4 +1,5 @@
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -104,11 +105,12 @@ describe("ControlCenterOverview", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
 
-  it("renders the task cards users need from the settings gear", () => {
+  it("renders the task cards users need from the settings gear", async () => {
     render(
       <ControlCenterOverview
         onNavigate={vi.fn()}
@@ -127,9 +129,11 @@ describe("ControlCenterOverview", () => {
     expect(
       screen.getByRole("button", { name: "Open Troubleshooting" }),
     ).toBeEnabled();
+    await screen.findByText("Ready to chat");
+    await screen.findByRole("region", { name: "Operator readiness" });
   });
 
-  it("routes personalization to the existing My Alignment surface", () => {
+  it("routes personalization to the existing My Alignment surface", async () => {
     const onClose = vi.fn();
     const onNavigate = vi.fn<(view: NormalizedAdminView) => void>();
 
@@ -140,6 +144,9 @@ describe("ControlCenterOverview", () => {
         profile="default"
       />,
     );
+
+    await screen.findByText("Ready to chat");
+    await screen.findByRole("region", { name: "Operator readiness" });
 
     fireEvent.click(
       screen.getByRole("button", { name: "Open Personalization" }),

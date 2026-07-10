@@ -1,34 +1,15 @@
-// store/index.ts — composes all slices into one store and wires side-effects:
-//   • apply Tweaks to the .sps-scope element on change (initial apply happens in
-//     SpsAgent.tsx once the scope element + theme target exist)
-//   • persist Tweaks immediately (localStorage); persist the workspace document to
-//     the main process (debounced 350ms)
-//   • hydrateWorkspace(): load the persisted workspace from main and apply it
+// store/index.ts — composes all slices into the SPS workspace store. Mounted
+// lifecycle side effects live in lifecycle.ts so importing state is inert.
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { applyTweaks } from "../lib/theme";
-import {
-  loadWorkspace,
-  saveWorkspace,
-  mirrorPage,
-  mirrorAllPages,
-} from "../lib/persistence";
-import { getStorageMode } from "../lib/storageMode";
-import {
-  readVaultWorkspace,
-  saveVaultPage,
-  deleteVaultPages,
-} from "../lib/vaultStore";
-import { gcOrphanAssets } from "../lib/assets";
-import type { Block, PageMeta, Workspace } from "../types";
 import type { Store } from "./storeTypes";
 import { createWorkspaceSlice } from "./slices/workspace";
 import { createCommentsSlice } from "./slices/comments";
 import { createUiSlice } from "./slices/ui";
-import { createSidebarSlice, saveSidebar } from "./slices/sidebar";
-import { createTweaksSlice, saveTweaks } from "./slices/tweaks";
-import { createTemplatesSlice, saveUserTemplates } from "./slices/templates";
-import { createCockpitSlice, saveCockpit } from "./slices/cockpit";
+import { createSidebarSlice } from "./slices/sidebar";
+import { createTweaksSlice } from "./slices/tweaks";
+import { createTemplatesSlice } from "./slices/templates";
+import { createCockpitSlice } from "./slices/cockpit";
 import { createAssistantSlice } from "./slices/assistant";
 import { createJournalSlice } from "./slices/journal";
 import { createExternalContextSlice } from "./slices/externalContext";
@@ -47,144 +28,3 @@ export const useStore = create<Store>()(
     ...createExternalContextSlice(...a),
   })),
 );
-
-// ---- persist Tweaks (apply happens in SpsAgent.tsx + on change) ----
-useStore.subscribe(
-  (s) => s.t,
-  (t) => {
-    applyTweaks(t);
-    saveTweaks(t);
-  },
-);
-
-// ---- persist sidebar section visibility/collapse (localStorage) ----
-useStore.subscribe(
-  (s) => [s.sectionsEnabled, s.sectionsOpen] as const,
-  ([sectionsEnabled, sectionsOpen]) =>
-    saveSidebar({ sectionsEnabled, sectionsOpen }),
-);
-
-// ---- persist user-saved templates (localStorage) ----
-useStore.subscribe(
-  (s) => s.userTemplates,
-  (userTemplates) => saveUserTemplates(userTemplates),
-);
-
-// ---- persist the cockpit dashboard layout (localStorage) ----
-useStore.subscribe(
-  (s) => s.cockpit,
-  (cockpit) => saveCockpit(cockpit),
-);
-
-// ---- debounced workspace persistence (to the main process) ----
-function snapshotWorkspace(s: Store): Workspace {
-  return {
-    tree: s.tree,
-    meta: s.meta,
-    docs: s.docs,
-    comments: s.comments,
-    trash: s.trash,
-    page: s.page,
-  };
-}
-
-// MED-8: what the markdown mirror last saw, per page. Zustand updates are
-// immutable, so reference inequality on docs[id]/meta[id] reliably means "this
-// page changed since it was last mirrored" — the subscriber mirrors exactly
-// those pages (background commits included: OKF import, wiki-ingest, land
-// reports), not just the one that is open. Seeded by the hydrate-time
-// mirrorAllPages pass so the first post-hydrate edit diffs correctly.
-let mirroredDocs: Record<string, Block[]> = {};
-let mirroredMeta: Record<string, PageMeta | undefined> = {};
-
-function seedMirrored(s: Store): void {
-  mirroredDocs = { ...s.docs };
-  mirroredMeta = { ...s.meta };
-}
-
-function mirrorChangedPages(s: Store): void {
-  for (const pageId of Object.keys(s.docs)) {
-    const docChanged = s.docs[pageId] !== mirroredDocs[pageId];
-    const metaChanged = s.meta[pageId] !== mirroredMeta[pageId];
-    if (!docChanged && !metaChanged) continue;
-    mirrorPage(pageId, s.meta[pageId] ?? {}, s.docs[pageId] ?? []);
-    mirroredDocs[pageId] = s.docs[pageId];
-    mirroredMeta[pageId] = s.meta[pageId];
-  }
-  // Pages gone from docs were permanently deleted (trash keeps its docs) —
-  // drop their mirror files so search/backlinks stop resurrecting them.
-  const removed = Object.keys(mirroredDocs).filter((id) => !(id in s.docs));
-  if (removed.length) {
-    void deleteVaultPages(removed);
-    for (const id of removed) {
-      delete mirroredDocs[id];
-      delete mirroredMeta[id];
-    }
-  }
-}
-
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-useStore.subscribe(
-  // a stable-ish projection: identity of the persisted fields
-  (s) => [s.tree, s.meta, s.docs, s.comments, s.trash, s.page] as const,
-  () => {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const s = useStore.getState();
-      const ws = snapshotWorkspace(s);
-      if (getStorageMode() === "vault") {
-        // Vault is authoritative (S6): write the current page + manifest. The
-        // blob is intentionally left untouched as the rollback safety net.
-        void saveVaultPage(ws, s.page);
-      } else {
-        // blob authoritative — surface save failures + oversize advisory
-        void saveWorkspace(ws).then((res) =>
-          useStore.getState().reportSaveResult(res),
-        );
-        mirrorChangedPages(s); // mirror every changed page (MED-8)
-      }
-    }, 350);
-  },
-  { equalityFn: (a, b) => a.every((v, i) => v === b[i]) },
-);
-
-let hydrated = false;
-
-function applyWorkspace(ws: Workspace): void {
-  useStore.setState({
-    tree: ws.tree,
-    meta: ws.meta,
-    docs: ws.docs,
-    comments: ws.comments ?? [],
-    trash: ws.trash ?? [],
-    page: ws.page in (ws.docs || {}) ? ws.page : "home",
-  });
-}
-
-/** Load the authoritative workspace and apply it (once). */
-export async function hydrateWorkspace(): Promise<void> {
-  if (hydrated) return;
-  hydrated = true;
-
-  if (getStorageMode() === "vault") {
-    // Markdown vault is authoritative (S6): load from it; no mirror needed.
-    const vault = await readVaultWorkspace();
-    if (vault && vault.docs && vault.tree) {
-      applyWorkspace(vault);
-      gcOrphanAssets(vault.docs);
-      return;
-    }
-    // Vault not populated yet — fall back to the blob (and mirror) so the user
-    // isn't stranded; migration happens explicitly via the storage switch.
-  }
-
-  const ws = await loadWorkspace();
-  if (!ws || !ws.docs || !ws.tree) return;
-  applyWorkspace(ws);
-  // Materialize the markdown substrate for every page once on load (S2b),
-  // and seed the MED-8 diff-mirror so later saves only export changed pages.
-  mirrorAllPages(snapshotWorkspace(useStore.getState()));
-  seedMirrored(useStore.getState());
-  // Reclaim vault assets no page references any more (best-effort).
-  gcOrphanAssets(useStore.getState().docs);
-}

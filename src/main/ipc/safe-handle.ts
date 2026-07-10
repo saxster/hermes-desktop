@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { log } from "../log";
 import { redactExternalText } from "../external-context/redact";
+import { validateIpcArguments } from "../../shared/ipc-contracts";
 
 /**
  * The exact listener type `ipcMain.handle` expects. Deriving it (rather than
@@ -48,6 +49,7 @@ export function describeIpcError(
 export function safeHandle(channel: string, fn: IpcHandler): void {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
+      validateIpcArguments(channel, args);
       return await fn(event, ...args);
     } catch (err) {
       const { message, fields } = describeIpcError(channel, err);
