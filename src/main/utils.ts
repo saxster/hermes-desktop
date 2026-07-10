@@ -10,7 +10,7 @@ import {
   chmodSync,
   promises as fs,
 } from "fs";
-import { HERMES_HOME } from "./installer";
+import { HERMES_HOME } from "./installer/paths";
 
 const PROFILE_NAME_RE = /^[a-z0-9_][a-z0-9_-]{0,63}$/;
 export const PROFILE_NAME_ERROR =
@@ -268,4 +268,25 @@ export async function safeWriteFileAsync(
     }
     throw err;
   }
+}
+
+/** Atomically persist human-readable JSON with a trailing newline. */
+export function safeWriteJson(filePath: string, value: unknown): void {
+  const serialized = JSON.stringify(value, null, 2);
+  if (serialized === undefined) {
+    throw new TypeError("Cannot serialize undefined as JSON");
+  }
+  safeWriteFile(filePath, `${serialized}\n`);
+}
+
+/** Async counterpart to {@link safeWriteJson}. */
+export async function safeWriteJsonAsync(
+  filePath: string,
+  value: unknown,
+): Promise<void> {
+  const serialized = JSON.stringify(value, null, 2);
+  if (serialized === undefined) {
+    throw new TypeError("Cannot serialize undefined as JSON");
+  }
+  await safeWriteFileAsync(filePath, `${serialized}\n`);
 }

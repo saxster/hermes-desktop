@@ -1,6 +1,10 @@
 import { promises as fs } from "fs";
-import { dirname, join } from "path";
-import { profileHome, getActiveProfileNameSync } from "./utils";
+import { join } from "path";
+import {
+  profileHome,
+  getActiveProfileNameSync,
+  safeWriteJsonAsync,
+} from "./utils";
 import type {
   ActiveWorkCreateInput,
   ActiveWorkCriterion,
@@ -44,9 +48,7 @@ async function writeRuns(
   runs: ActiveWorkRun[],
   profile?: string,
 ): Promise<void> {
-  const p = activeWorkPath(profile);
-  await fs.mkdir(dirname(p), { recursive: true });
-  await fs.writeFile(p, JSON.stringify(runs, null, 2), "utf-8");
+  await safeWriteJsonAsync(activeWorkPath(profile), runs);
 }
 
 export async function listActiveWorkRuns(

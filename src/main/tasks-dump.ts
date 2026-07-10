@@ -6,8 +6,12 @@
 // the note-index and git). Anything that opens the note-index lives elsewhere
 // (the scheduler) so this module stays pure-fs and vitest-testable.
 import { promises as fs } from "fs";
-import { dirname, join } from "path";
-import { profileHome, getActiveProfileNameSync } from "./utils";
+import { join } from "path";
+import {
+  profileHome,
+  getActiveProfileNameSync,
+  safeWriteJsonAsync,
+} from "./utils";
 import type { TaskNagRecord } from "../shared/tasks-dump";
 
 function nagStatePath(profile?: string): string {
@@ -29,9 +33,7 @@ async function writeRecords(
   records: TaskNagRecord[],
   profile?: string,
 ): Promise<void> {
-  const path = nagStatePath(profile);
-  await fs.mkdir(dirname(path), { recursive: true });
-  await fs.writeFile(path, JSON.stringify(records, null, 2), "utf-8");
+  await safeWriteJsonAsync(nagStatePath(profile), records);
 }
 
 export async function listNagRecords(

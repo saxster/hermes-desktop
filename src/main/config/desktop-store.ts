@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { HERMES_HOME } from "../installer";
-import { getActiveProfileNameSync } from "../utils";
+import { HERMES_HOME } from "../installer/paths";
+import { getActiveProfileNameSync, safeWriteJson } from "../utils";
 import {
   canDecryptSecret,
   encryptSecret,
@@ -67,9 +67,6 @@ export function readDesktopConfig(): Record<string, unknown> {
 }
 
 export function writeDesktopConfig(data: Record<string, unknown>): void {
-  if (!existsSync(HERMES_HOME)) {
-    mkdirSync(HERMES_HOME, { recursive: true });
-  }
   const clone = JSON.parse(JSON.stringify(data));
   if (clone && typeof clone === "object") {
     for (const field of DESKTOP_SECRET_FIELDS) {
@@ -78,7 +75,7 @@ export function writeDesktopConfig(data: Record<string, unknown>): void {
       }
     }
   }
-  writeFileSync(desktopConfigFile(), JSON.stringify(clone, null, 2), "utf-8");
+  safeWriteJson(desktopConfigFile(), clone);
 }
 
 export function migrateDesktopConfigSecrets(): void {

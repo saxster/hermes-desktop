@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
+import { rmSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
 
 const {
   TEST_HOME,
@@ -11,13 +10,8 @@ const {
   appendAuditLogMock,
   connectionModeRef,
 } = vi.hoisted(() => {
-  const fs = require("fs");
-  const os = require("os");
-  const path = require("path");
   return {
-    TEST_HOME: fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), "app-launcher-test-")),
-    ),
+    TEST_HOME: `/private/tmp/app-launcher-test-${process.pid}-${Math.random().toString(36).slice(2)}`,
     execFileMock: vi.fn(),
     openExternalMock: vi.fn(),
     showOpenDialogMock: vi.fn(),
@@ -40,9 +34,13 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("../src/main/utils", () => ({
-  profileHome: (profile?: string) => join(TEST_HOME, profile || "default"),
-}));
+vi.mock("../src/main/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/main/utils")>();
+  return {
+    ...actual,
+    profileHome: (profile?: string) => join(TEST_HOME, profile || "default"),
+  };
+});
 
 vi.mock("../src/main/audit-log", () => ({
   appendAuditLog: appendAuditLogMock,

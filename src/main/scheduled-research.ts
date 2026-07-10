@@ -15,15 +15,15 @@
 // (run history). Pure scheduling/validation logic lives in
 // src/shared/scheduledResearch.ts (unit-tested); this module owns I/O + gateway.
 import { promises as fs } from "fs";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import type { BrowserWindow } from "electron";
 import { getApiUrl, getRemoteAuthHeader } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 import { resolveSpsVaultDir } from "./sps-storage";
-import { profileHome } from "./utils";
-import { HERMES_HOME } from "./installer";
+import { profileHome, safeWriteJson, safeWriteJsonAsync } from "./utils";
+import { HERMES_HOME } from "./installer/paths";
 import {
   createCronJob,
   removeCronJob,
@@ -141,9 +141,7 @@ function saveRegistry(
   reg: { schedules: ScheduledResearchItem[] },
   profile?: string,
 ): void {
-  const dir = srDir(profile);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(registryFile(profile), JSON.stringify(reg, null, 2));
+  safeWriteJson(registryFile(profile), reg);
 }
 
 export function listSchedules(profile?: string): ScheduledResearchItem[] {
@@ -353,9 +351,7 @@ export async function removePending(
 }
 
 async function writePending(p: PendingUpdate, profile?: string): Promise<void> {
-  const dir = pendingDir(profile);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(join(dir, `${p.id}.json`), JSON.stringify(p, null, 2));
+  await safeWriteJsonAsync(join(pendingDir(profile), `${p.id}.json`), p);
 }
 
 // ── run history ──────────────────────────────────────────────────────────────
@@ -374,7 +370,7 @@ function recordHistory(
       outcome,
       summary,
     });
-    writeFileSync(historyFile(profile), line + "\n", { flag: "a" });
+    appendFileSync(historyFile(profile), line + "\n");
   } catch {
     /* best-effort */
   }

@@ -17,8 +17,6 @@ import { promisify } from "util";
 import {
   existsSync,
   readFileSync,
-  writeFileSync,
-  mkdirSync,
   unlinkSync,
 } from "fs";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
@@ -92,6 +90,7 @@ import { formatLogError, log } from "./log";
 import { refreshEngineCapabilities } from "./engine-capabilities";
 import { installDiagnostics } from "./diagnostics";
 import { openExternalUrl } from "./external-navigation";
+import { safeWriteJson } from "./utils";
 import {
   isRendererMediaRequestAllowed,
   isTrustedAppRenderer,
@@ -286,9 +285,7 @@ function saveWindowState(win: BrowserWindow): void {
       y: bounds.y,
       isMaximized,
     };
-    const dir = join(HERMES_HOME);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(statePath, JSON.stringify(state), "utf-8");
+    safeWriteJson(statePath, state);
   } catch (err) {
     log.error("main", {
       msg: "failed to save window state",

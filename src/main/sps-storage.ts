@@ -18,8 +18,12 @@ import {
   rmSync,
   writeFileSync,
 } from "fs";
-import { dirname, isAbsolute, join } from "path";
-import { profileHome, getActiveProfileNameSync } from "./utils";
+import { isAbsolute, join } from "path";
+import {
+  profileHome,
+  getActiveProfileNameSync,
+  safeWriteJson,
+} from "./utils";
 
 interface SpsStorageConfig {
   /** Absolute path to an override vault directory. Absent ⇒ the default. */
@@ -96,9 +100,7 @@ function readStorageConfig(profile?: string): SpsStorageConfig {
 }
 
 function writeStorageConfig(cfg: SpsStorageConfig, profile?: string): void {
-  const path = configPath(profile);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(cfg, null, 2), "utf-8");
+  safeWriteJson(configPath(profile), cfg);
 }
 
 /** True when `dir` contains any non-hidden entry (a populated Obsidian vault). */

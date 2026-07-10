@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { safeWriteFile, safeWriteFileAsync } from "../src/main/utils";
+import {
+  safeWriteFile,
+  safeWriteFileAsync,
+  safeWriteJson,
+  safeWriteJsonAsync,
+} from "../src/main/utils";
 
 const TEST_DIR = join(tmpdir(), `hermes-safe-write-${Date.now()}`);
 
@@ -73,5 +78,27 @@ describe("safeWriteFileAsync", () => {
       const stat = statSync(filePath);
       expect(stat.mode & 0o777).toBe(0o600);
     }
+  });
+});
+
+describe("safe JSON writes", () => {
+  it("writes formatted JSON atomically", () => {
+    const filePath = join(TEST_DIR, "json", "state.json");
+
+    safeWriteJson(filePath, { version: 1, enabled: true });
+
+    expect(JSON.parse(readFileSync(filePath, "utf-8"))).toEqual({
+      version: 1,
+      enabled: true,
+    });
+    expect(readFileSync(filePath, "utf-8")).toMatch(/\n$/);
+  });
+
+  it("writes formatted JSON atomically with the async helper", async () => {
+    const filePath = join(TEST_DIR, "json-async", "state.json");
+
+    await safeWriteJsonAsync(filePath, { version: 2 });
+
+    expect(JSON.parse(readFileSync(filePath, "utf-8"))).toEqual({ version: 2 });
   });
 });

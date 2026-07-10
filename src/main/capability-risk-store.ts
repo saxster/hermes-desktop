@@ -1,16 +1,13 @@
 import { createHash } from "crypto";
 import {
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   statSync,
-  writeFileSync,
-  renameSync,
 } from "fs";
-import { dirname, join, resolve } from "path";
+import { join, resolve } from "path";
 import { execFileSync } from "child_process";
-import { profileHome } from "./utils";
+import { profileHome, safeWriteJson } from "./utils";
 import type { McpServerEntry } from "./installer/mcp";
 import {
   capabilityRiskStats,
@@ -173,11 +170,8 @@ function saveRegistry(
   profile?: string,
 ): void {
   const path = riskPath(profile);
-  mkdirSync(dirname(path), { recursive: true });
   registry.updatedAt = Date.now();
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(registry, null, 2)}\n`, "utf-8");
-  renameSync(tmp, path);
+  safeWriteJson(path, registry);
 }
 
 export function readCapabilityRiskRegistry(

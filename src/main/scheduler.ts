@@ -21,7 +21,7 @@ import {
   type LockRecord,
 } from "./scheduler-lock";
 import { formatLogError, log } from "./log";
-import { getActiveProfileNameSync, profileHome } from "./utils";
+import { getActiveProfileNameSync, profileHome, safeWriteJson } from "./utils";
 import { listCronJobs } from "./cronjobs";
 import { triggerSelfHealing } from "./self-healing";
 import { readDesktopConfig, writeDesktopConfig } from "./config";
@@ -153,7 +153,7 @@ function recordSkip(jobId: string, reason: string): void {
       lastSkipAt: Date.now(),
       lastReason: reason,
     };
-    writeFileSync(skipsPath(), JSON.stringify(all, null, 2), "utf-8");
+    safeWriteJson(skipsPath(), all);
   } catch (err) {
     log.error("scheduler", {
       msg: "failed to persist skip telemetry",
@@ -169,7 +169,7 @@ function clearSkip(jobId: string): void {
     const all = getSchedulerSkips();
     if (all[jobId]) {
       delete all[jobId];
-      writeFileSync(skipsPath(), JSON.stringify(all, null, 2), "utf-8");
+      safeWriteJson(skipsPath(), all);
     }
   } catch {
     // best-effort
