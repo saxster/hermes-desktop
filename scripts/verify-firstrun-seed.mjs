@@ -1,21 +1,14 @@
-// verify-firstrun-seed.mjs — proves the first-run guided seed (P2.8).
+// verify-firstrun-seed.mjs — proves the clean first-run workspace.
 //
 // Unlike sps-smoke.mjs (which writes its OWN workspace.json fixture), this probe
 // launches the BUILT app against a fresh profile with NO sps-agent/workspace.json
 // so the renderer falls back to buildInitialWorkspace() — the real first-run path.
-// It asserts the seeded "Start here" page lands and the dismissible compact
-// 3-action onboarding affordance renders. Run `npm run build` first.
+// It asserts that Home lands without sample pages or tasks and is ready for
+// editing. Run `npm run build` first.
 //
 // Usage:  node scripts/verify-firstrun-seed.mjs
 import { _electron as electron } from "playwright";
-import {
-  existsSync,
-  mkdtempSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -23,18 +16,6 @@ const OUT = process.env.SMOKE_OUT || join(tmpdir(), "firstrun-seed");
 mkdirSync(OUT, { recursive: true });
 
 const HOME = mkdtempSync(join(tmpdir(), "hermes-firstrun-"));
-const SCREENSHOT_DIR = join(HOME, "firstrun-screenshots");
-const SEEDED_SCREENSHOT_NAME = "Screenshot 2026-06-22 at 09.00.00.png";
-
-mkdirSync(SCREENSHOT_DIR, { recursive: true });
-writeFileSync(
-  join(SCREENSHOT_DIR, SEEDED_SCREENSHOT_NAME),
-  Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-    "base64",
-  ),
-);
-
 // Install markers (skip welcome/installing/setup) + onboarding already completed
 // (skip the Onboarding screen) — but deliberately NO sps-agent/ workspace, so the
 // SPS store starts from buildInitialWorkspace().
@@ -63,7 +44,6 @@ const app = await electron.launch({
   env: {
     ...process.env,
     HERMES_HOME: HOME,
-    HERMES_RECENT_SCREENSHOT_DIR: SCREENSHOT_DIR,
     ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
   },
 });
@@ -88,134 +68,27 @@ async function check(name, fn) {
   }
 }
 
-function findSeededScreenshotCapture() {
-  const inboxDir = join(HOME, "sps-agent", "vault", "_inbox");
-  if (!existsSync(inboxDir)) return null;
-  for (const name of readdirSync(inboxDir)) {
-    if (!name.endsWith(".md")) continue;
-    const markdown = readFileSync(join(inboxDir, name), "utf8");
-    if (markdown.includes(SEEDED_SCREENSHOT_NAME)) return { name, markdown };
-  }
-  return null;
-}
-
-async function waitForSeededScreenshotCapture() {
-  const deadline = Date.now() + 8000;
-  while (Date.now() < deadline) {
-    const found = findSeededScreenshotCapture();
-    if (found) return found;
-    await win.waitForTimeout(200);
-  }
-  return null;
-}
-
 await win.screenshot({ path: join(OUT, "firstrun.png") });
 
-// The seeded "Start here" page is the landing page → its title is in the sidebar
-// tree and its content renders in the doc.
-await check("start-here in sidebar tree", async () => {
-  return await win.evaluate(() =>
-    [...document.querySelectorAll(".tree-label, .nav-label")].some((n) =>
-      (n.textContent || "").includes("Start here"),
+await check("Home is the only seeded page", async () => {
+  const labels = await win.evaluate(() =>
+    [...document.querySelectorAll(".tree-label")].map((n) =>
+      (n.textContent || "").trim(),
     ),
   );
+  return labels.length === 1 && labels[0] === "Home";
 });
 
-await check("start-here doc content renders", async () => {
-  const body = (await win.locator("body").innerText()).toLowerCase();
-  return body.includes("home base");
-});
-
-await check("inbox explainer page seeded", async () => {
-  return await win.evaluate(() =>
-    [...document.querySelectorAll(".tree-label, .nav-label")].some((n) =>
-      (n.textContent || "").includes("How the Inbox works"),
-    ),
+await check("sample workspace content is absent", async () => {
+  return await win.evaluate(
+    () =>
+      !document.body.innerText.includes("First project") &&
+      !document.body.innerText.includes("Draft the project brief"),
   );
 });
 
-// The dismissible compact 3-action affordance renders on first run.
-await check("onboarding affordance renders", async () => {
-  return (await win.locator(".home-affordance-onboarding").count()) > 0;
-});
-
-await check("onboarding affordance has 3 actions", async () => {
-  return (
-    (await win
-      .locator(".home-affordance-onboarding .home-affordance-action")
-      .count()) === 3
-  );
-});
-
-await check("Capture opens Inbox image screenshot intake", async () => {
-  await win.getByRole("button", { name: "Capture screenshot" }).click();
-  await win.getByRole("button", { name: "Capture screen" }).waitFor({
-    timeout: 8000,
-  });
-  await win.getByRole("button", { name: "Import from clipboard" }).waitFor({
-    timeout: 8000,
-  });
-  await win.getByText(SEEDED_SCREENSHOT_NAME).waitFor({ timeout: 8000 });
-  return (await win.locator(".inbox-image-capture").count()) === 1;
-});
-
-await check("Capture imports a seeded recent screenshot", async () => {
-  await win.getByRole("button", { name: SEEDED_SCREENSHOT_NAME }).click();
-  const found = await waitForSeededScreenshotCapture();
-  if (!found) return false;
-  const assetMatch = /!\[Screenshot\]\(\.\.\/_assets\/([^)]+)\)/.exec(
-    found.markdown,
-  );
-  if (!assetMatch) return false;
-  return (
-    found.markdown.includes('source: "screenshot"') &&
-    found.markdown.includes('captureOrigin: "recent-file"') &&
-    existsSync(join(HOME, "sps-agent", "vault", "_assets", assetMatch[1]))
-  );
-});
-
-await check("return to Start here after capture path", async () => {
-  await win
-    .locator(".tree-label, .nav-label", { hasText: "Start here" })
-    .first()
-    .click();
-  await win.locator(".home-affordance-onboarding").waitFor({ timeout: 8000 });
-  return (await win.locator(".home-affordance-onboarding").count()) > 0;
-});
-
-// Dismiss persists: click ×, the onboarding affordance disappears.
-await check("onboarding dismiss hides it", async () => {
-  await win
-    .locator(".home-affordance-onboarding .home-affordance-dismiss")
-    .click();
-  await win.waitForTimeout(300);
-  return (await win.locator(".home-affordance-onboarding").count()) === 0;
-});
-
-// Discoverability (P2.9): the ⌘K palette now surfaces Ask / Vault health / Telos.
-// Vault health had NO UI entry point before — this command is its only door.
-// Open the palette via the sidebar Search button (deterministic in a probe).
-await check("palette exposes Vault health + Ask + Telos", async () => {
-  await win.locator(".nav-item", { hasText: "Search" }).first().click();
-  await win.waitForSelector(".palette", { timeout: 8000 });
-  const labels = await win.locator(".pal-item .label").allInnerTexts();
-  const blob = labels.join(" | ");
-  return (
-    blob.includes("Vault health") &&
-    blob.includes("Ask your workspace") &&
-    blob.includes("Telos alignment audit")
-  );
-});
-
-await check("Vault health command opens the health surface", async () => {
-  // Filter to the single command, then Enter.
-  await win.locator(".pal-input input").fill("Vault health");
-  await win.waitForTimeout(300);
-  await win.keyboard.press("Enter");
-  await win.waitForTimeout(600);
-  return (await win.locator("body").innerText())
-    .toLowerCase()
-    .includes("vault health");
+await check("Home editor is ready for input", async () => {
+  return (await win.locator('[contenteditable="true"]').count()) > 0;
 });
 
 console.log(`FAILURES=${failures}`);
