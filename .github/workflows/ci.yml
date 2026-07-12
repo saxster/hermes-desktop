@@ -108,10 +108,23 @@ jobs:
           SMOKE_OUT: ${{ runner.temp }}/sps-smoke
         run: xvfb-run -a node scripts/sps-smoke.mjs
 
+      - name: Verify clean first-run workspace
+        env:
+          SMOKE_OUT: ${{ runner.temp }}/firstrun-seed
+        run: xvfb-run -a npm run verify:firstrun-seed
+
       - name: Upload SPS smoke screenshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: sps-smoke-screenshots
           path: ${{ runner.temp }}/sps-smoke
+          if-no-files-found: ignore
+
+      - name: Upload clean first-run screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firstrun-seed-screenshot
+          path: ${{ runner.temp }}/firstrun-seed
           if-no-files-found: ignore

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { buildCapture } from "../inbox/capture";
 import { Icon } from "../components/Icon";
 import { rowToMarkdown } from "../editor/rowMarkdown";
+import { TASKS_DB_FOLDER } from "../tasks/taskStorage";
 import type {
   SpsCaptureKind,
   SpsPageSchemaKey,
@@ -42,7 +43,6 @@ function schemaForCaptureKind(
 
 // The folder-backed query database the ToDo page reads. A task capture writes a
 // row here (not the generic _inbox) so it shows up as an actual task.
-const TASKS_DB_FOLDER = "tasks";
 const TASK_CHIP_DISMISS_MS = 1600;
 
 /** The one-line "what happened to this task" chip shown after routing. */

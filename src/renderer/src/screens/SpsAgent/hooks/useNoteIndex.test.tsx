@@ -131,6 +131,18 @@ describe("useVaultQuery", () => {
     const { result } = renderHook(() => useVaultQuery(undefined));
     expect(result.current.rows).toEqual([]);
   });
+
+  it("ignores a delayed refetch after the renderer has unmounted", () => {
+    stubApi({ spsIndexQuery: vi.fn().mockResolvedValue([]) });
+    const { result, unmount } = renderHook(() => useVaultQuery("tasks"));
+    const refetch = result.current.refetch;
+    unmount();
+    vi.stubGlobal("window", undefined);
+
+    expect(() => refetch()).not.toThrow();
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("useVaultGraph", () => {

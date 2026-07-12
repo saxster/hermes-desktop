@@ -110,6 +110,12 @@ export function Sidebar() {
   const surface = useStore((s) => s.surface);
   const setSurface = useStore((s) => s.setSurface);
   const selectPage = useStore((s) => s.selectPage);
+  const libraryPages = tree.filter(
+    (node) =>
+      node.id !== "home" &&
+      !meta[node.id]?.journal &&
+      meta[node.id]?.title !== "Content Studio",
+  );
   // Selecting a page always returns to the document surface.
   const selectDoc = (id: string): void => {
     selectPage(id);
@@ -346,27 +352,21 @@ export function Sidebar() {
               onAdd={newPage}
               addTitle="New page"
             >
-              {tree
-                .filter(
-                  (n) =>
-                    !meta[n.id]?.journal &&
-                    meta[n.id]?.title !== "Content Studio",
-                )
-                .map((n) => (
-                  <TreeNode
-                    key={n.id}
-                    node={n}
-                    depth={0}
-                    meta={meta}
-                    activeId={activeId}
-                    onSelect={selectDoc}
-                    onNewSubPage={newSubPage}
-                    onRename={renamePage}
-                    onDelete={deletePage}
-                    dnd={dnd}
-                  />
-                ))}
-              {tree.length === 0 && (
+              {libraryPages.map((n) => (
+                <TreeNode
+                  key={n.id}
+                  node={n}
+                  depth={0}
+                  meta={meta}
+                  activeId={activeId}
+                  onSelect={selectDoc}
+                  onNewSubPage={newSubPage}
+                  onRename={renamePage}
+                  onDelete={deletePage}
+                  dnd={dnd}
+                />
+              ))}
+              {libraryPages.length === 0 && (
                 <div className="tree-row color-tx-4-cursor-default">
                   <span className="tree-toggle leaf"></span>No pages
                 </div>

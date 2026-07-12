@@ -8,9 +8,19 @@ import { appLaunchCadenceLabel } from "../../../../../shared/app-launcher";
 import type { CronJob } from "../../../../../shared/cronjobs";
 import type { AppLaunchSchedule } from "../../../../../shared/app-launcher";
 import type { Task } from "../types";
+import { useVaultQuery } from "../hooks/useNoteIndex";
+import { vaultRowToTask } from "../tasks/vaultRowToTask";
+import { TASKS_DB_FOLDER } from "../tasks/taskStorage";
 
 type WorkTab = "today" | "next" | "scheduled" | "delegated" | "review";
 type Schedule = Awaited<ReturnType<typeof window.hermesAPI.srList>>[number];
+
+export function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function fmtTime(ms: number): string {
   if (!ms) return "never";
@@ -207,17 +217,17 @@ function WorkScheduledPanel(): React.JSX.Element {
   );
 }
 
-function WorkTaskPanel({ mode }: { mode: "today" | "next" }): React.JSX.Element {
-  const docs = useStore((state) => state.docs);
+function WorkTaskPanel({
+  mode,
+}: {
+  mode: "today" | "next";
+}): React.JSX.Element {
   const setOpenTask = useStore((state) => state.setOpenTask);
-  const today = new Date().toISOString().slice(0, 10);
+  const { rows } = useVaultQuery(TASKS_DB_FOLDER);
+  const today = localDateKey();
   const tasks = useMemo(
-    () =>
-      Object.values(docs)
-        .flatMap((blocks) => blocks)
-        .flatMap((block) => block.rows || [])
-        .filter((task) => task.status !== "done"),
-    [docs],
+    () => rows.map(vaultRowToTask).filter((task) => task.status !== "done"),
+    [rows],
   );
   const visible = tasks.filter((task) => {
     const isToday =

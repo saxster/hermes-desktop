@@ -20,7 +20,15 @@
 import Database from "better-sqlite3";
 import type { Dirent } from "fs";
 import { mkdir, readdir, readFile, stat } from "fs/promises";
-import { basename, extname, join, relative, sep } from "path";
+import {
+  basename,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "path";
 import chokidar, { type FSWatcher } from "chokidar";
 import { resolveSpsVaultDir } from "./sps-storage";
 import { semanticManager } from "./semantic-index";
@@ -551,6 +559,25 @@ export class NoteIndex {
       this.indexedMtimes.delete(absPath);
       return true;
     }
+  }
+
+  /** Refresh one already-written markdown path without rebuilding the index. */
+  async refreshPath(relPath: string): Promise<NoteIndexStatus> {
+    const absPath = resolve(this.root, relPath);
+    const normalized = relative(this.root, absPath);
+    if (
+      normalized === ".." ||
+      normalized.startsWith(`..${sep}`) ||
+      isAbsolute(normalized)
+    ) {
+      throw new Error("Note index path escaped its root");
+    }
+    const changed = await this.indexAbsolute(absPath, { logFailures: true });
+    if (changed) {
+      this.indexedAt = Date.now();
+      semanticManager.triggerIndex(this.root);
+    }
+    return this.status();
   }
 
   /** Wipe and rebuild from disk. Always safe: the markdown files are the truth. */

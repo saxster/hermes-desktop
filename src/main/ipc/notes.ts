@@ -401,7 +401,7 @@ export function registerNotesIpc(
 
   safeHandle(
     "sps-export-row",
-    (
+    async (
       _event,
       dbFolder: unknown,
       rowId: unknown,
@@ -416,13 +416,23 @@ export function registerNotesIpc(
         `${safeDbFolder}/${safeRowId}.md`,
         "database row path",
       );
-      return exportRowMarkdownTo(
+      const saved = await exportRowMarkdownTo(
         dir,
         safeDbFolder,
         safeRowId,
         markdown,
         noteMirrorFailure,
       );
+      if (!saved) return false;
+      const profileKey = normalizeIpcProfile(profile);
+      const status = await (
+        await getSpsNoteIndex(profileKey)
+      ).refreshPath(`${safeDbFolder}/${safeRowId}.md`);
+      mainWindowGetter()?.webContents.send("sps-index-rebuilt", {
+        profile: profileKey,
+        status,
+      });
+      return true;
     },
   );
   // Classify a captured task (GTD clarify). Never throws — degrades to the

@@ -2394,7 +2394,9 @@
   position: fixed;
   inset: 0;
   background: var(--scrim);
-  z-index: 80;
+  /* Modal controls can occupy the macOS titlebar strip. Keep the scrim above
+     the global drag region (z-index: 1000) so those controls remain clickable. */
+  z-index: 1001;
   display: flex;
   align-items: flex-start;
   justify-content: center;

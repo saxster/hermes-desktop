@@ -74,6 +74,18 @@ async function main(): Promise<void> {
   const scoped = index.query({ scope: "projects" }).map((n) => n.path);
   eq(scoped, ["projects/gamma.md"], "scopes a query to a folder");
 
+  await mkdir(join(root, "tasks"), { recursive: true });
+  await writeFile(
+    join(root, "tasks", "fresh.md"),
+    `---\ntitle: "Fresh task"\nstatus: todo\n---\n`,
+  );
+  await index.refreshPath("tasks/fresh.md");
+  eq(
+    index.query({ scope: "tasks" }).map((n) => n.title),
+    ["Fresh task"],
+    "refreshes one newly-written folder row without a full rebuild",
+  );
+
   const hits = index.search("brown").map((h) => h.path);
   assert(hits.includes("alpha.md"), "FTS search finds body text");
 

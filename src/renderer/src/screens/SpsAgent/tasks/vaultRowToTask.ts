@@ -5,7 +5,15 @@
 import type { VaultRow } from "../hooks/useNoteIndex";
 import type { PrioKey, StatusKey, Task, TaskRoute } from "../types";
 
-const STATUS_KEYS: StatusKey[] = ["todo", "doing", "review", "done"];
+const STATUS_KEYS: StatusKey[] = [
+  "todo",
+  "doing",
+  "review",
+  "done",
+  "inbox",
+  "this_week",
+  "blocked",
+];
 const PRIO_KEYS: PrioKey[] = ["high", "med", "low"];
 const ROUTE_KEYS: TaskRoute[] = ["ai", "human"];
 // Properties that map onto first-class Task fields; everything else is "custom".

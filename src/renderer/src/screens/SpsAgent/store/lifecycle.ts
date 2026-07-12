@@ -72,6 +72,21 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lifecycleUsers = 0;
 let stopSubscriptions: Unsubscribe | null = null;
 
+function persistCurrentWorkspace(): void {
+  const s = useStore.getState();
+  const ws = snapshotWorkspace(s);
+  if (getStorageMode() === "vault") {
+    // Vault is authoritative (S6): write the current page + manifest.
+    // The blob remains untouched as the rollback safety net.
+    void saveVaultPage(ws, s.page);
+    return;
+  }
+  void saveWorkspace(ws).then((res) =>
+    useStore.getState().reportSaveResult(res),
+  );
+  mirrorChangedPages(s);
+}
+
 function subscribeToStore(): Unsubscribe {
   const unsubscribes = [
     useStore.subscribe(
@@ -100,18 +115,7 @@ function subscribeToStore(): Unsubscribe {
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
           saveTimer = null;
-          const s = useStore.getState();
-          const ws = snapshotWorkspace(s);
-          if (getStorageMode() === "vault") {
-            // Vault is authoritative (S6): write the current page + manifest.
-            // The blob remains untouched as the rollback safety net.
-            void saveVaultPage(ws, s.page);
-          } else {
-            void saveWorkspace(ws).then((res) =>
-              useStore.getState().reportSaveResult(res),
-            );
-            mirrorChangedPages(s);
-          }
+          persistCurrentWorkspace();
         }, 350);
       },
       { equalityFn: (a, b) => a.every((v, i) => v === b[i]) },
@@ -123,6 +127,7 @@ function subscribeToStore(): Unsubscribe {
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
+      persistCurrentWorkspace();
     }
   };
 }

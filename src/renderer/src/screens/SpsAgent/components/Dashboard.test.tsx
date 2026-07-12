@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "../store";
 import { Dashboard } from "./Dashboard";
@@ -15,6 +21,7 @@ describe("Dashboard", () => {
       },
       docs: {
         ...state.docs,
+        home: [{ id: "home-p", type: "p", text: "" }],
         dashboard_scratchpad: [
           { id: "sp-1", type: "p", text: "A calm note" },
         ],
@@ -22,7 +29,10 @@ describe("Dashboard", () => {
     }));
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
-      value: { spsExportPage: vi.fn().mockResolvedValue(undefined) },
+      value: {
+        spsExportPage: vi.fn().mockResolvedValue(undefined),
+        spsExportRow: vi.fn().mockResolvedValue(true),
+      },
     });
   });
 
@@ -46,5 +56,26 @@ describe("Dashboard", () => {
     expect(
       useStore.getState().docs.dashboard_scratchpad[0]?.text,
     ).toBe("Updated note");
+  });
+
+  it("creates a canonical folder-backed task from a clean workspace", async () => {
+    render(<Dashboard />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New task" }));
+
+    const api = window.hermesAPI as unknown as {
+      spsExportRow: ReturnType<typeof vi.fn>;
+    };
+    await waitFor(() => expect(api.spsExportRow).toHaveBeenCalledOnce());
+    expect(api.spsExportRow).toHaveBeenCalledWith(
+      "tasks",
+      expect.stringMatching(/^task/),
+      expect.stringContaining('title: "New task"'),
+    );
+    expect(useStore.getState().openTask).toMatchObject({
+      title: "New task",
+      status: "todo",
+    });
+    expect(useStore.getState().openTask?.id).toMatch(/^tasks\/task.*\.md$/);
   });
 });

@@ -83,6 +83,27 @@ afterEach(() => {
 });
 
 describe("CommandPalette", () => {
+  it("describes reset as a destructive blank-workspace action", async () => {
+    render(<CommandPalette />);
+
+    expect(
+      await screen.findByText("Reset to a blank workspace"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Reset workspace to sample")).toBeNull();
+  });
+
+  it("requires confirmation before resetting the workspace", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<CommandPalette />);
+
+    fireEvent.mouseDown(await screen.findByText("Reset to a blank workspace"));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Delete all workspace content and reset to a blank Home page? A backup will be attempted first.",
+    );
+    expect(store.resetWorkspace).not.toHaveBeenCalled();
+  });
+
   it("stays compact for commands and previews document results only", async () => {
     const { container } = render(<CommandPalette />);
 

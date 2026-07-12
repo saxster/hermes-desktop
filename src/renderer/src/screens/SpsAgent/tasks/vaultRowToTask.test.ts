@@ -53,6 +53,13 @@ describe("vaultRowToTask", () => {
     expect(task.prio).toBe("med");
   });
 
+  it.each(["inbox", "this_week", "blocked"] as const)(
+    "preserves the valid %s workflow status",
+    (status) => {
+      expect(vaultRowToTask(row({ props: { status } })).status).toBe(status);
+    },
+  );
+
   it("stringifies non-string scalars and routes unknown props to custom", () => {
     const task = vaultRowToTask(
       row({ props: { who: 42, region: "north", count: 3 } }),

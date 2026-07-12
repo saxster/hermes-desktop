@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { useStore } from "../store";
 import { uid } from "../lib/ids";
+import { rowToMarkdown } from "../editor/rowMarkdown";
+import { TASKS_DB_FOLDER, taskRowPath } from "../tasks/taskStorage";
+import type { Task } from "../types";
 
 const SCRATCHPAD_PAGE_ID = "dashboard_scratchpad";
 const RECENT_LIMIT = 5;
@@ -81,34 +84,38 @@ export function Dashboard(): React.JSX.Element {
     localStorage.setItem("sps-pinned-pages", JSON.stringify(next));
   };
 
-  const createTask = (): void => {
-    const homeBlocks = useStore.getState().docs.home || [];
-    const databaseIndex = homeBlocks.findIndex(
-      (block) => block.type === "database",
-    );
-    if (databaseIndex < 0) {
-      useStore.getState().flash("No task database found on Home", {
-        tone: "warn",
-      });
-      return;
-    }
-    const row = {
-      id: uid("t"),
+  const createTask = async (): Promise<void> => {
+    const rowId = uid("task");
+    const task: Task = {
+      id: taskRowPath(rowId),
       title: "New task",
-      status: "todo" as const,
-      prio: "med" as const,
+      status: "todo",
+      prio: "med",
       who: "you",
       due: "",
       est: "",
     };
-    const next = [...homeBlocks];
-    const database = next[databaseIndex];
-    next[databaseIndex] = {
-      ...database,
-      rows: [...(database.rows || []), row],
-    };
-    setPageDoc("home", next);
-    setOpenTask(row);
+    try {
+      const saved = await window.hermesAPI.spsExportRow(
+        TASKS_DB_FOLDER,
+        rowId,
+        rowToMarkdown({
+          title: task.title,
+          status: task.status,
+          prio: task.prio,
+          who: task.who,
+          due: task.due,
+          est: task.est,
+        }),
+      );
+      if (!saved) {
+        useStore.getState().flash("Could not create task", { tone: "warn" });
+        return;
+      }
+      setOpenTask(task);
+    } catch {
+      useStore.getState().flash("Could not create task", { tone: "warn" });
+    }
   };
 
   const today = new Date().toLocaleDateString(undefined, {
@@ -128,7 +135,7 @@ export function Dashboard(): React.JSX.Element {
           <button type="button" onClick={() => setTemplatesOpen({ parent: null })}>
             <Icon name="plus" size={14} /> New page
           </button>
-          <button type="button" onClick={createTask}>
+          <button type="button" onClick={() => void createTask()}>
             <Icon name="checkbox" size={14} /> New task
           </button>
         </div>

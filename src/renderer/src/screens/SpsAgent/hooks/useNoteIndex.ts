@@ -42,10 +42,12 @@ export function useVaultQuery(
   sort?: { prop: string; dir: "asc" | "desc" },
 ): { rows: VaultRow[]; refetch: () => void } {
   const [rows, setRows] = useState<VaultRow[]>([]);
+  const mounted = useRef(false);
   const rebuildVersion = useIndexRebuildVersion();
   // Serialize the query so the effect only re-runs on a real change.
   const key = JSON.stringify({ scope, filters, sort });
   const refetch = useCallback(() => {
+    if (!mounted.current || typeof window === "undefined") return;
     if (!scope) {
       setRows([]);
       return;
@@ -54,10 +56,20 @@ export function useVaultQuery(
     if (!api?.spsIndexQuery) return;
     api
       .spsIndexQuery({ scope, filters, sort })
-      .then((r) => setRows(r as VaultRow[]))
-      .catch(() => setRows([]));
+      .then((r) => {
+        if (mounted.current) setRows(r as VaultRow[]);
+      })
+      .catch(() => {
+        if (mounted.current) setRows([]);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useEffect(() => {
     refetch();
   }, [refetch, rebuildVersion]);

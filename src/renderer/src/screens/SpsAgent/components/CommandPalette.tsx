@@ -522,9 +522,14 @@ export function CommandPalette() {
         kind: "action",
         id: "reset",
         icon: "clock",
-        label: "Reset workspace to sample",
-        desc: "Replace the workspace with the sample content.",
-        run: () => resetWorkspace(),
+        label: "Reset to a blank workspace",
+        desc: "Delete workspace content and create a blank Home page.",
+        run: () => {
+          const confirmed = window.confirm(
+            "Delete all workspace content and reset to a blank Home page? A backup will be attempted first.",
+          );
+          if (confirmed) resetWorkspace();
+        },
       },
       {
         kind: "action",

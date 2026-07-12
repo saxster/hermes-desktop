@@ -46,6 +46,20 @@ afterEach(() => {
 });
 
 describe("blob-mode diff-mirror (MED-8)", () => {
+  it("flushes a pending workspace edit when the final lifecycle owner stops", async () => {
+    api.spsSave.mockClear();
+    useStore.getState().setPageDoc("home", [blk("p", "Last-second edit")]);
+
+    stopLifecycle?.();
+    stopLifecycle = null;
+    await Promise.resolve();
+
+    expect(api.spsSave).toHaveBeenCalledOnce();
+    expect(api.spsSave.mock.calls[0]?.[0]).toMatchObject({
+      docs: { home: [expect.objectContaining({ text: "Last-second edit" })] },
+    });
+  });
+
   it("mirrors a background page that is not the open page", async () => {
     const st = useStore.getState();
     st.selectPage("home");

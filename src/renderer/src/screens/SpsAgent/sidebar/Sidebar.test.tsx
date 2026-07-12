@@ -128,6 +128,24 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("button", { name: "New chat" })).toBeNull();
   });
 
+  it("renders Home only once when it is also the workspace root", () => {
+    store.sectionsEnabled.private = true;
+    store.sectionsOpen.private = true;
+    store.tree = [
+      { id: "home", children: [] },
+      { id: "notes", children: [] },
+    ];
+    store.meta = {
+      home: { title: "Home" },
+      notes: { title: "Notes" },
+    };
+
+    render(<Sidebar />);
+
+    expect(screen.getAllByText("Home")).toHaveLength(1);
+    expect(screen.getByText("Notes")).toBeTruthy();
+  });
+
   it("puts workspace appearance and global Settings in one profile menu", () => {
     render(<Sidebar />);
 

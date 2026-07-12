@@ -8,41 +8,31 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => ({
-  docs: {
-    home: [
-      {
-        id: "db",
-        type: "database",
-        text: "",
-        rows: [
-          {
-            id: "task-1",
-            title: "Finish design audit",
-            status: "doing",
-            prio: "high",
-            who: "you",
-            due: "",
-            est: "",
-          },
-          {
-            id: "task-2",
-            title: "Plan next release",
-            status: "todo",
-            prio: "med",
-            who: "you",
-            due: "",
-            est: "",
-          },
-        ],
-      },
-    ],
-  },
   setOpenTask: vi.fn(),
   setScheduledOpen: vi.fn(),
 }));
 
+const vaultRows = vi.hoisted(() => [
+  {
+    path: "tasks/task-1.md",
+    title: "Finish design audit",
+    props: { status: "doing", prio: "high", who: "you" },
+    mtime: 1,
+  },
+  {
+    path: "tasks/task-2.md",
+    title: "Plan next release",
+    props: { status: "todo", prio: "med", who: "you" },
+    mtime: 1,
+  },
+]);
+
 vi.mock("../store", () => ({
   useStore: (selector: (state: typeof store) => unknown) => selector(store),
+}));
+
+vi.mock("../hooks/useNoteIndex", () => ({
+  useVaultQuery: () => ({ rows: vaultRows, refetch: vi.fn() }),
 }));
 
 vi.mock("../activeWork/ActiveWorkSurface", () => ({
@@ -53,7 +43,7 @@ vi.mock("../review/ReviewQueueSurface", () => ({
   ReviewQueueSurface: () => <div>Review queue</div>,
 }));
 
-import { MyWorkSurface } from "./MyWorkSurface";
+import { localDateKey, MyWorkSurface } from "./MyWorkSurface";
 
 describe("MyWorkSurface", () => {
   beforeEach(() => {
@@ -86,6 +76,17 @@ describe("MyWorkSurface", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Next" }));
     expect(screen.getByText("Plan next release")).toBeInTheDocument();
+  });
+
+  it("formats task due dates from local calendar fields instead of UTC", () => {
+    const date = {
+      getFullYear: () => 2026,
+      getMonth: () => 6,
+      getDate: () => 12,
+      toISOString: () => "2026-07-11T19:00:00.000Z",
+    } as Date;
+
+    expect(localDateKey(date)).toBe("2026-07-12");
   });
 
   it("uses Scheduled vocabulary on the scheduled tab", async () => {

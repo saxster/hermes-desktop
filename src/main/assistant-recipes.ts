@@ -807,6 +807,7 @@ async function drainAssistantRecipeCronRuns(
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
+let startupTimer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 let getMainWindow: (() => BrowserWindow | null) | null = null;
 
@@ -824,13 +825,21 @@ async function tick(): Promise<void> {
 export function startAssistantRecipeScheduler(
   getWindow: () => BrowserWindow | null,
 ): void {
+  if (timer || startupTimer) return;
   getMainWindow = getWindow;
-  setTimeout(() => void tick(), 25000);
+  startupTimer = setTimeout(() => {
+    startupTimer = null;
+    void tick();
+  }, 25000);
+  startupTimer.unref?.();
   timer = setInterval(() => void tick(), 60000);
   timer.unref?.();
 }
 
 export function stopAssistantRecipeScheduler(): void {
+  if (startupTimer) clearTimeout(startupTimer);
+  startupTimer = null;
   if (timer) clearInterval(timer);
   timer = null;
+  getMainWindow = null;
 }

@@ -694,7 +694,7 @@ export const createWorkspaceSlice: StateCreator<
       comments: fresh.comments,
     });
     // F3: in vault mode the replaced pages are now orphan `<pageId>.md` files on
-    // disk — remove the ones the fresh sample doesn't reuse (best-effort; the S6
+    // disk — remove the ones the blank workspace doesn't reuse (best-effort; the S6
     // manifest scoping already stops them resurrecting, this stops them lingering).
     // Note: deletePage only moves to trash, which stays restorable across reload
     // (its files are intentionally retained), so it must NOT delete here.
@@ -702,7 +702,7 @@ export const createWorkspaceSlice: StateCreator<
       const kept = new Set(Object.keys(fresh.docs));
       void deleteVaultPages(oldIds.filter((id) => !kept.has(id)));
     }
-    get().flash("Workspace reset to sample");
+    get().flash("Workspace reset to a blank Home page");
   },
 
   updateTask: (id: string, patch: Partial<Task>) =>

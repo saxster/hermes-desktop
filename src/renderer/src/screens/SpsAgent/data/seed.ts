@@ -75,7 +75,7 @@ export function flattenTree(
   return acc;
 }
 
-// ---- initial workspace from the static seed (ported from store.jsx) ----
+// ---- initial blank workspace ----
 function treeFromSeed(nodes: SeedTreeNode[]): TreeNode[] {
   return nodes.map((n) => ({
     id: n.id,
