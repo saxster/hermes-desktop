@@ -32,10 +32,12 @@ vi.mock("../store", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   (window as unknown as { hermesAPI: unknown }).hermesAPI = api;
   store.runResearch.mockResolvedValue({
     ok: true,
     summary: "Sourced summary for operators.",
+    pageId: "research-page",
     undo: vi.fn(),
   });
   store.saveStudyToWiki.mockResolvedValue({
@@ -108,6 +110,47 @@ describe("ResearchModal", () => {
     expect(screen.getByLabelText("Research workspace")).toBeInTheDocument();
     expect(container.querySelector(".scrim")).toBeNull();
     expect(screen.getByText("Recent research")).toBeInTheDocument();
+  });
+
+  it("opens the saved page from the embedded research workspace", async () => {
+    render(<ResearchModal embedded />);
+
+    fireEvent.change(screen.getByPlaceholderText(/research any topic/i), {
+      target: { value: "Open the saved result" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Research$/ }));
+    await screen.findByText("Sourced summary for operators.");
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(store.selectPage).toHaveBeenCalledWith("research-page");
+    expect(store.setSurface).toHaveBeenCalledWith("doc");
+  });
+
+  it("removes an undone result from recent research", async () => {
+    render(<ResearchModal embedded />);
+
+    fireEvent.change(screen.getByPlaceholderText(/research any topic/i), {
+      target: { value: "Undo this result" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Research$/ }));
+    await screen.findByText("Sourced summary for operators.");
+    expect(localStorage.getItem("sps-research-history-v1")).toContain(
+      "research-page",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(localStorage.getItem("sps-research-history-v1")).toBe("[]");
+  });
+
+  it("ignores valid JSON with an invalid history shape", () => {
+    localStorage.setItem("sps-research-history-v1", '{"pageId":"bad"}');
+
+    render(<ResearchModal embedded />);
+
+    expect(
+      screen.getByText("Completed research will appear here for quick return."),
+    ).toBeInTheDocument();
   });
 
   it("warns when social source coverage is not ready", async () => {

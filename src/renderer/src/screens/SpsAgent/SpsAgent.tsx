@@ -34,6 +34,7 @@ import {
 import { setThemeScope, applyTweaks, setSkinVars } from "./lib/theme";
 import { skinToSpsVars } from "./lib/skin";
 import { getActiveSkinId } from "../../utils/skin";
+import { SystemThemeSync } from "./components/SystemThemeSync";
 
 export function SpsAgent() {
   const scopeRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,7 @@ export function SpsAgent() {
   }, []);
   return (
     <div className="sps-scope" ref={scopeRef}>
+      <SystemThemeSync />
       <App />
     </div>
   );

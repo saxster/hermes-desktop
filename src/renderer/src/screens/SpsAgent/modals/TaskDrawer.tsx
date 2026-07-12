@@ -1,5 +1,5 @@
 // TaskDrawer.tsx — task detail side drawer. Ported from app.jsx TaskDrawer.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { STATUS, PRIO } from "../data/seed";
 import { usePersonPages } from "../hooks/usePersonPages";
@@ -36,6 +36,18 @@ import { pageIdFromPath } from "../lib/pageId";
 interface Props {
   task: Task;
   onClose: () => void;
+}
+
+interface TaskDraft {
+  title: string;
+  status: StatusKey;
+  prio: PrioKey;
+  who: PersonKey;
+  due: string;
+  est: string;
+  desc: string;
+  checklist: ChecklistItem[];
+  customProps: Record<string, unknown>;
 }
 
 function parseChecklistAndDesc(body = ""): {
@@ -101,9 +113,20 @@ export function TaskDrawer({ task, onClose }: Props) {
     task.checklist || [],
   );
   const [loading, setLoading] = useState(isFolderBacked);
-  const [customProps, setCustomProps] = useState<Record<string, unknown>>(
-    task.custom || {},
-  );
+  const taskRef = useRef(task);
+  taskRef.current = task;
+  const draftRef = useRef<TaskDraft>({
+    title: task.title,
+    status: task.status,
+    prio: task.prio,
+    who: task.who,
+    due: task.due,
+    est: task.est,
+    desc: task.desc || "",
+    checklist: task.checklist || [],
+    customProps: task.custom || {},
+  });
+  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   // Live agent status for a row delegated to the Hermes agent (Kanban is the
   // source of truth; the row only stores `delegatedTo`). Empty array ⇒ no poll.
@@ -151,17 +174,28 @@ export function TaskDrawer({ task, onClose }: Props) {
         const res = await window.hermesAPI.spsReadRow(dbFolder, rowId);
         if (res && !cancelled) {
           const { props, body } = rowFromMarkdown(res);
-          setTitle((props.title as string) || task.title);
-          setStatus((props.status as StatusKey) || task.status);
-          setPrio((props.prio as PrioKey) || task.prio);
-          setWho((props.who as PersonKey) || task.who);
-          setDue(String(props.due ?? ""));
-          setEst(String(props.est ?? ""));
-          setCustomProps(props);
-
+          const fallback = taskRef.current;
           const parsed = parseChecklistAndDesc(body);
-          setDesc(parsed.desc);
-          setChecklist(parsed.checklist);
+          const loaded: TaskDraft = {
+            title: (props.title as string) || fallback.title,
+            status: (props.status as StatusKey) || fallback.status,
+            prio: (props.prio as PrioKey) || fallback.prio,
+            who: (props.who as PersonKey) || fallback.who,
+            due: String(props.due ?? ""),
+            est: String(props.est ?? ""),
+            desc: parsed.desc,
+            checklist: parsed.checklist,
+            customProps: props,
+          };
+          draftRef.current = loaded;
+          setTitle(loaded.title);
+          setStatus(loaded.status);
+          setPrio(loaded.prio);
+          setWho(loaded.who);
+          setDue(loaded.due);
+          setEst(loaded.est);
+          setDesc(loaded.desc);
+          setChecklist(loaded.checklist);
         }
       } catch (e) {
         console.error("Failed to load folder-backed task data:", e);
@@ -173,32 +207,50 @@ export function TaskDrawer({ task, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [
-    task.id,
-    task.title,
-    task.status,
-    task.prio,
-    task.who,
-    isFolderBacked,
-    dbFolder,
-    rowId,
-  ]);
+  }, [isFolderBacked, dbFolder, rowId]);
 
   // General persistence dispatcher
   const saveChanges = async (
     patch: Partial<Task> & { descVal?: string; checklistVal?: ChecklistItem[] },
   ) => {
-    const nextTitle = patch.title !== undefined ? patch.title : title;
-    const nextStatus = patch.status !== undefined ? patch.status : status;
-    const nextPrio = patch.prio !== undefined ? patch.prio : prio;
-    const nextWho = patch.who !== undefined ? patch.who : who;
-    const nextDue = patch.due !== undefined ? patch.due : due;
-    const nextEst = patch.est !== undefined ? patch.est : est;
-    const nextDesc = patch.descVal !== undefined ? patch.descVal : desc;
+    const current = draftRef.current;
+    const nextTitle = patch.title !== undefined ? patch.title : current.title;
+    const nextStatus =
+      patch.status !== undefined ? patch.status : current.status;
+    const nextPrio = patch.prio !== undefined ? patch.prio : current.prio;
+    const nextWho = patch.who !== undefined ? patch.who : current.who;
+    const nextDue = patch.due !== undefined ? patch.due : current.due;
+    const nextEst = patch.est !== undefined ? patch.est : current.est;
+    const nextDesc = patch.descVal !== undefined ? patch.descVal : current.desc;
     const nextChecklist =
-      patch.checklistVal !== undefined ? patch.checklistVal : checklist;
+      patch.checklistVal !== undefined ? patch.checklistVal : current.checklist;
 
-    const labelVal = patch.custom?.label || task.custom?.label;
+    const storedLabel =
+      typeof current.customProps.label === "string"
+        ? current.customProps.label
+        : task.custom?.label;
+    const labelVal = patch.custom?.label ?? storedLabel;
+    const nextProps = {
+      ...current.customProps,
+      title: nextTitle,
+      status: nextStatus,
+      prio: nextPrio,
+      who: nextWho,
+      due: nextDue,
+      est: nextEst,
+      ...(labelVal !== undefined ? { label: labelVal } : {}),
+    };
+    draftRef.current = {
+      title: nextTitle,
+      status: nextStatus,
+      prio: nextPrio,
+      who: nextWho,
+      due: nextDue,
+      est: nextEst,
+      desc: nextDesc,
+      checklist: nextChecklist,
+      customProps: nextProps,
+    };
     const updatedTask: Task = {
       ...task,
       title: nextTitle,
@@ -217,19 +269,21 @@ export function TaskDrawer({ task, onClose }: Props) {
     setOpenTask(updatedTask);
 
     if (isFolderBacked) {
-      const nextProps = {
-        ...customProps,
-        title: nextTitle,
-        status: nextStatus,
-        prio: nextPrio,
-        who: nextWho,
-        due: nextDue,
-        est: nextEst,
-        ...(labelVal !== undefined ? { label: labelVal } : {}),
-      };
       const bodyMd = serializeBody(nextDesc, nextChecklist);
       const markdown = rowToMarkdown(nextProps, bodyMd);
-      await window.hermesAPI.spsExportRow(dbFolder, rowId, markdown);
+      writeQueueRef.current = writeQueueRef.current
+        .then(async () => {
+          const saved = await window.hermesAPI.spsExportRow(
+            dbFolder,
+            rowId,
+            markdown,
+          );
+          if (!saved) throw new Error("Task row write failed");
+        })
+        .catch((error) => {
+          console.error("Failed to save folder-backed task:", error);
+        });
+      await writeQueueRef.current;
     } else {
       updateTask(task.id, {
         title: nextTitle,

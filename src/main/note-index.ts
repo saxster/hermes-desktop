@@ -1119,6 +1119,12 @@ export async function getNoteIndexForRoot(root: string): Promise<NoteIndex> {
       return idx;
     })();
     instances.set(root, pending);
+    // A failed open must not poison this root for the rest of the process. The
+    // caller still receives the rejection, while a later retry can rebuild the
+    // derived index after the underlying filesystem problem is corrected.
+    void pending.catch(() => {
+      if (instances.get(root) === pending) instances.delete(root);
+    });
   }
   return pending;
 }

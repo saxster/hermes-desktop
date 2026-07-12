@@ -2,7 +2,7 @@
 // row, then named/toggleable/collapsible sections (Recents/Private), the
 // Obsidian Vault explorer, and the identity foot. Identity is derived from the
 // active Hermes profile (demo fallback offline).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/iconPaths";
 import { useStore } from "../store";
@@ -103,7 +103,11 @@ function useIdentity(): Identity {
   return identity;
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  displayMode?: "full" | "icons" | "hidden";
+}
+
+export function Sidebar({ displayMode }: SidebarProps = {}) {
   const tree = useStore((s) => s.tree);
   const meta = useStore((s) => s.meta);
   const activeId = useStore((s) => s.page);
@@ -142,7 +146,7 @@ export function Sidebar() {
   const identity = useIdentity();
 
   const sidebar = useStore((s) => s.t.sidebar);
-  const isIconsMode = sidebar === "icons";
+  const isIconsMode = (displayMode ?? sidebar) === "icons";
 
   const [libraryOpen, setLibraryOpen] = useState(
     () => localStorage.getItem("sps-wing-core-library") !== "false",
@@ -152,6 +156,30 @@ export function Sidebar() {
   );
   const [packs, setPacks] = useState<Record<PackId, boolean>>(loadPacks);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const closeOnOutsidePress = (event: MouseEvent): void => {
+      const target = event.target;
+      if (target instanceof Node && !profileMenuRef.current?.contains(target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setProfileMenuOpen(false);
+      profileButtonRef.current?.focus();
+    };
+    document.addEventListener("mousedown", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [profileMenuOpen]);
 
   const toggleLibrary = (): void => {
     const next = !libraryOpen;
@@ -502,8 +530,9 @@ export function Sidebar() {
 
       <StatusChip />
 
-      <div className="rail-foot">
+      <div className="rail-foot" ref={profileMenuRef}>
         <button
+          ref={profileButtonRef}
           type="button"
           className="rail-profile-button"
           title={isIconsMode ? identity.user : undefined}

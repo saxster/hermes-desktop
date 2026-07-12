@@ -41,7 +41,19 @@ const RESEARCH_HISTORY_KEY = "sps-research-history-v1";
 
 function loadResearchHistory(): ResearchHistoryEntry[] {
   try {
-    return JSON.parse(localStorage.getItem(RESEARCH_HISTORY_KEY) || "[]");
+    const parsed: unknown = JSON.parse(
+      localStorage.getItem(RESEARCH_HISTORY_KEY) || "[]",
+    );
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is ResearchHistoryEntry =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof entry.pageId === "string" &&
+        typeof entry.title === "string" &&
+        typeof entry.savedAt === "number" &&
+        Number.isFinite(entry.savedAt),
+    );
   } catch {
     return [];
   }
@@ -134,6 +146,7 @@ export function ResearchModal({
     null,
   );
   const [resultSummary, setResultSummary] = useState("");
+  const [resultPageId, setResultPageId] = useState<string | null>(null);
   const [resultMsg, setResultMsg] = useState(""); // warn / error text
   const undoRef = useRef<null | (() => void)>(null);
   const topicRef = useRef<HTMLInputElement>(null);
@@ -236,6 +249,7 @@ export function ResearchModal({
     setToolNote(null);
     setResultMsg("");
     setResultSummary("");
+    setResultPageId(null);
     undoRef.current = null;
 
     let finalQuery = t;
@@ -258,6 +272,7 @@ export function ResearchModal({
     if (res.ok) {
       setPhase("done");
       setResultSummary(res.summary || t);
+      setResultPageId(res.pageId ?? null);
       undoRef.current = res.undo ?? null;
       if (res.pageId) {
         const next = [
@@ -283,10 +298,23 @@ export function ResearchModal({
   const undo = () => {
     undoRef.current?.();
     undoRef.current = null;
+    if (resultPageId) {
+      const next = history.filter((entry) => entry.pageId !== resultPageId);
+      setHistory(next);
+      localStorage.setItem(RESEARCH_HISTORY_KEY, JSON.stringify(next));
+    }
     setPhase("idle");
     setProgress("");
     setResultSummary("");
+    setResultPageId(null);
     flash("Removed from Knowledge Base");
+  };
+
+  const openSavedResearch = (): void => {
+    if (!resultPageId) return;
+    selectPage(resultPageId);
+    setSurface("doc");
+    if (!embedded) onClose();
   };
 
   const resetResearch = () => {
@@ -295,6 +323,7 @@ export function ResearchModal({
     setToolNote(null);
     setResultMsg("");
     setResultSummary("");
+    setResultPageId(null);
     undoRef.current = null;
   };
 
@@ -757,7 +786,11 @@ export function ResearchModal({
                   <button className="cover-btn" onClick={() => undo()}>
                     Undo
                   </button>
-                  <button className="cover-btn" onClick={onClose}>
+                  <button
+                    className="cover-btn"
+                    onClick={openSavedResearch}
+                    disabled={!resultPageId}
+                  >
                     Open
                   </button>
                   <button

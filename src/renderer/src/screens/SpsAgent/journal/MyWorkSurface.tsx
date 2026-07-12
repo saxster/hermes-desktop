@@ -22,6 +22,13 @@ export function localDateKey(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function taskNeedsAttentionToday(task: Task, today: string): boolean {
+  if (["doing", "review", "blocked"].includes(task.status)) return true;
+  return Boolean(task.due && ISO_DATE.test(task.due) && task.due <= today);
+}
+
 function fmtTime(ms: number): string {
   if (!ms) return "never";
   const date = new Date(ms);
@@ -230,11 +237,7 @@ function WorkTaskPanel({
     [rows],
   );
   const visible = tasks.filter((task) => {
-    const isToday =
-      task.due === today ||
-      task.status === "doing" ||
-      task.status === "review" ||
-      task.status === "blocked";
+    const isToday = taskNeedsAttentionToday(task, today);
     return mode === "today" ? isToday : !isToday;
   });
 

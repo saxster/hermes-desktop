@@ -86,6 +86,22 @@ async function main(): Promise<void> {
     "refreshes one newly-written folder row without a full rebuild",
   );
 
+  const retryRoot = join(root, "retry-root");
+  await writeFile(retryRoot, "temporarily blocks mkdir");
+  let firstOpenFailed = false;
+  try {
+    await getNoteIndexForRoot(retryRoot);
+  } catch {
+    firstOpenFailed = true;
+  }
+  assert(firstOpenFailed, "surfaces an initial note-index open failure");
+  await rm(retryRoot, { force: true });
+  const retried = await getNoteIndexForRoot(retryRoot);
+  assert(
+    retried.status().notes === 0,
+    "evicts a rejected cached open so the root can recover without restart",
+  );
+
   const hits = index.search("brown").map((h) => h.path);
   assert(hits.includes("alpha.md"), "FTS search finds body text");
 

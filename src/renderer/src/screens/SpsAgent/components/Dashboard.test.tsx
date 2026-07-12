@@ -30,8 +30,13 @@ describe("Dashboard", () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
-        spsExportPage: vi.fn().mockResolvedValue(undefined),
+        spsReadRow: vi
+          .fn()
+          .mockResolvedValue(
+            '---\ntitle: "Dashboard scratchpad"\nsystem: true\n---\n\nA calm note\n',
+          ),
         spsExportRow: vi.fn().mockResolvedValue(true),
+        spsDeletePage: vi.fn().mockResolvedValue(true),
       },
     });
   });
@@ -41,7 +46,7 @@ describe("Dashboard", () => {
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
 
-  it("renders a calm Today view with an inline local scratchpad", () => {
+  it("renders a calm Today view with a folder-backed local scratchpad", async () => {
     const { container } = render(<Dashboard />);
 
     expect(screen.getByText("Today")).toBeInTheDocument();
@@ -50,12 +55,21 @@ describe("Dashboard", () => {
     expect(container.querySelector(".postit-card")).toBeNull();
     expect(screen.queryByText("S&P 500")).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Today scratchpad"), {
+    const scratchpad = await screen.findByDisplayValue("A calm note");
+    fireEvent.change(scratchpad, {
       target: { value: "Updated note" },
     });
-    expect(
-      useStore.getState().docs.dashboard_scratchpad[0]?.text,
-    ).toBe("Updated note");
+    const api = window.hermesAPI as unknown as {
+      spsExportRow: ReturnType<typeof vi.fn>;
+    };
+    await waitFor(() =>
+      expect(api.spsExportRow).toHaveBeenCalledWith(
+        "_dashboard",
+        "scratchpad",
+        expect.stringContaining("Updated note"),
+      ),
+    );
+    expect(useStore.getState().docs.dashboard_scratchpad).toBeUndefined();
   });
 
   it("creates a canonical folder-backed task from a clean workspace", async () => {

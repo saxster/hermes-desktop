@@ -9,6 +9,7 @@ const store = vi.hoisted(() => ({
   surface: "doc",
   chatNonce: 0,
   setPanelOpen: vi.fn(),
+  setTweak: vi.fn(),
   setSurface: vi.fn(),
   setTemplatesOpen: vi.fn(),
   setResearchOpen: vi.fn(),
@@ -69,7 +70,13 @@ vi.mock("./inbox/ingestPrefs", () => ({
 }));
 vi.mock("../../lib/openSettings", () => ({ openSettings: vi.fn() }));
 
-vi.mock("./sidebar/Sidebar", () => ({ Sidebar: () => <aside>Sidebar</aside> }));
+vi.mock("./sidebar/Sidebar", () => ({
+  Sidebar: ({ displayMode }: { displayMode?: string }) => (
+    <aside data-testid="sidebar" data-display-mode={displayMode}>
+      Sidebar
+    </aside>
+  ),
+}));
 vi.mock("./shell/Topbar", () => ({ Topbar: () => <header>Topbar</header> }));
 vi.mock("./shell/DocHeader", () => ({
   DocHeader: ({ children }: { children?: ReactNode }) => (
@@ -166,7 +173,9 @@ beforeEach(() => {
   store.surface = "doc";
   store.panelOpen = false;
   store.page = "home";
+  store.t.sidebar = "full";
   store.setPanelOpen.mockClear();
+  store.setTweak.mockClear();
   observedWorkspaceWidth = 1024;
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -235,7 +244,21 @@ describe("SpsAgent App doc surface", () => {
       "icons",
     );
     expect(store.t.sidebar).toBe("full");
+    expect(screen.getByTestId("sidebar")).toHaveAttribute(
+      "data-display-mode",
+      "icons",
+    );
     expect(store.setPanelOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("offers a pointer restore control on non-document surfaces", () => {
+    store.t.sidebar = "hidden";
+    store.surface = "research";
+
+    render(<App />);
+    screen.getByRole("button", { name: "Show sidebar" }).click();
+
+    expect(store.setTweak).toHaveBeenCalledWith("sidebar", "full");
   });
 
   it("renders research as a persistent main workspace", () => {

@@ -43,7 +43,11 @@ vi.mock("../review/ReviewQueueSurface", () => ({
   ReviewQueueSurface: () => <div>Review queue</div>,
 }));
 
-import { localDateKey, MyWorkSurface } from "./MyWorkSurface";
+import {
+  localDateKey,
+  MyWorkSurface,
+  taskNeedsAttentionToday,
+} from "./MyWorkSurface";
 
 describe("MyWorkSurface", () => {
   beforeEach(() => {
@@ -87,6 +91,37 @@ describe("MyWorkSurface", () => {
     } as Date;
 
     expect(localDateKey(date)).toBe("2026-07-12");
+  });
+
+  it("keeps overdue open tasks in Today", () => {
+    expect(
+      taskNeedsAttentionToday(
+        {
+          id: "tasks/overdue.md",
+          title: "Overdue",
+          status: "todo",
+          prio: "high",
+          who: "you",
+          due: "2026-07-11",
+          est: "",
+        },
+        "2026-07-12",
+      ),
+    ).toBe(true);
+    expect(
+      taskNeedsAttentionToday(
+        {
+          id: "tasks/future.md",
+          title: "Future",
+          status: "todo",
+          prio: "low",
+          who: "you",
+          due: "2026-07-13",
+          est: "",
+        },
+        "2026-07-12",
+      ),
+    ).toBe(false);
   });
 
   it("uses Scheduled vocabulary on the scheduled tab", async () => {

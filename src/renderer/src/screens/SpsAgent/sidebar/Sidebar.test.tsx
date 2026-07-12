@@ -158,4 +158,23 @@ describe("Sidebar", () => {
     expect(openSettings).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu", { name: "Profile menu" })).toBeNull();
   });
+
+  it("uses the effective responsive icon mode and dismisses the profile menu", () => {
+    render(<Sidebar displayMode="icons" />);
+
+    expect(
+      screen.getByRole("button", { name: "Enable Learning" }),
+    ).toBeTruthy();
+    const profileButton = screen.getByRole("button", {
+      name: "Open profile menu",
+    });
+    fireEvent.click(profileButton);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Profile menu" })).toBeNull();
+    expect(profileButton).toHaveFocus();
+
+    fireEvent.click(profileButton);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu", { name: "Profile menu" })).toBeNull();
+  });
 });

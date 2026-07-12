@@ -43,6 +43,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ContentStudioSurface } from "./content/ContentStudioSurface";
 import { DeckStudioSurface } from "./deck/DeckStudioSurface";
 import { ResearchModal } from "./modals/ResearchModal";
+import { Icon } from "./components/Icon";
 
 type WorkspaceWidth = "compact" | "standard" | "expanded";
 
@@ -64,6 +65,7 @@ function isNarrowWindow(): boolean {
 export function App() {
   useHotkeys();
   const sidebar = useStore((s) => s.t.sidebar);
+  const setTweak = useStore((s) => s.setTweak);
   const page = useStore((s) => s.page);
   const panelOpen = useStore((s) => s.panelOpen);
   const setPanelOpen = useStore((s) => s.setPanelOpen);
@@ -213,14 +215,29 @@ export function App() {
     }
   }, [page]);
 
+  const effectiveSidebar =
+    narrowWindow && sidebar === "full" ? "icons" : sidebar;
+
   return (
     <div
       className="app"
-      data-rail={narrowWindow && sidebar === "full" ? "icons" : sidebar}
+      data-rail={effectiveSidebar}
       data-panel={panelOpen && surface === "doc" ? "open" : "closed"}
       data-workspace-width={workspaceWidth}
     >
-      <Sidebar />
+      <Sidebar displayMode={effectiveSidebar} />
+
+      {effectiveSidebar === "hidden" && surface !== "doc" && (
+        <button
+          type="button"
+          className="tb-btn surface-sidebar-restore"
+          title="Show sidebar"
+          aria-label="Show sidebar"
+          onClick={() => setTweak("sidebar", "full")}
+        >
+          <Icon name="panelLeft" size={17} />
+        </button>
+      )}
 
       <div className="sps-main-layout" ref={mainLayoutRef}>
         <main className="main">

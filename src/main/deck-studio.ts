@@ -1,5 +1,5 @@
 import { BrowserWindow, shell } from "electron";
-import { mkdir, readdir, writeFile } from "fs/promises";
+import { access, mkdir, readdir, writeFile } from "fs/promises";
 import { join, relative } from "path";
 import pptxgen from "pptxgenjs";
 import {
@@ -543,6 +543,11 @@ export async function openDeckExport(
       ok: false,
       error: "Deck export path is outside the export folder.",
     };
+  }
+  try {
+    await access(filePath);
+  } catch {
+    return { ok: false, error: "Deck export no longer exists." };
   }
   shell.showItemInFolder(filePath);
   return { ok: true };

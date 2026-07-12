@@ -188,6 +188,7 @@
    App shell
    ============================================================ */
 .sps-scope .app {
+  position: relative;
   display: grid;
   grid-template-columns: var(--rail-w) 1fr;
   /* Cap the row to the container height so the sidebar's internal scroll
@@ -205,6 +206,15 @@
 }
 .sps-scope .app[data-rail="icons"] {
   --rail-w: 60px;
+}
+.sps-scope .surface-sidebar-restore {
+  position: absolute;
+  z-index: 12;
+  top: 12px;
+  left: 12px;
+}
+[data-platform="mac"] .sps-scope .surface-sidebar-restore {
+  left: 78px;
 }
 
 /* ---------- Sidebar ---------- */

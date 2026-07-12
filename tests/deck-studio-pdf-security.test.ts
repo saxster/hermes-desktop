@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import type { DeckProject } from "../src/shared/deck-studio";
@@ -94,6 +94,31 @@ describe("Deck Studio PDF export hardening", () => {
       expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
       expect(html).not.toContain("<script>alert(1)</script>");
       expect(html).not.toContain('<img src=x onerror="alert(1)">');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reveals only an export that still exists", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "deck-reveal-"));
+    try {
+      const { openDeckExport } = await import("../src/main/deck-studio");
+      const exportPath = join(dir, "exports", "decks", "demo.pdf");
+      await mkdir(join(dir, "exports", "decks"), { recursive: true });
+      await writeFile(exportPath, "");
+
+      await expect(openDeckExport(exportPath, dir)).resolves.toEqual({
+        ok: true,
+      });
+      expect(
+        (await import("electron")).shell.showItemInFolder,
+      ).toHaveBeenCalledWith(exportPath);
+
+      await rm(exportPath);
+      await expect(openDeckExport(exportPath, dir)).resolves.toEqual({
+        ok: false,
+        error: "Deck export no longer exists.",
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

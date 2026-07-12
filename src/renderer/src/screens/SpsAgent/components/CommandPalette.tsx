@@ -528,7 +528,7 @@ export function CommandPalette() {
           const confirmed = window.confirm(
             "Delete all workspace content and reset to a blank Home page? A backup will be attempted first.",
           );
-          if (confirmed) resetWorkspace();
+          if (confirmed) void resetWorkspace();
         },
       },
       {

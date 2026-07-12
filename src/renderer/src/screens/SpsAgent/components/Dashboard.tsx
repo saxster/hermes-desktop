@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { useStore } from "../store";
 import { uid } from "../lib/ids";
-import { rowToMarkdown } from "../editor/rowMarkdown";
+import { rowFromMarkdown, rowToMarkdown } from "../editor/rowMarkdown";
 import { TASKS_DB_FOLDER, taskRowPath } from "../tasks/taskStorage";
 import type { Task } from "../types";
 
 const SCRATCHPAD_PAGE_ID = "dashboard_scratchpad";
+const SCRATCHPAD_DB_FOLDER = "_dashboard";
+const SCRATCHPAD_ROW_ID = "scratchpad";
 const RECENT_LIMIT = 5;
 
 export function Dashboard(): React.JSX.Element {
@@ -14,22 +16,60 @@ export function Dashboard(): React.JSX.Element {
   const scratchpadDoc = useStore((state) => state.docs[SCRATCHPAD_PAGE_ID]);
   const selectPage = useStore((state) => state.selectPage);
   const setSurface = useStore((state) => state.setSurface);
-  const setPageDoc = useStore((state) => state.setPageDoc);
   const setTemplatesOpen = useStore((state) => state.setTemplatesOpen);
   const setOpenTask = useStore((state) => state.setOpenTask);
   const [scratchText, setScratchText] = useState("");
   const [recents, setRecents] = useState<string[]>([]);
   const [pinned, setPinned] = useState<string[]>([]);
+  const scratchWriteQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
-    if (scratchpadDoc?.[0]) {
-      setScratchText(scratchpadDoc[0].text || "");
-      return;
-    }
-    setPageDoc(SCRATCHPAD_PAGE_ID, [
-      { id: "sp-1", type: "p", text: "" },
-    ]);
-  }, [scratchpadDoc, setPageDoc]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const saved = await window.hermesAPI.spsReadRow?.(
+          SCRATCHPAD_DB_FOLDER,
+          SCRATCHPAD_ROW_ID,
+        );
+        const legacyText = scratchpadDoc?.[0]?.text || "";
+        const text = saved ? rowFromMarkdown(saved).body : legacyText;
+        if (!cancelled) setScratchText(text);
+
+        // Migrate the old hidden workspace page only after the canonical row is
+        // durable. Folder rows are file-authoritative in both storage modes and
+        // do not participate in workspace manifest parity.
+        if (scratchpadDoc) {
+          const durable =
+            saved !== null && saved !== undefined
+              ? true
+              : await window.hermesAPI.spsExportRow(
+                  SCRATCHPAD_DB_FOLDER,
+                  SCRATCHPAD_ROW_ID,
+                  rowToMarkdown(
+                    { title: "Dashboard scratchpad", system: true },
+                    legacyText,
+                  ),
+                );
+          if (durable) {
+            useStore.setState((state) => {
+              const docs = { ...state.docs };
+              const nextMeta = { ...state.meta };
+              delete docs[SCRATCHPAD_PAGE_ID];
+              delete nextMeta[SCRATCHPAD_PAGE_ID];
+              return { docs, meta: nextMeta };
+            });
+            await window.hermesAPI.spsDeletePage?.(SCRATCHPAD_PAGE_ID);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load dashboard scratchpad:", error);
+        if (!cancelled) setScratchText(scratchpadDoc?.[0]?.text || "");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scratchpadDoc]);
 
   useEffect(() => {
     try {
@@ -65,12 +105,22 @@ export function Dashboard(): React.JSX.Element {
 
   const updateScratchpad = (text: string): void => {
     setScratchText(text);
-    setPageDoc(SCRATCHPAD_PAGE_ID, [
-      { id: "sp-1", type: "p", text },
-    ]);
-    void window.hermesAPI
-      ?.spsExportPage?.(SCRATCHPAD_PAGE_ID, text)
-      .catch((error) => console.error("Failed to mirror scratchpad:", error));
+    const markdown = rowToMarkdown(
+      { title: "Dashboard scratchpad", system: true },
+      text,
+    );
+    scratchWriteQueue.current = scratchWriteQueue.current
+      .then(async () => {
+        const saved = await window.hermesAPI.spsExportRow(
+          SCRATCHPAD_DB_FOLDER,
+          SCRATCHPAD_ROW_ID,
+          markdown,
+        );
+        if (!saved) throw new Error("Scratchpad row write failed");
+      })
+      .catch((error) => {
+        console.error("Failed to save dashboard scratchpad:", error);
+      });
   };
 
   const openPage = (id: string): void => {

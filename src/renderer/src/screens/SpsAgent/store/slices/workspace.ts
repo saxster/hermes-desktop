@@ -2,9 +2,13 @@
 // Ported from app.jsx (selectPage, makePage, deletePage, …) and store.jsx tree ops.
 import type { StateCreator } from "zustand";
 import { blk, uid } from "../../lib/ids";
-import { clearWorkspace } from "../../lib/persistence";
+import { resetWorkspaceRevision, saveWorkspace } from "../../lib/persistence";
 import { getStorageMode } from "../../lib/storageMode";
-import { deleteVaultPages, deleteVaultDbFolders } from "../../lib/vaultStore";
+import {
+  deleteVaultPages,
+  deleteVaultDbFolders,
+  writeVaultWorkspace,
+} from "../../lib/vaultStore";
 import {
   treeFind,
   treeInsert,
@@ -677,13 +681,43 @@ export const createWorkspaceSlice: StateCreator<
       meta: { ...s.meta, [id]: { ...(s.meta[id] || {}), ...patch } },
     })),
 
-  resetWorkspace: () => {
-    // MED-11: best-effort whole-workspace snapshot before the reset. The copy
-    // reads the on-disk artifacts, which still hold the pre-reset state until
-    // the debounced autosave fires, so firing it first-line is safe in practice.
-    void window.hermesAPI?.spsCreateBackup?.().catch(() => null);
+  resetWorkspace: async () => {
+    // A reset is destructive. First flush the exact in-memory state to the
+    // active authoritative store, then finish the safety snapshot before
+    // changing memory or deleting any vault files.
+    const current = get();
+    const currentWorkspace = {
+      tree: current.tree,
+      meta: current.meta,
+      docs: current.docs,
+      comments: current.comments,
+      trash: current.trash,
+      page: current.page,
+    };
+    try {
+      if (getStorageMode() === "vault") {
+        await writeVaultWorkspace(currentWorkspace);
+      } else {
+        const saved = await saveWorkspace(currentWorkspace);
+        if (!saved.ok) throw new Error(saved.error || "workspace save failed");
+      }
+    } catch {
+      get().flash("Reset refused: could not save the current workspace", {
+        tone: "warn",
+      });
+      return;
+    }
+    const snapshot = await window.hermesAPI
+      ?.spsCreateBackup?.()
+      .catch(() => null);
+    if (!snapshot) {
+      get().flash("Reset refused: could not write a safety backup first", {
+        tone: "warn",
+      });
+      return;
+    }
     const oldIds = Object.keys(get().docs);
-    clearWorkspace();
+    resetWorkspaceRevision();
     const fresh = buildInitialWorkspace();
     set({
       tree: fresh.tree,
@@ -700,7 +734,7 @@ export const createWorkspaceSlice: StateCreator<
     // (its files are intentionally retained), so it must NOT delete here.
     if (getStorageMode() === "vault") {
       const kept = new Set(Object.keys(fresh.docs));
-      void deleteVaultPages(oldIds.filter((id) => !kept.has(id)));
+      await deleteVaultPages(oldIds.filter((id) => !kept.has(id)));
     }
     get().flash("Workspace reset to a blank Home page");
   },

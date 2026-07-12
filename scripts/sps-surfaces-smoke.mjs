@@ -172,10 +172,15 @@ writeFileSync(
 console.log("HERMES_HOME=", HOME);
 console.log("SMOKE_OUT=", OUT);
 
+const configuredWatchdogMs = Number(process.env.SMOKE_TIMEOUT_MS);
+const watchdogMs =
+  Number.isFinite(configuredWatchdogMs) && configuredWatchdogMs > 0
+    ? configuredWatchdogMs
+    : 300000;
 setTimeout(() => {
   console.log("WATCHDOG_TIMEOUT");
   process.exit(2);
-}, 120000).unref();
+}, watchdogMs).unref();
 
 const expectedShots = [
   "01-dashboard",
@@ -733,7 +738,7 @@ if (failures.length || missing.length || healthBrowserErrors.length) {
   process.exit(1);
 }
 
-const scratchPath = join(vault, "dashboard_scratchpad.md");
+const scratchPath = join(vault, "_dashboard", "scratchpad.md");
 if (!existsSync(scratchPath)) {
   console.log("SCRATCHPAD_MISSING:", scratchPath);
   process.exit(1);

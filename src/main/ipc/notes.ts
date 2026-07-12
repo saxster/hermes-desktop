@@ -78,6 +78,7 @@ import {
   assertPathInside,
   normalizeIpcProfile,
 } from "./validate";
+import { bestEffortDerivedIndexRefresh } from "../derived-index-refresh";
 
 // Record one failed vault-mirror write so the silent divergence surfaces in
 // Workspace settings. Machine-global (HERMES_HOME) — an operator signal, not
@@ -425,13 +426,27 @@ export function registerNotesIpc(
       );
       if (!saved) return false;
       const profileKey = normalizeIpcProfile(profile);
-      const status = await (
-        await getSpsNoteIndex(profileKey)
-      ).refreshPath(`${safeDbFolder}/${safeRowId}.md`);
-      mainWindowGetter()?.webContents.send("sps-index-rebuilt", {
-        profile: profileKey,
-        status,
-      });
+      await bestEffortDerivedIndexRefresh(
+        async () =>
+          (await getSpsNoteIndex(profileKey)).refreshPath(
+            `${safeDbFolder}/${safeRowId}.md`,
+          ),
+        (status) =>
+          mainWindowGetter()?.webContents.send("sps-index-rebuilt", {
+            profile: profileKey,
+            status,
+          }),
+        (error) => {
+          // Markdown is authoritative and the row is already durable. A
+          // derived index failure must not turn a successful write into a
+          // false failure; the watcher or a later rebuild can recover it.
+          log.warn("notes", {
+            msg: "row saved but note-index refresh failed",
+            path: `${safeDbFolder}/${safeRowId}.md`,
+            error: formatLogError(error),
+          });
+        },
+      );
       return true;
     },
   );

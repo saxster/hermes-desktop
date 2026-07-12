@@ -194,7 +194,7 @@ export interface WorkspaceSlice {
   movePage: (dragId: string, targetId: string, where: DropWhere) => void;
   setPMeta: (patch: Partial<PageMeta>) => void;
   setPageMeta: (id: string, patch: Partial<PageMeta>) => void;
-  resetWorkspace: () => void;
+  resetWorkspace: () => Promise<void>;
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteDoneTasks: () => void;
 }

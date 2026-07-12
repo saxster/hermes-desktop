@@ -4,11 +4,26 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { execFileSync } from "child_process";
 
-const HERMES_PYTHON = "/Users/amar/.hermes/hermes-agent/venv/bin/python";
+const HERMES_PYTHON = process.env.HERMES_TEST_PYTHON;
 const SEMANTIC_SEARCH_SCRIPT =
-  "/Users/amar/.hermes/skills/search/vault-semantic-search/semantic_search.py";
+  process.env.HERMES_TEST_VAULT_SEMANTIC_SEARCH_SCRIPT;
+const installedHermesAvailable = Boolean(
+  HERMES_PYTHON &&
+  SEMANTIC_SEARCH_SCRIPT &&
+  existsSync(HERMES_PYTHON) &&
+  existsSync(SEMANTIC_SEARCH_SCRIPT),
+);
+const describeInstalledHermes = installedHermesAvailable
+  ? describe
+  : describe.skip;
 
-describe("Vault Semantic Search Tool", () => {
+// This exercises the separately installed Hermes Agent skill, not code owned by
+// this repository. Keep it opt-in so `npm test` is portable on CI and on other
+// developers' machines:
+// HERMES_TEST_PYTHON=/path/to/python \
+// HERMES_TEST_VAULT_SEMANTIC_SEARCH_SCRIPT=/path/to/semantic_search.py \
+// npx vitest run tests/vault-semantic-search.test.ts
+describeInstalledHermes("Vault Semantic Search Tool", () => {
   let tempVaultDir: string;
   let tempEmbeddingsDir: string;
   let tempConfigPath: string;
@@ -82,8 +97,8 @@ api: "http://127.0.0.1:9999"`,
 
     // Run semantic search script for "annual off-work guidelines"
     const stdoutRaw = execFileSync(
-      HERMES_PYTHON,
-      [SEMANTIC_SEARCH_SCRIPT, "annual off-work guidelines", "3"],
+      HERMES_PYTHON!,
+      [SEMANTIC_SEARCH_SCRIPT!, "annual off-work guidelines", "3"],
       { env },
     );
     const results = JSON.parse(stdoutRaw.toString().trim());
@@ -116,7 +131,7 @@ api: "http://127.0.0.1:9999"`,
     };
 
     // First run to build initial index
-    execFileSync(HERMES_PYTHON, [SEMANTIC_SEARCH_SCRIPT, "some query", "1"], {
+    execFileSync(HERMES_PYTHON!, [SEMANTIC_SEARCH_SCRIPT!, "some query", "1"], {
       env,
     });
 
@@ -125,7 +140,7 @@ api: "http://127.0.0.1:9999"`,
     expect(existsSync(dbPath)).toBe(true);
 
     // Query SQLite metadata db using python to avoid node-sqlite3 dependency
-    const dbStdout = execFileSync(HERMES_PYTHON, [
+    const dbStdout = execFileSync(HERMES_PYTHON!, [
       "-c",
       `import sqlite3, json; conn = sqlite3.connect("${dbPath.replace(/\\/g, "/")}"); c = conn.cursor(); c.execute("SELECT path FROM notes_meta"); print(json.dumps([r[0] for r in c.fetchall()]))`,
     ]);
@@ -146,8 +161,8 @@ Generate a secure SSH key pair using ed25519. Ensure the private key has a passp
 
     // Run query for "annual guidelines" which overlaps with modified ssh-keys.md
     const stdoutRaw = execFileSync(
-      HERMES_PYTHON,
-      [SEMANTIC_SEARCH_SCRIPT, "annual guidelines", "3"],
+      HERMES_PYTHON!,
+      [SEMANTIC_SEARCH_SCRIPT!, "annual guidelines", "3"],
       { env },
     );
     const results = JSON.parse(stdoutRaw.toString().trim());
@@ -201,8 +216,8 @@ api: "http://127.0.0.1:11434"`,
 
     // Test semantic matching for "vacation days" -> should match annual-leave.md (which contains only "paid time off")
     const stdoutRaw = execFileSync(
-      HERMES_PYTHON,
-      [SEMANTIC_SEARCH_SCRIPT, "vacation days", "1"],
+      HERMES_PYTHON!,
+      [SEMANTIC_SEARCH_SCRIPT!, "vacation days", "1"],
       { env },
     );
     const results = JSON.parse(stdoutRaw.toString().trim());
