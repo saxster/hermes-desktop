@@ -3,8 +3,8 @@
 // Unlike sps-smoke.mjs (which writes its OWN workspace.json fixture), this probe
 // launches the BUILT app against a fresh profile with NO sps-agent/workspace.json
 // so the renderer falls back to buildInitialWorkspace() — the real first-run path.
-// It asserts that Home lands without sample pages or tasks and is ready for
-// editing. Run `npm run build` first.
+// It asserts that Home lands without sample pages or tasks and opens the
+// operator cockpit. Run `npm run build` first.
 //
 // Usage:  node scripts/verify-firstrun-seed.mjs
 import { _electron as electron } from "playwright";
@@ -96,12 +96,16 @@ await check("sample workspace content is absent", async () => {
   );
 });
 
-await check("Home editor is ready for input", async () => {
-  return (await win.locator('[contenteditable="true"]').count()) > 0;
+await check("Home opens the operator cockpit", async () => {
+  await win.getByRole("heading", { name: "Cockpit", exact: true }).waitFor();
+  return (
+    (await win.getByText("Tasks & nags", { exact: true }).count()) === 1 &&
+    (await win.getByText("Latest brief", { exact: true }).count()) === 1
+  );
 });
 
 async function runPaletteAction(label) {
-  await win.getByRole("button", { name: "Search", exact: true }).click();
+  await win.locator('.rail-scroll .nav-item[aria-label="Search"]').click();
   const input = win.getByPlaceholder("Search or open in new tab…");
   await input.fill(label);
   await win.getByText(label, { exact: true }).first().click();
@@ -130,7 +134,7 @@ await check(
         return false;
       };
     });
-    await win.getByRole("button", { name: "Search", exact: true }).click();
+    await win.locator('.rail-scroll .nav-item[aria-label="Search"]').click();
     const input = win.getByPlaceholder("Search or open in new tab…");
     await input.fill("Reset to a blank workspace");
     const label = win.getByText("Reset to a blank workspace", { exact: true });
