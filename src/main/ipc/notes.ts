@@ -19,7 +19,12 @@ import { openContactChannel } from "../contact-messaging";
 import { getMacContactsStatus, syncMacContacts } from "../mac-contacts";
 import { proposeContactEnrichment } from "../contact-enrichment";
 import { createVaultProposal } from "../vault-review-queue";
-import { getNagRecord, upsertNagRecord, removeNagRecord } from "../tasks-dump";
+import {
+  getNagRecord,
+  listNagRecords,
+  upsertNagRecord,
+  removeNagRecord,
+} from "../tasks-dump";
 import type { RouteTaskInput } from "../../shared/tasks-dump";
 import {
   PERSON_FOLDER,
@@ -535,6 +540,9 @@ export function registerNotesIpc(
   // stops nagging entirely (the task row itself is untouched).
   safeHandle("sps-nag-get", (_event, rowId: string, profile?: string) =>
     getNagRecord(rowId, profile),
+  );
+  safeHandle("sps-nag-list", (_event, profile?: string) =>
+    listNagRecords(profile),
   );
   safeHandle(
     "sps-nag-snooze",

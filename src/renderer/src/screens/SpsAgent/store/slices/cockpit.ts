@@ -23,20 +23,24 @@ const ALL_KINDS: WidgetKind[] = [
   "guide",
   "pulse",
   "piping",
+  "tasksNags",
+  "triage",
+  "brief",
+  "approvals",
+  "engine",
+  "equityAlerts",
 ];
 
 const DEFAULT_COCKPIT: CockpitWidget[] = [
   { kind: "quick", span: 2 },
-  { kind: "pulse", span: 2 },
-  { kind: "piping", span: 2 },
-  { kind: "agent", span: 1 },
+  { kind: "tasksNags", span: 1 },
+  { kind: "triage", span: 1 },
+  { kind: "brief", span: 2 },
+  { kind: "approvals", span: 1 },
+  { kind: "engine", span: 1 },
+  { kind: "equityAlerts", span: 2 },
   { kind: "today", span: 1 },
-  { kind: "glance", span: 1 },
-  { kind: "ask", span: 1 },
-  { kind: "guide", span: 2 },
-  { kind: "recentChats", span: 2 },
-  { kind: "notes", span: 1 },
-  { kind: "pages", span: 1 },
+  { kind: "agent", span: 1 },
 ];
 
 function isKind(v: unknown): v is WidgetKind {

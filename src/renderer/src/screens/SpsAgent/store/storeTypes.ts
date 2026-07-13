@@ -430,7 +430,13 @@ export type WidgetKind =
   | "agent"
   | "guide"
   | "pulse"
-  | "piping";
+  | "piping"
+  | "tasksNags"
+  | "triage"
+  | "brief"
+  | "approvals"
+  | "engine"
+  | "equityAlerts";
 
 /** A placed cockpit widget: which widget, and how many columns it spans. */
 export interface CockpitWidget {

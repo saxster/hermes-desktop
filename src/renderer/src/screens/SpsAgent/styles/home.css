@@ -1507,7 +1507,8 @@
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-.sps-scope .ck-card:hover .ck-card-controls {
+.sps-scope .ck-card:hover .ck-card-controls,
+.sps-scope .ck-card:focus-within .ck-card-controls {
   opacity: 1;
 }
 .sps-scope .ck-card-controls button {
@@ -1692,6 +1693,95 @@
 .sps-scope .ck-inline-link:hover {
   text-decoration: underline;
 }
+/* operator widgets */
+.sps-scope .ck-operator-link {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  min-height: 92px;
+  padding: 2px;
+  text-align: left;
+  color: var(--tx-1);
+  border-radius: 8px;
+}
+.sps-scope .ck-operator-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.sps-scope .ck-operator-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.sps-scope .ck-operator-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sps-scope .ck-operator-stat strong,
+.sps-scope .ck-operator-callout {
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--tx-1);
+}
+.sps-scope .ck-operator-stat small,
+.sps-scope .ck-operator-copy,
+.sps-scope .ck-brief-excerpt {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--tx-3);
+}
+.sps-scope .ck-operator-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sps-scope .ck-brief-link {
+  min-height: 104px;
+}
+.sps-scope .ck-brief-title {
+  font-size: 14px;
+}
+.sps-scope .ck-brief-excerpt,
+.sps-scope .ck-equity-latest span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.sps-scope .ck-engine-row,
+.sps-scope .ck-equity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sps-scope .ck-engine-row strong {
+  font-size: 13px;
+  text-transform: capitalize;
+}
+.sps-scope .ck-equity-latest {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--sunk);
+  color: var(--tx-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.sps-scope .ck-equity-latest strong {
+  color: var(--tx-1);
+}
 /* today widget */
 .sps-scope .ck-today-day {
   font-size: 15px;
@@ -1758,6 +1848,15 @@
   color: var(--tx-3);
 }
 @media (max-width: 720px) {
+  .sps-scope .ck-wrap {
+    padding: 24px 16px 64px;
+  }
+  .sps-scope .ck-head {
+    flex-direction: column;
+  }
+  .sps-scope .ck-head-actions {
+    flex-wrap: wrap;
+  }
   .sps-scope .ck-grid {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -20,7 +20,16 @@ describe("cockpit persistence", () => {
     expect(loadCockpit()).toEqual(layout);
 
     localStorage.setItem("sps-agent-cockpit-v1", "not json");
-    expect(loadCockpit().length).toBeGreaterThan(0); // default layout
+    expect(loadCockpit().map((widget) => widget.kind)).toEqual(
+      expect.arrayContaining([
+        "tasksNags",
+        "triage",
+        "brief",
+        "approvals",
+        "engine",
+        "equityAlerts",
+      ]),
+    );
 
     localStorage.setItem(
       "sps-agent-cockpit-v1",

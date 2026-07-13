@@ -14,6 +14,10 @@ import { blk } from "../lib/ids";
 import { openSettings } from "../../../lib/openSettings";
 import { OperatorReadinessPanel } from "../../../components/OperatorReadinessPanel";
 import type { OperatorReadinessAction } from "../../../../../shared/operator-readiness";
+import type { EquityAlert } from "../../../../../shared/equity";
+import type { GatewayHealthStatus } from "../../../../../shared/gateway";
+import type { TaskNagRecord } from "../../../../../shared/tasks-dump";
+import { useVaultQuery } from "../hooks/useNoteIndex";
 
 const WIDGET_META: Record<WidgetKind, { title: string; icon: IconName }> = {
   quick: { title: "Quick actions", icon: "wand" },
@@ -27,6 +31,12 @@ const WIDGET_META: Record<WidgetKind, { title: string; icon: IconName }> = {
   guide: { title: "Operator guide", icon: "checkbox" },
   pulse: { title: "Pulse Dashboard", icon: "sparkle" },
   piping: { title: "Piping Console", icon: "wand" },
+  tasksNags: { title: "Tasks & nags", icon: "checkbox" },
+  triage: { title: "Triage", icon: "inbox" },
+  brief: { title: "Latest brief", icon: "doc" },
+  approvals: { title: "Approvals", icon: "check" },
+  engine: { title: "Engine status", icon: "code" },
+  equityAlerts: { title: "Equity alerts", icon: "table" },
 };
 
 export function CockpitSurface() {
@@ -143,6 +153,9 @@ export function CockpitSurface() {
                 <span className="ck-card-controls">
                   <button
                     className="ck-span"
+                    aria-label={
+                      w.span === 1 ? "Widen to 2 columns" : "Narrow to 1 column"
+                    }
                     title={
                       w.span === 1 ? "Widen to 2 columns" : "Narrow to 1 column"
                     }
@@ -150,7 +163,11 @@ export function CockpitSurface() {
                   >
                     {w.span === 1 ? "1×" : "2×"}
                   </button>
-                  <button title="Remove widget" onClick={() => remove(i)}>
+                  <button
+                    aria-label={`Remove ${WIDGET_META[w.kind].title} widget`}
+                    title="Remove widget"
+                    onClick={() => remove(i)}
+                  >
                     <Icon name="x" size={13} />
                   </button>
                 </span>
@@ -190,6 +207,18 @@ function Widget({ kind }: { kind: WidgetKind }) {
       return <PulseWidget />;
     case "piping":
       return <PipingWidget />;
+    case "tasksNags":
+      return <TasksNagsWidget />;
+    case "triage":
+      return <TriageWidget />;
+    case "brief":
+      return <BriefWidget />;
+    case "approvals":
+      return <ApprovalsWidget />;
+    case "engine":
+      return <EngineStatusWidget />;
+    case "equityAlerts":
+      return <EquityAlertsWidget />;
   }
 }
 
@@ -238,6 +267,299 @@ export function Glance() {
         </div>
       ))}
     </div>
+  );
+}
+
+function TasksNagsWidget() {
+  const setSurface = useStore((s) => s.setSurface);
+  const { rows } = useVaultQuery("tasks");
+  const [nags, setNags] = useState<TaskNagRecord[] | null>(null);
+  const [nagCheckedAt, setNagCheckedAt] = useState<number | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.hermesAPI
+      .spsNagList("default")
+      .then((records) => {
+        if (!cancelled) {
+          setNags(records);
+          setNagCheckedAt(Date.now());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openTasks = rows.filter((row) => row.props.status !== "done").length;
+  const activeNags = (nags ?? []).filter(
+    (nag) => !nag.done && nag.cadence !== "none",
+  );
+  const dueNags = activeNags.filter(
+    (nag) =>
+      nagCheckedAt != null &&
+      nag.nextNagAt <= nagCheckedAt &&
+      (nag.snoozedUntil == null || nag.snoozedUntil <= nagCheckedAt),
+  ).length;
+
+  return (
+    <button className="ck-operator-link" onClick={() => setSurface("work")}>
+      <span className="ck-operator-stats">
+        <span className="ck-operator-stat">
+          <strong>{openTasks}</strong>
+          <small>Open tasks</small>
+        </span>
+        <span className="ck-operator-stat">
+          <strong>{nags == null ? "—" : dueNags}</strong>
+          <small>Due nags</small>
+        </span>
+        <span className="ck-operator-stat">
+          <strong>{nags == null ? "—" : activeNags.length}</strong>
+          <small>Active reminders</small>
+        </span>
+      </span>
+      <span className="ck-operator-foot">
+        {error ? "Nag state unavailable" : "Open My Work"}
+        <Icon name="chevR" size={13} />
+      </span>
+    </button>
+  );
+}
+
+function TriageWidget() {
+  const setSurface = useStore((s) => s.setSurface);
+  const { rows } = useVaultQuery("_inbox", [
+    { prop: "status", op: "eq", value: "unprocessed" },
+  ]);
+  return (
+    <button className="ck-operator-link" onClick={() => setSurface("inbox")}>
+      <span className="ck-operator-callout">{rows.length}</span>
+      <span className="ck-operator-copy">
+        {rows.length === 1
+          ? "capture awaiting triage"
+          : "captures awaiting triage"}
+      </span>
+      <span className="ck-operator-foot">
+        Open Inbox <Icon name="chevR" size={13} />
+      </span>
+    </button>
+  );
+}
+
+function BriefWidget() {
+  const meta = useStore((s) => s.meta);
+  const docs = useStore((s) => s.docs);
+  const selectPage = useStore((s) => s.selectPage);
+  const setSurface = useStore((s) => s.setSurface);
+  const latest = Object.entries(meta)
+    .filter(([, page]) => /^Daily Brief - \d{4}-\d{2}-\d{2}$/.test(page.title))
+    .sort(([, a], [, b]) => b.title.localeCompare(a.title))[0];
+
+  if (!latest) {
+    return (
+      <div className="ck-empty">
+        No Daily Brief yet. The scheduled brief will appear here after its first
+        successful run.
+      </div>
+    );
+  }
+
+  const [pageId, page] = latest;
+  const excerpt = (docs[pageId] ?? [])
+    .filter((block) => !["h1", "h2", "h3"].includes(block.type))
+    .map((block) => block.text.trim())
+    .find(Boolean);
+  return (
+    <button
+      className="ck-operator-link ck-brief-link"
+      onClick={() => {
+        selectPage(pageId);
+        setSurface("doc");
+      }}
+    >
+      <strong className="ck-brief-title">{page.title}</strong>
+      <span className="ck-brief-excerpt">
+        {excerpt || "Open the latest reviewed workspace brief."}
+      </span>
+      <span className="ck-operator-foot">
+        Open brief <Icon name="chevR" size={13} />
+      </span>
+    </button>
+  );
+}
+
+function ApprovalsWidget() {
+  const setSurface = useStore((s) => s.setSurface);
+  const [pending, setPending] = useState<number | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.hermesAPI
+      .spsListVaultProposals("default")
+      .then((proposals) => {
+        if (!cancelled) {
+          setPending(
+            proposals.filter((proposal) => proposal.status === "pending")
+              .length,
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <button className="ck-operator-link" onClick={() => setSurface("review")}>
+      <span className="ck-operator-callout">{pending ?? "—"}</span>
+      <span className="ck-operator-copy">
+        {error
+          ? "Review queue unavailable"
+          : pending === 1
+            ? "proposal needs approval"
+            : "proposals need approval"}
+      </span>
+      <span className="ck-operator-foot">
+        Open Review Queue <Icon name="chevR" size={13} />
+      </span>
+    </button>
+  );
+}
+
+interface EngineWidgetState {
+  gateway: GatewayHealthStatus;
+  version: string | null;
+  channel: "release" | "main";
+  result: string | null;
+  releaseTag?: string;
+}
+
+function EngineStatusWidget() {
+  const [state, setState] = useState<EngineWidgetState | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      window.hermesAPI.gatewayHealthStatus(),
+      window.hermesAPI.getHermesVersion(),
+      window.hermesAPI.getHermesAgentUpdateRoutine("default"),
+    ])
+      .then(([gateway, version, routine]) => {
+        if (!cancelled) {
+          setState({
+            gateway,
+            version,
+            channel: routine.channel,
+            result: routine.lastResult?.status ?? null,
+            releaseTag: routine.lastResult?.releaseTag,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateLabel =
+    state?.result === "contract-broken"
+      ? "Contract blocked"
+      : state?.result === "available"
+        ? "Update available"
+        : state?.result === "updated" || state?.result === "current"
+          ? "Up to date"
+          : "Not checked yet";
+  return (
+    <button
+      className="ck-operator-link"
+      onClick={() =>
+        openSettings(state?.gateway === "healthy" ? "providers" : "gateway")
+      }
+    >
+      {error ? (
+        <span className="ck-operator-copy">Engine status unavailable.</span>
+      ) : state ? (
+        <>
+          <span className="ck-engine-row">
+            <span
+              className={`ck-agent-dot ${state.gateway === "healthy" ? "on" : ""}`}
+            />
+            <strong>Gateway {state.gateway}</strong>
+          </span>
+          <span className="ck-operator-copy">
+            Hermes {state.version || "version unknown"} · {updateLabel}
+            {state.releaseTag ? ` (${state.releaseTag})` : ""}
+          </span>
+          <span className="ck-operator-foot">
+            {state.channel === "release" ? "Verified releases" : "Main channel"}
+            <Icon name="chevR" size={13} />
+          </span>
+        </>
+      ) : (
+        <span className="ck-operator-copy">Checking engine status…</span>
+      )}
+    </button>
+  );
+}
+
+function EquityAlertsWidget() {
+  const setSurface = useStore((s) => s.setSurface);
+  const [alerts, setAlerts] = useState<EquityAlert[] | null>(null);
+  const [error, setError] = useState(false);
+
+  const refresh = useCallback(() => {
+    void window.hermesAPI
+      .equityListAlerts(50, "default")
+      .then((rows) => setAlerts(rows))
+      .catch(() => setError(true));
+  }, []);
+  useEffect(() => {
+    refresh();
+    return window.hermesAPI.onEquityAlert(refresh);
+  }, [refresh]);
+
+  const unread = (alerts ?? []).filter((alert) => !alert.read).length;
+  const latestUnread = [...(alerts ?? [])]
+    .reverse()
+    .find((alert) => !alert.read);
+  const latest = latestUnread ?? alerts?.[alerts.length - 1];
+  return (
+    <button className="ck-operator-link" onClick={() => setSurface("equity")}>
+      <span className="ck-equity-head">
+        <span className="ck-operator-callout">
+          {alerts == null ? "—" : unread}
+        </span>
+        <span className="ck-operator-copy">
+          {error
+            ? "Alert feed unavailable"
+            : unread === 1
+              ? "unread equity alert"
+              : "unread equity alerts"}
+        </span>
+      </span>
+      {latest ? (
+        <span className="ck-equity-latest">
+          <strong>{latest.ticker || latest.trigger}</strong>
+          <span>{latest.message}</span>
+        </span>
+      ) : (
+        <span className="ck-brief-excerpt">No equity alerts yet.</span>
+      )}
+      <span className="ck-operator-foot">
+        Open Equity <Icon name="chevR" size={13} />
+      </span>
+    </button>
   );
 }
 

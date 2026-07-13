@@ -571,6 +571,8 @@ export const spsBridge = {
   }> => ipcRenderer.invoke("sps-propose-contact-enrichment", personId, profile),
   spsNagGet: (rowId: string, profile?: string): Promise<TaskNagRecord | null> =>
     ipcRenderer.invoke("sps-nag-get", rowId, profile),
+  spsNagList: (profile?: string): Promise<TaskNagRecord[]> =>
+    ipcRenderer.invoke("sps-nag-list", profile),
   spsSnoozeNag: (
     rowId: string,
     snoozedUntil: number,

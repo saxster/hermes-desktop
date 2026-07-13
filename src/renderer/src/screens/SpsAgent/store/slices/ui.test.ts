@@ -16,4 +16,10 @@ describe("initial SPS surface", () => {
 
     expect(useStore.getState().surface).toBe("cockpit");
   });
+
+  it("opens the operator cockpit for a new profile", async () => {
+    const { useStore } = await import("../index");
+
+    expect(useStore.getState().surface).toBe("cockpit");
+  });
 });

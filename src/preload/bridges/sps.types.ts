@@ -475,6 +475,8 @@ export interface SpsBridgeApi {
 
   spsNagGet: (rowId: string, profile?: string) => Promise<TaskNagRecord | null>;
 
+  spsNagList: (profile?: string) => Promise<TaskNagRecord[]>;
+
   spsSnoozeNag: (
     rowId: string,
     snoozedUntil: number,
