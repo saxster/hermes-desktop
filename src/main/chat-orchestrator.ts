@@ -1,6 +1,7 @@
 import { StreamRedactor } from "./redactor";
 import type { Attachment } from "../shared/attachments";
 import type { ChatCallbacks, ChatHandle } from "./hermes/chat-client";
+import { CHAT_STOPPED_ERROR } from "./hermes/chat-client/messages";
 
 /** The chat send transport — structurally `sendMessage` from hermes/chat-client. */
 export type ChatTransport = (
@@ -107,107 +108,117 @@ export async function runChatTurn(
   });
   let handle: { abort: () => void } | null = null;
   let abortRequestedBeforeHandle = false;
+  let settled = false;
+  const clearAbort = (): void => {
+    if (abortRegistry.get(sessionKey) === abortCurrent) {
+      abortRegistry.delete(sessionKey);
+    }
+  };
+  const finishError = (error: string): void => {
+    if (settled) return;
+    settled = true;
+    contentRedactor.flush();
+    reasoningRedactor.flush();
+    clearAbort();
+    sink.emit("chat-error", error);
+    rejectChat(new Error(error));
+    effects.notifyError(error);
+  };
   const abortCurrent = (): void => {
     if (handle) {
       handle.abort();
     } else {
       abortRequestedBeforeHandle = true;
     }
-  };
-  const clearAbort = (): void => {
-    if (abortRegistry.get(sessionKey) === abortCurrent) {
-      abortRegistry.delete(sessionKey);
-    }
+    finishError(CHAT_STOPPED_ERROR);
   };
 
   abortRegistry.set(sessionKey, abortCurrent);
 
-  handle = await transport(
-    req.message,
-    {
-      onChunk: (chunk) => {
-        const { chunkToEmit } = contentRedactor.process(chunk);
-        if (chunkToEmit) {
-          fullResponse += chunkToEmit;
-          if (!sink.emit("chat-chunk", chunkToEmit)) {
-            const abort = abortRegistry.get(sessionKey);
-            if (abort) abort();
+  try {
+    handle = await transport(
+      req.message,
+      {
+        onChunk: (chunk) => {
+          const { chunkToEmit } = contentRedactor.process(chunk);
+          if (chunkToEmit) {
+            fullResponse += chunkToEmit;
+            if (!sink.emit("chat-chunk", chunkToEmit)) {
+              const abort = abortRegistry.get(sessionKey);
+              if (abort) abort();
+            }
           }
-        }
-      },
-      onReasoningChunk: (chunk) => {
-        const { chunkToEmit } = reasoningRedactor.process(chunk);
-        if (chunkToEmit) {
-          if (!sink.emit("chat-reasoning-chunk", chunkToEmit)) {
-            const abort = abortRegistry.get(sessionKey);
-            if (abort) abort();
+        },
+        onReasoningChunk: (chunk) => {
+          const { chunkToEmit } = reasoningRedactor.process(chunk);
+          if (chunkToEmit) {
+            if (!sink.emit("chat-reasoning-chunk", chunkToEmit)) {
+              const abort = abortRegistry.get(sessionKey);
+              if (abort) abort();
+            }
           }
-        }
-      },
-      onDone: (sessionId) => {
-        const contentFlush = contentRedactor.flush();
-        if (contentFlush) {
-          fullResponse += contentFlush;
-          sink.emit("chat-chunk", contentFlush);
-        }
-        const reasoningFlush = reasoningRedactor.flush();
-        if (reasoningFlush) {
-          sink.emit("chat-reasoning-chunk", reasoningFlush);
-        }
-        clearAbort();
-        sink.emit("chat-done", sessionId || "");
+        },
+        onDone: (sessionId) => {
+          if (settled) return;
+          settled = true;
+          const contentFlush = contentRedactor.flush();
+          if (contentFlush) {
+            fullResponse += contentFlush;
+            sink.emit("chat-chunk", contentFlush);
+          }
+          const reasoningFlush = reasoningRedactor.flush();
+          if (reasoningFlush) {
+            sink.emit("chat-reasoning-chunk", reasoningFlush);
+          }
+          clearAbort();
+          sink.emit("chat-done", sessionId || "");
 
-        if (sessionId) {
-          effects.persistAssistantMetadata(sessionId);
-        }
+          if (sessionId) {
+            effects.persistAssistantMetadata(sessionId);
+          }
 
-        effects.playCompletionSound();
-        resolveChat({ response: fullResponse, sessionId });
-        effects.notifyComplete(fullResponse);
+          effects.playCompletionSound();
+          resolveChat({ response: fullResponse, sessionId });
+          effects.notifyComplete(fullResponse);
+        },
+        onError: (error) => {
+          finishError(error);
+        },
+        onToolProgress: (tool) => {
+          sink.emit("chat-tool-progress", tool);
+        },
+        onUsage: (usage) => {
+          sink.emit("chat-usage", usage);
+          effects.recordUsage(usage);
+        },
+        onApprovalRequest: (request) => {
+          if (effects.maybeAutoApprove(request)) {
+            sink.emit("chat-approval-auto", { ...request, sessionKey });
+            return;
+          }
+          sink.emit("chat-approval-request", { ...request, sessionKey });
+        },
+        onCheckpoint: (cp) => {
+          sink.emit("chat-checkpoint", { ...cp, sessionKey });
+        },
+        onDelegateProgress: (p) => {
+          sink.emit("chat-delegate-progress", { ...p, sessionKey });
+        },
       },
-      onError: (error) => {
-        contentRedactor.flush();
-        reasoningRedactor.flush();
-        clearAbort();
-        sink.emit("chat-error", error);
-        rejectChat(new Error(error));
-        effects.notifyError(error);
-      },
-      onToolProgress: (tool) => {
-        sink.emit("chat-tool-progress", tool);
-      },
-      onUsage: (usage) => {
-        sink.emit("chat-usage", usage);
-        effects.recordUsage(usage);
-      },
-      onApprovalRequest: (request) => {
-        if (effects.maybeAutoApprove(request)) {
-          sink.emit("chat-approval-auto", { ...request, sessionKey });
-          return;
-        }
-        sink.emit("chat-approval-request", { ...request, sessionKey });
-      },
-      onCheckpoint: (cp) => {
-        sink.emit("chat-checkpoint", { ...cp, sessionKey });
-      },
-      onDelegateProgress: (p) => {
-        sink.emit("chat-delegate-progress", { ...p, sessionKey });
-      },
-    },
-    req.profile,
-    req.resumeSessionId,
-    req.history,
-    req.attachments,
-    req.contextFolder,
-    req.groundInWorkspace,
-    req.modelOverride,
-  );
+      req.profile,
+      req.resumeSessionId,
+      req.history,
+      req.attachments,
+      req.contextFolder,
+      req.groundInWorkspace,
+      req.modelOverride,
+    );
+  } catch (error) {
+    finishError(error instanceof Error ? error.message : String(error));
+  }
 
-  if (
-    abortRegistry.get(sessionKey) === abortCurrent &&
-    abortRequestedBeforeHandle
-  ) {
-    handle.abort();
+  if (abortRequestedBeforeHandle) {
+    handle?.abort();
   }
   return promise;
 }

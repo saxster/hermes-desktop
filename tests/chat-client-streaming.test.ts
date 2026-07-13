@@ -180,6 +180,23 @@ describe("sendMessageViaApi terminal-state safety", () => {
     expect(h.counters.doneCalls).toBe(1);
   });
 
+  it("reports an abort exactly once instead of leaving the turn pending", async () => {
+    responder = (_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      res.write('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n');
+    };
+    const h = callbacks();
+    const handle = sendMessageViaApi("hi", h.cb);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    handle.abort();
+    await h.doneP;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(h.errors).toEqual(["Stopped"]);
+    expect(h.counters.doneCalls).toBe(0);
+  });
+
   it("HIGH-1: probe fallback resolves (does not hang) when it cannot reach the model", async () => {
     // Stream connects, ends with zero content and no error → triggers probeRealError().
     // The probe request hits a connection reset → must finish with an error, never hang.

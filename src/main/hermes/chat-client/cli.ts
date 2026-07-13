@@ -18,7 +18,11 @@ import {
   OPENAI_COMPAT_PROVIDERS,
   shouldPruneOpenRouterApiKey,
 } from "../../../shared/url-key-map";
-import type { ChatCallbacks, ChatHandle } from "./messages";
+import {
+  CHAT_STOPPED_ERROR,
+  type ChatCallbacks,
+  type ChatHandle,
+} from "./messages";
 
 const NOISE_PATTERNS = [/^[╭╰│╮╯─┌┐└┘┤├┬┴┼]/, /⚕\s*Hermes/];
 
@@ -275,6 +279,9 @@ export function sendMessageViaCli(
 
   return {
     abort: () => {
+      if (finished) return;
+      finished = true;
+      cb.onError(CHAT_STOPPED_ERROR);
       proc.kill("SIGTERM");
       // LOW-6: escalate to SIGKILL only if the process has not actually exited.
       // `proc.killed` only reflects that a signal was *sent*, not that the

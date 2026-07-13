@@ -35,6 +35,8 @@ export interface ChatHandle {
   abort: () => void;
 }
 
+export const CHAT_STOPPED_ERROR = "Stopped";
+
 export type ChatContent =
   | string
   | Array<

@@ -29,6 +29,7 @@ import {
 } from "../gateway-process";
 import {
   buildUserContent,
+  CHAT_STOPPED_ERROR,
   contextFolderSystemMessage,
   type ChatCallbacks,
   type ChatContent,
@@ -431,6 +432,16 @@ export function sendMessageViaApi(
   let triedV1MethodFallback = false;
   const noContentDeadlineAt = Date.now() + STREAM_NO_CONTENT_DEADLINE_MS;
 
+  function finish(error?: string): void {
+    if (finished) return;
+    finished = true;
+    if (error) {
+      cb.onError(error);
+    } else {
+      cb.onDone(sessionId || undefined);
+    }
+  }
+
   const messages: Array<{ role: string; content: ChatContent }> = [];
   if (history && history.length > 0) {
     for (const msg of history) {
@@ -473,8 +484,7 @@ export function sendMessageViaApi(
       );
 
       if (hookRes.action === "block") {
-        finished = true;
-        cb.onError(hookRes.message || "Execution blocked by shell hook.");
+        finish(hookRes.message || "Execution blocked by shell hook.");
         return;
       }
 
@@ -526,16 +536,6 @@ export function sendMessageViaApi(
       (await resolveHermesChatTransport(baseUrl, baseHeaders));
     let headers: Record<string, string> = {};
     let chatUrl = "";
-
-    function finish(error?: string): void {
-      if (finished) return;
-      finished = true;
-      if (error) {
-        cb.onError(error);
-      } else {
-        cb.onDone(sessionId || undefined);
-      }
-    }
 
     if (finished || controller.signal.aborted) return;
 
@@ -1066,6 +1066,8 @@ export function sendMessageViaApi(
 
   return {
     abort: () => {
+      if (finished) return;
+      finish(CHAT_STOPPED_ERROR);
       controller.abort();
       if (activeRequest) {
         try {

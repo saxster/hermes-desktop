@@ -9,7 +9,7 @@ import {
   isRemoteMode,
 } from "../gateway-process";
 import { gatewayFetch } from "../../security/network-policy";
-import type { ChatHandle } from "./messages";
+import { CHAT_STOPPED_ERROR, type ChatHandle } from "./messages";
 
 export async function chatCompletionOnce(
   messages: Array<{ role: string; content: string }>,
@@ -187,5 +187,12 @@ export function chatCompletionStream(
   req.write(bodyBuf);
   req.end();
 
-  return { abort: () => controller.abort() };
+  return {
+    abort: () => {
+      if (finished) return;
+      finish(CHAT_STOPPED_ERROR);
+      controller.abort();
+      req.destroy();
+    },
+  };
 }

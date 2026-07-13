@@ -115,10 +115,13 @@ describe("runChatTurn", () => {
     expect(abort).toEqual(expect.any(Function));
     abort?.();
     expect(h.abortSpy).toHaveBeenCalledOnce();
+    await expect(p).rejects.toThrow("Stopped");
+    expect(h.abortRegistry.has("sess-key")).toBe(false);
 
     h.cb().onDone(undefined);
-    await p;
-    expect(h.abortRegistry.has("sess-key")).toBe(false);
+    h.cb().onError("late error");
+    expect(h.effects.playCompletionSound).not.toHaveBeenCalled();
+    expect(h.effects.notifyError).toHaveBeenCalledTimes(1);
   });
 
   it("does not drop aborts requested while transport is still starting", async () => {
@@ -150,15 +153,17 @@ describe("runChatTurn", () => {
     });
 
     await tick();
+    const stopped = expect(p).rejects.toThrow("Stopped");
     abortRegistry.get("sess-key")?.();
     expect(abortSpy).not.toHaveBeenCalled();
 
     resolveTransport({ abort: abortSpy });
     await tick();
     expect(abortSpy).toHaveBeenCalledOnce();
+    await stopped;
 
-    captured?.onError("stopped");
-    await expect(p).rejects.toThrow("stopped");
+    captured?.onError("late error");
+    expect(effects.notifyError).toHaveBeenCalledTimes(1);
   });
 
   it("aborts an in-flight turn for the same session before starting", async () => {
