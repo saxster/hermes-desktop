@@ -102,6 +102,8 @@ describe("monitor source helpers", () => {
         url: "HTTPS://Example.com/feed#fragment",
         status: "approved",
         lastCheckedAt: 123,
+        lastError: "HTTP 503",
+        lastErrorAt: 124,
       },
       {
         kind: "rss",
@@ -131,6 +133,8 @@ describe("monitor source helpers", () => {
         url: "https://example.com/feed",
         status: "approved",
         lastCheckedAt: 123,
+        lastError: "HTTP 503",
+        lastErrorAt: 124,
       },
       {
         id: expect.stringMatching(/^social_/),

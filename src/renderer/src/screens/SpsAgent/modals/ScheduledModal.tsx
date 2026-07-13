@@ -755,6 +755,14 @@ export function ScheduledModal() {
                       {" · review-first"}
                       {!s.enabled ? " · paused" : ""}
                     </small>
+                    {s.lastError && (
+                      <small
+                        role="alert"
+                        style={{ color: "var(--rd, #d66)", display: "block" }}
+                      >
+                        Last run failed: {s.lastError}
+                      </small>
+                    )}
                     {plan.length > 0 && (
                       <div style={{ marginTop: 6 }}>
                         {plan.map((source) => (
@@ -778,6 +786,14 @@ export function ScheduledModal() {
                               {source.label} ·{" "}
                               {SOURCE_STATUS_LABELS[source.status]}
                             </small>
+                            {source.lastError && (
+                              <small
+                                role="alert"
+                                style={{ color: "var(--rd, #d66)" }}
+                              >
+                                Check failed: {source.lastError}
+                              </small>
+                            )}
                             {source.status !== "approved" && (
                               <button
                                 className="cover-btn"

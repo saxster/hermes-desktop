@@ -911,6 +911,8 @@ export interface SpsBridgeApi {
       scheduleId: string;
       topic: string;
       summary: string;
+      outcome?: string;
+      error?: string;
     }) => void,
   ) => () => void;
 

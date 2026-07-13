@@ -1074,11 +1074,19 @@ export const spsBridge = {
       scheduleId: string;
       topic: string;
       summary: string;
+      outcome?: string;
+      error?: string;
     }) => void,
   ): (() => void) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      p: { scheduleId: string; topic: string; summary: string },
+      p: {
+        scheduleId: string;
+        topic: string;
+        summary: string;
+        outcome?: string;
+        error?: string;
+      },
     ): void => callback(p);
     ipcRenderer.on("scheduled-research-update", handler);
     return () =>

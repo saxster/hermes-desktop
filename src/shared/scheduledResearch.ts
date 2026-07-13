@@ -60,6 +60,8 @@ export interface MonitorSourceEntry {
   query?: string;
   status: MonitorSourceStatus;
   lastCheckedAt?: number;
+  lastError?: string;
+  lastErrorAt?: number;
   note?: string;
 }
 
@@ -120,6 +122,9 @@ export interface ScheduledResearchItem {
   /** v2: epoch ms of the newest cron-output brief already drained (so we don't
    *  re-merge old deliveries). */
   lastDrainedAt?: number;
+  /** Most recent failed run, retained until a later run succeeds. */
+  lastError?: string;
+  lastErrorAt?: number;
 }
 
 /** Input shape for creating/updating a schedule (the user-controlled fields). */
@@ -252,6 +257,13 @@ export function normalizeMonitorSourcePlan(
         ? raw.lastCheckedAt
         : undefined;
     const note = normalizeQuery(raw.note);
+    const lastError = normalizeQuery(raw.lastError);
+    const lastErrorAt =
+      typeof raw.lastErrorAt === "number" &&
+      Number.isFinite(raw.lastErrorAt) &&
+      raw.lastErrorAt >= 0
+        ? raw.lastErrorAt
+        : undefined;
     out.push({
       id: sourceId(kind, dedupeValue),
       kind,
@@ -260,6 +272,8 @@ export function normalizeMonitorSourcePlan(
       ...(query ? { query } : {}),
       status: normalizeSourceStatus(raw.status),
       ...(lastCheckedAt !== undefined ? { lastCheckedAt } : {}),
+      ...(lastError ? { lastError } : {}),
+      ...(lastErrorAt !== undefined ? { lastErrorAt } : {}),
       ...(note ? { note } : {}),
     });
   }

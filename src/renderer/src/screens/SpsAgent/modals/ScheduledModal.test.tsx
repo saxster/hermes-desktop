@@ -79,6 +79,44 @@ beforeEach(() => {
 });
 
 describe("ScheduledModal Telegram delivery UX", () => {
+  it("surfaces schedule and source failures until a successful run", async () => {
+    api.srList.mockResolvedValue([
+      {
+        id: "sr_failed",
+        kind: "research",
+        topic: "Agent reliability",
+        pageId: "agent-reliability",
+        cadence: "daily",
+        hour: 8,
+        autoApply: false,
+        enabled: true,
+        createdAt: 1,
+        lastRunAt: 2,
+        lastChangeHash: "",
+        lastError: "Gateway unavailable",
+        lastErrorAt: 2,
+        sourcePlan: [
+          {
+            id: "rss_1",
+            kind: "rss",
+            label: "Status feed",
+            url: "https://example.com/feed",
+            status: "approved",
+            lastError: "HTTP 503",
+            lastErrorAt: 2,
+          },
+        ],
+      },
+    ]);
+
+    render(<ScheduledModal />);
+
+    expect(
+      await screen.findByText("Last run failed: Gateway unavailable"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Check failed: HTTP 503")).toBeInTheDocument();
+  });
+
   it("uses Scheduled vocabulary for the empty monitor state", async () => {
     render(<ScheduledModal />);
 

@@ -66,6 +66,7 @@ import {
 } from "../shared/scheduledResearch";
 import { fetchRssArticles } from "./rss-discovery";
 import { telegramChannelConfigured } from "./telegram-delivery";
+import { formatLogError, log } from "./log";
 
 export type RunOutcome = "changed" | "no-change" | "no-sources" | "error";
 
@@ -396,20 +397,29 @@ function approvedFeedSources(
   );
 }
 
-function stampSourcesChecked(
+function stampSourceResults(
   itemId: string,
-  sourceIds: string[],
+  checkedIds: string[],
+  failures: Map<string, string>,
   profile?: string,
 ): void {
-  if (!sourceIds.length) return;
+  if (!checkedIds.length && !failures.size) return;
   const reg = loadRegistry(profile);
   const found = reg.schedules.find((s) => s.id === itemId);
   if (!found?.sourcePlan) return;
-  const checked = new Set(sourceIds);
+  const checked = new Set(checkedIds);
   const now = Date.now();
   found.sourcePlan = normalizeMonitorSourcePlan(found.sourcePlan).map(
-    (source) =>
-      checked.has(source.id) ? { ...source, lastCheckedAt: now } : source,
+    (source) => {
+      if (checked.has(source.id)) {
+        const next = { ...source, lastCheckedAt: now };
+        delete next.lastError;
+        delete next.lastErrorAt;
+        return next;
+      }
+      const error = failures.get(source.id);
+      return error ? { ...source, lastError: error, lastErrorAt: now } : source;
+    },
   );
   saveRegistry(reg, profile);
 }
@@ -422,6 +432,7 @@ async function buildApprovedFeedContext(
   if (!feeds.length) return "";
 
   const checkedIds: string[] = [];
+  const failures = new Map<string, string>();
   const seen = new Set<string>();
   const sections: string[] = [];
   for (const source of feeds) {
@@ -450,11 +461,14 @@ async function buildApprovedFeedContext(
       if (lines.length) {
         sections.push(`### ${source.label}\n${lines.join("\n")}`);
       }
-    } catch {
-      checkedIds.push(source.id);
+    } catch (err) {
+      failures.set(
+        source.id,
+        err instanceof Error ? err.message : "Feed check failed.",
+      );
     }
   }
-  stampSourcesChecked(item.id, checkedIds, profile);
+  stampSourceResults(item.id, checkedIds, failures, profile);
   if (!sections.length) return "";
   return [
     "Recent entries fetched from approved RSS/Substack sources:",
@@ -615,7 +629,7 @@ export async function runScheduledResearch(
   item: ScheduledResearchItem,
   getWindow?: () => BrowserWindow | null,
   profile?: string,
-): Promise<{ outcome: RunOutcome; summary?: string }> {
+): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
   let outcome: RunOutcome = "error";
   let summary = "";
   try {
@@ -634,6 +648,8 @@ export async function runScheduledResearch(
     if (!hasUsableSources(brief)) {
       outcome = "no-sources";
       summary = "No web sources returned.";
+      stampRunFailure(item.id, summary, profile);
+      sendRunFailure(item, summary, getWindow);
       return { outcome, summary };
     }
     const r = await mergeBriefAndQueue(item, brief, getWindow, profile);
@@ -643,8 +659,9 @@ export async function runScheduledResearch(
   } catch (err) {
     outcome = "error";
     summary = err instanceof Error ? err.message : "run failed";
-    stampRun(item.id, profile);
-    return { outcome, summary };
+    stampRunFailure(item.id, summary, profile);
+    sendRunFailure(item, summary, getWindow);
+    return { outcome, summary, error: summary };
   } finally {
     recordHistory(item.id, outcome, summary, profile);
   }
@@ -662,7 +679,7 @@ export async function runDigest(
   item: ScheduledResearchItem,
   getWindow?: () => BrowserWindow | null,
   profile?: string,
-): Promise<{ outcome: RunOutcome; summary?: string }> {
+): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
   let outcome: RunOutcome = "error";
   let summary = "";
   try {
@@ -675,7 +692,7 @@ export async function runDigest(
     if (convs.length === 0) {
       outcome = "no-change";
       summary = "No external sessions this period.";
-      stampRun(item.id, profile);
+      stampRunSuccess(item.id, profile);
       return { outcome, summary };
     }
     const digestSource = convs
@@ -715,8 +732,9 @@ export async function runDigest(
   } catch (err) {
     outcome = "error";
     summary = err instanceof Error ? err.message : "digest failed";
-    stampRun(item.id, profile);
-    return { outcome, summary };
+    stampRunFailure(item.id, summary, profile);
+    sendRunFailure(item, summary, getWindow);
+    return { outcome, summary, error: summary };
   } finally {
     recordHistory(item.id, outcome, summary, profile);
   }
@@ -727,7 +745,7 @@ export async function runSchedule(
   item: ScheduledResearchItem,
   getWindow?: () => BrowserWindow | null,
   profile?: string,
-): Promise<{ outcome: RunOutcome; summary?: string }> {
+): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
   return item.kind === "digest"
     ? runDigest(item, getWindow, profile)
     : runScheduledResearch(item, getWindow, profile);
@@ -785,7 +803,12 @@ export async function drainCronBriefs(
       let content: string;
       try {
         content = await fs.readFile(join(dir, f.name), "utf-8");
-      } catch {
+      } catch (err) {
+        const message = `Cron brief could not be read: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+        stampRunFailure(item.id, message, profile);
+        sendRunFailure(item, message, getWindow);
         stalled = true;
         continue;
       }
@@ -800,12 +823,10 @@ export async function drainCronBriefs(
         recordHistory(item.id, r.outcome, r.summary, profile);
         if (!stalled) watermark = f.mtime;
       } catch (err) {
-        recordHistory(
-          item.id,
-          "error",
-          err instanceof Error ? err.message : "merge failed",
-          profile,
-        );
+        const message = err instanceof Error ? err.message : "merge failed";
+        recordHistory(item.id, "error", message, profile);
+        stampRunFailure(item.id, message, profile);
+        sendRunFailure(item, message, getWindow);
         stalled = true;
       }
     }
@@ -832,15 +853,44 @@ function stampHash(
   if (!found) return;
   found.lastRunAt = Date.now();
   found.lastChangeHash = hash;
+  delete found.lastError;
+  delete found.lastErrorAt;
   saveRegistry(reg, profile);
 }
 
-function stampRun(id: string, profile?: string): void {
+function stampRunSuccess(id: string, profile?: string): void {
   const reg = loadRegistry(profile);
   const found = reg.schedules.find((s) => s.id === id);
   if (!found) return;
   found.lastRunAt = Date.now();
+  delete found.lastError;
+  delete found.lastErrorAt;
   saveRegistry(reg, profile);
+}
+
+function stampRunFailure(id: string, error: string, profile?: string): void {
+  const reg = loadRegistry(profile);
+  const found = reg.schedules.find((s) => s.id === id);
+  if (!found) return;
+  const now = Date.now();
+  found.lastRunAt = now;
+  found.lastError = error.slice(0, 500);
+  found.lastErrorAt = now;
+  saveRegistry(reg, profile);
+}
+
+function sendRunFailure(
+  item: ScheduledResearchItem,
+  error: string,
+  getWindow?: () => BrowserWindow | null,
+): void {
+  getWindow?.()?.webContents.send("scheduled-research-update", {
+    scheduleId: item.id,
+    topic: item.topic,
+    summary: error,
+    outcome: "error",
+    error,
+  });
 }
 
 /** Run a schedule immediately regardless of its cadence (the UI "Run now"). */
@@ -875,8 +925,11 @@ async function tick(): Promise<void> {
     for (const s of due) {
       await runSchedule(s, _getWindow ?? undefined);
     }
-  } catch {
-    /* never let a tick throw kill the loop */
+  } catch (err) {
+    log.error("scheduled-research", {
+      msg: "scheduler tick failed",
+      error: formatLogError(err),
+    });
   } finally {
     _running = false;
   }
