@@ -151,6 +151,17 @@ export const configBridge = {
     ipcRenderer.invoke("get-completion-sound"),
   setCompletionSound: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke("set-completion-sound", enabled),
+  getOwnerDeliverySettings: (
+    profile?: string,
+  ): Promise<import("../../shared/owner-delivery").OwnerDeliverySettings> =>
+    ipcRenderer.invoke("get-owner-delivery-settings", profile),
+  setOwnerDeliverySettings: (
+    update: Partial<
+      import("../../shared/owner-delivery").OwnerDeliverySettings
+    >,
+    profile?: string,
+  ): Promise<import("../../shared/owner-delivery").OwnerDeliverySettings> =>
+    ipcRenderer.invoke("set-owner-delivery-settings", update, profile),
   /** First-run onboarding "shown once" flag (stored in desktop.json). */
   getOnboardingCompleted: (): Promise<boolean> =>
     ipcRenderer.invoke("get-onboarding-completed"),

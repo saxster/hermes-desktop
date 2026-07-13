@@ -108,7 +108,10 @@ import { setMainWindowGetter } from "./self-healing";
 import { formatLogError, log } from "./log";
 import { refreshEngineCapabilities } from "./engine-capabilities";
 import { recordGatewaySupervisionHealth } from "./gateway-supervision-state";
+import { deliverOwnerEvent } from "./owner-delivery";
+import { syncOwnerDailyBriefCron } from "./owner-daily-brief";
 import { redactExternalText } from "./external-context/redact";
+import { getActiveProfileNameSync } from "./utils";
 import {
   isRendererMediaRequestAllowed,
   isTrustedAppRenderer,
@@ -922,7 +925,19 @@ app.whenReady().then(() => {
   setGatewayHealthBroadcaster((status) => {
     mainWindow?.webContents.send("gateway-health-changed", { status });
     if (getConnectionConfig().mode === "local") {
-      recordGatewaySupervisionHealth(status);
+      const supervision = recordGatewaySupervisionHealth(status);
+      if (status === "down" && supervision.outageStartedAt) {
+        void deliverOwnerEvent(
+          {
+            id: `gateway-outage:${supervision.outageStartedAt}`,
+            kind: "gateway-outage",
+            title: "Hermes gateway is down",
+            body:
+              "Automatic recovery was exhausted. Open Gateway settings to inspect logs and retry.",
+          },
+          getActiveProfileNameSync(),
+        );
+      }
     }
   });
   setSshTunnelStatusBroadcaster(reportRemoteGatewayHealth);
@@ -934,11 +949,24 @@ app.whenReady().then(() => {
         error: err instanceof Error ? err.message : String(err),
       });
     });
+    void syncOwnerDailyBriefCron(profile).catch((err) => {
+      log.warn("owner-daily-brief", {
+        msg: "gateway-ready cron sync failed",
+        profile,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   });
   setupUpdater();
 
   // Start background routines scheduler and control server
   startScheduler();
+  void syncOwnerDailyBriefCron(getActiveProfileNameSync()).catch((err) => {
+    log.warn("owner-daily-brief", {
+      msg: "startup cron sync failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
   startCapabilityRiskScheduler();
   startControlServer().catch((err) => {
     log.error("control-server", {

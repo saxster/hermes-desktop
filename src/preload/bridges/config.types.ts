@@ -101,6 +101,15 @@ export interface ConfigBridgeApi {
 
   setCompletionSound: (enabled: boolean) => Promise<void>;
 
+  getOwnerDeliverySettings: (
+    profile?: string,
+  ) => Promise<Api.OwnerDeliverySettings>;
+
+  setOwnerDeliverySettings: (
+    update: Partial<Api.OwnerDeliverySettings>,
+    profile?: string,
+  ) => Promise<Api.OwnerDeliverySettings>;
+
   getOnboardingCompleted: () => Promise<boolean>;
 
   setOnboardingCompleted: (completed: boolean) => Promise<void>;

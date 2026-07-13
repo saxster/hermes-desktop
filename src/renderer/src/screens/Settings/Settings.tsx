@@ -34,6 +34,7 @@ import { SETTINGS_SECTION_COPY } from "./settingsSections";
 import { WorkspaceAppearanceSettings } from "./WorkspaceAppearanceSettings";
 import { StorageSettings } from "../SpsAgent/tweaks/TweaksPanel";
 import { LearningSurface } from "../SpsAgent/learning/LearningSurface";
+import { OwnerDeliverySettings } from "./OwnerDeliverySettings";
 
 const TELEGRAM_COMMUNITY_URL = "https://t.me/hermes_agent_desktop";
 
@@ -1230,6 +1231,8 @@ function Settings({
           </ul>
         </div>
       </div>
+
+      <OwnerDeliverySettings profile={profile} />
 
       <div className="settings-section" data-section-tab="preferences">
         <div className="settings-section-title">Automation</div>

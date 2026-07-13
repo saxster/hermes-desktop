@@ -69,6 +69,15 @@ export const ENGINE_CONTRACT = [
     tier: "fail",
   },
   {
+    id: "cli-send",
+    kind: "cli",
+    value: "send",
+    flags: ["--to", "--subject", "--quiet"],
+    usedBy: ["src/main/owner-delivery.ts"],
+    upstreamPaths: ["hermes_cli/_parser.py", "hermes_cli/send.py"],
+    tier: "fail",
+  },
+  {
     id: "cli-dump",
     kind: "cli",
     value: "dump",

@@ -8,6 +8,13 @@ import type { EngineAvailableUpdate } from "../shared/update-affordances";
 export type { AppLocale } from "../shared/i18n/types";
 export type { Attachment } from "../shared/attachments";
 export type { AppZoomSettings } from "../shared/app-zoom";
+export type {
+  OwnerDeliveryChannel,
+  OwnerDeliveryEvent,
+  OwnerDeliveryEventKind,
+  OwnerDeliveryResult,
+  OwnerDeliverySettings,
+} from "../shared/owner-delivery";
 export type { UsageAggregate, RunLedgerEntry } from "../shared/usage";
 export type { ActionReceipt } from "../shared/action-receipts";
 export type { SpsPulse } from "../shared/sps-pulse";

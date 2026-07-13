@@ -3,6 +3,12 @@ import { safeHandle } from "./safe-handle";
 import { appendActionReceipt } from "../action-receipts";
 import { startCompatibleGateway } from "../gateway-compatibility";
 import {
+  getOwnerDeliverySettings,
+  setOwnerDeliverySettings,
+} from "../owner-delivery";
+import type { OwnerDeliverySettings } from "../../shared/owner-delivery";
+import { syncOwnerDailyBriefCron } from "../owner-daily-brief";
+import {
   readEnv,
   getKeychainKeys,
   setEnvValue,
@@ -615,6 +621,37 @@ export function registerConfigIpc(): void {
   safeHandle("get-completion-sound", () => getCompletionSound());
   safeHandle("set-completion-sound", (_event, enabled: boolean) =>
     setCompletionSound(enabled),
+  );
+  safeHandle("get-owner-delivery-settings", (_event, profile?: string) =>
+    getOwnerDeliverySettings(profile),
+  );
+  safeHandle(
+    "set-owner-delivery-settings",
+    (
+      _event,
+      update: Partial<OwnerDeliverySettings>,
+      profile?: string,
+    ) => {
+      const settings = setOwnerDeliverySettings(update, profile);
+      void syncOwnerDailyBriefCron(profile)
+        .then((result) => {
+          if (!result.success) {
+            log.warn("owner-daily-brief", {
+              msg: "failed to sync after delivery preference change",
+              profile,
+              error: result.error,
+            });
+          }
+        })
+        .catch((err) => {
+          log.warn("owner-daily-brief", {
+            msg: "failed to sync after delivery preference change",
+            profile,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      return settings;
+    },
   );
   safeHandle("get-onboarding-completed", () => getOnboardingCompleted());
   safeHandle("set-onboarding-completed", (_event, completed: boolean) =>
