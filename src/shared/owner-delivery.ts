@@ -39,4 +39,3 @@ export interface OwnerDeliveryResult {
     reason: "disabled" | "event-disabled" | "quiet-hours" | "rate-limit" | "duplicate" | "failed";
   }>;
 }
-

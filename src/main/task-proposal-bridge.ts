@@ -234,4 +234,3 @@ export function ensureSpsTaskProposalSkill(profile?: string): void {
     profile,
   });
 }
-
