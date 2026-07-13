@@ -64,7 +64,11 @@ function loadResearchHistory(key: string): ResearchHistoryEntry[] {
 function loadProfileResearchHistory(profile: string): ResearchHistoryEntry[] {
   const key = researchHistoryKey(profile);
   if (localStorage.getItem(key) !== null) return loadResearchHistory(key);
-  return profile === "default" ? loadResearchHistory(RESEARCH_HISTORY_KEY) : [];
+  if (localStorage.getItem(RESEARCH_HISTORY_KEY) === null) return [];
+  const legacy = loadResearchHistory(RESEARCH_HISTORY_KEY);
+  saveResearchHistory(key, legacy);
+  localStorage.removeItem(RESEARCH_HISTORY_KEY);
+  return legacy;
 }
 
 function saveResearchHistory(
@@ -147,33 +151,38 @@ export function ResearchModal({
   const onClose = () => setResearchOpen(false);
 
   const [mode, setMode] = useState<Mode>("research");
-  const [historyProfile, setHistoryProfile] = useState("default");
-  const historyKey = researchHistoryKey(historyProfile);
-  const [history, setHistory] = useState<ResearchHistoryEntry[]>(() =>
-    loadProfileResearchHistory("default"),
-  );
+  const [historyProfile, setHistoryProfile] = useState<string | null>(null);
+  const historyKey = historyProfile
+    ? researchHistoryKey(historyProfile)
+    : null;
+  const [history, setHistory] = useState<ResearchHistoryEntry[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     const api = window.hermesAPI;
-    if (!api?.listProfiles) return;
+    const activate = (profile: string): void => {
+      if (cancelled) return;
+      setHistory(loadProfileResearchHistory(profile));
+      setHistoryProfile(profile);
+    };
+    if (!api?.listProfiles) {
+      activate("default");
+      return;
+    }
     void api
       .listProfiles()
       .then((profiles) => {
-        if (cancelled) return;
         const active = profiles.find((profile) => profile.isActive);
-        if (active) {
-          setHistory(loadProfileResearchHistory(active.name));
-          setHistoryProfile(active.name);
-        }
+        activate(active?.name ?? "default");
       })
-      .catch(() => {});
+      .catch(() => activate("default"));
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
+    if (!historyProfile || !historyKey) return;
     const valid = history.filter(
       (entry) => Boolean(docs[entry.pageId] && meta[entry.pageId]),
     );
@@ -182,9 +191,6 @@ export function ResearchModal({
       saveResearchHistory(historyKey, valid);
     } else if (localStorage.getItem(historyKey) === null) {
       saveResearchHistory(historyKey, valid);
-    }
-    if (historyProfile === "default") {
-      localStorage.removeItem(RESEARCH_HISTORY_KEY);
     }
   }, [docs, history, historyKey, historyProfile, meta]);
 
@@ -334,7 +340,7 @@ export function ResearchModal({
             { pageId: res.pageId!, title: res.summary || t, savedAt: Date.now() },
             ...current.filter((entry) => entry.pageId !== res.pageId),
           ].slice(0, 8);
-          saveResearchHistory(historyKey, next);
+          if (historyKey) saveResearchHistory(historyKey, next);
           return next;
         });
       }
@@ -359,7 +365,7 @@ export function ResearchModal({
         const next = current.filter(
           (entry) => entry.pageId !== resultPageId,
         );
-        saveResearchHistory(historyKey, next);
+        if (historyKey) saveResearchHistory(historyKey, next);
         return next;
       });
     }

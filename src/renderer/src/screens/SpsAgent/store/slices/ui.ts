@@ -3,6 +3,7 @@
 import type { StateCreator } from "zustand";
 import type { Store, UiSlice, RightTab } from "../storeTypes";
 import type { SpsSaveResult } from "../../types";
+import { loadTweaks } from "./tweaks";
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -36,7 +37,7 @@ export const createUiSlice: StateCreator<Store, [], [], UiSlice> = (
 ) => ({
   panelOpen: false,
   rightTab: loadRightTab(),
-  surface: "doc",
+  surface: loadTweaks().homeSurface,
   paletteOpen: false,
   templatesOpen: null,
   trashOpen: false,

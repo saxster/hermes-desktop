@@ -197,6 +197,29 @@ describe("ResearchModal", () => {
     expect(await screen.findByText("Work profile research")).toBeInTheDocument();
   });
 
+  it("migrates legacy research history into the active profile", async () => {
+    api.listProfiles.mockResolvedValue([{ name: "work", isActive: true }]);
+    localStorage.setItem(
+      "sps-research-history-v1",
+      JSON.stringify([
+        {
+          pageId: "research-page",
+          title: "Legacy work research",
+          savedAt: 1,
+        },
+      ]),
+    );
+
+    render(<ResearchModal embedded />);
+
+    expect(await screen.findByText("Legacy work research")).toBeInTheDocument();
+    expect(localStorage.getItem("sps-research-history-v1:work")).toContain(
+      "research-page",
+    );
+    expect(localStorage.getItem("sps-research-history-v1:default")).toBeNull();
+    expect(localStorage.getItem("sps-research-history-v1")).toBeNull();
+  });
+
   it("warns when social source coverage is not ready", async () => {
     api.getResearchReachStatus.mockResolvedValue({
       installed: true,
