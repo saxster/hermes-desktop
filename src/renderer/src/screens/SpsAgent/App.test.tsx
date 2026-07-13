@@ -251,6 +251,22 @@ describe("SpsAgent App doc surface", () => {
     expect(store.setPanelOpen).toHaveBeenCalledWith(false);
   });
 
+  it("does not re-close the inspector after the user reopens it at 900px", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 900,
+    });
+    store.panelOpen = true;
+    const view = render(<App />);
+    expect(store.setPanelOpen).toHaveBeenCalledWith(false);
+
+    store.setPanelOpen.mockClear();
+    store.panelOpen = true;
+    view.rerender(<App />);
+
+    expect(store.setPanelOpen).not.toHaveBeenCalled();
+  });
+
   it("offers a pointer restore control on non-document surfaces", () => {
     store.t.sidebar = "hidden";
     store.surface = "research";

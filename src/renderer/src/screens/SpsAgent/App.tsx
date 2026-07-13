@@ -78,6 +78,7 @@ export function App() {
   );
   const [narrowWindow, setNarrowWindow] = useState(isNarrowWindow);
   const wasCompactRef = useRef(workspaceWidth === "compact");
+  const wasNarrowRef = useRef(false);
 
   useEffect(() => {
     setScrollContainer(docScrollRef.current);
@@ -118,8 +119,10 @@ export function App() {
   useEffect(() => {
     const isCompact = workspaceWidth === "compact";
     const enteredCompact = isCompact && !wasCompactRef.current;
+    const enteredNarrow = narrowWindow && !wasNarrowRef.current;
     wasCompactRef.current = isCompact;
-    if ((enteredCompact || narrowWindow) && surface === "doc" && panelOpen) {
+    wasNarrowRef.current = narrowWindow;
+    if ((enteredCompact || enteredNarrow) && surface === "doc" && panelOpen) {
       setPanelOpen(false);
     }
   }, [workspaceWidth, narrowWindow, panelOpen, setPanelOpen, surface]);
