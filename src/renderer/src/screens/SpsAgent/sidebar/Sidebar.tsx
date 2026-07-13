@@ -8,7 +8,7 @@ import type { IconName } from "../components/iconPaths";
 import { useStore } from "../store";
 import type { DropWhere } from "../lib/tree";
 import type { TreeDnd } from "./dnd";
-import { TreeNode } from "./TreeNode";
+import { PageTree } from "./PageTree";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarRecents } from "./SidebarRecents";
 import { useVaultQuery } from "../hooks/useNoteIndex";
@@ -384,20 +384,16 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
               onAdd={newPage}
               addTitle="New page"
             >
-              {libraryPages.map((n) => (
-                <TreeNode
-                  key={n.id}
-                  node={n}
-                  depth={0}
-                  meta={meta}
-                  activeId={activeId}
-                  onSelect={selectDoc}
-                  onNewSubPage={newSubPage}
-                  onRename={renamePage}
-                  onDelete={deletePage}
-                  dnd={dnd}
-                />
-              ))}
+              <PageTree
+                nodes={libraryPages}
+                meta={meta}
+                activeId={activeId}
+                onSelect={selectDoc}
+                onNewSubPage={newSubPage}
+                onRename={renamePage}
+                onDelete={deletePage}
+                dnd={dnd}
+              />
               {libraryPages.length === 0 && (
                 <div className="tree-row color-tx-4-cursor-default">
                   <span className="tree-toggle leaf"></span>No pages

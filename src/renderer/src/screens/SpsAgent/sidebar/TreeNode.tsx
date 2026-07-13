@@ -17,6 +17,10 @@ interface Props {
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   dnd: TreeDnd;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  renderChildren?: boolean;
+  flat?: boolean;
 }
 
 export function TreeNode({
@@ -29,10 +33,19 @@ export function TreeNode({
   onRename,
   onDelete,
   dnd,
+  open: controlledOpen,
+  onOpenChange,
+  renderChildren = true,
+  flat = false,
 }: Props) {
   const m = meta[node.id] || { icon: "📄", title: "Untitled", cover: null };
   const hasKids = node.children && node.children.length > 0;
-  const [open, setOpen] = useState(depth === 0);
+  const [localOpen, setLocalOpen] = useState(depth === 0);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = (next: boolean): void => {
+    if (controlledOpen === undefined) setLocalOpen(next);
+    onOpenChange?.(next);
+  };
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const isOver = dnd.over && dnd.over.id === node.id;
@@ -65,6 +78,7 @@ export function TreeNode({
     <div>
       <div
         className={`tree-row ${activeId === node.id ? "active" : ""} ${isOver ? "dnd-" + dnd.over!.where : ""}`}
+        style={flat ? { paddingLeft: 6 + depth * 14 } : undefined}
         draggable
         onDragStart={(e) => {
           e.stopPropagation();
@@ -82,7 +96,7 @@ export function TreeNode({
           className={`tree-toggle ${hasKids ? "" : "leaf"} ${open ? "open" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
-            setOpen((o) => !o);
+            setOpen(!open);
           }}
         >
           <Icon name="chevR" size={13} />
@@ -170,7 +184,7 @@ export function TreeNode({
           </div>
         </>
       )}
-      {hasKids && open && (
+      {renderChildren && hasKids && open && (
         <div className="tree-children">
           {node.children.map((c) => (
             <TreeNode

@@ -590,6 +590,21 @@
   border-left: 1px solid var(--hair);
   padding-left: 2px;
 }
+.sps-scope .page-tree-virtual {
+  position: relative;
+  overflow-y: auto;
+  contain: strict;
+}
+.sps-scope .page-tree-virtual-inner {
+  position: relative;
+  width: 100%;
+}
+.sps-scope .page-tree-virtual-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
 
 .sps-scope .rail-foot {
   position: relative;
