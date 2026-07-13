@@ -86,12 +86,14 @@ describe("active work runs sidecar", () => {
     ).toBeNull();
   });
 
-  it("treats corrupt JSON as empty instead of crashing", async () => {
+  it("surfaces corrupt JSON instead of erasing active work tracking", async () => {
     const dir = join(home, "sps-agent");
     mkdirSync(dir, { recursive: true });
     const p = join(dir, "active-work-runs.json");
     writeFileSync(p, "{not json", "utf-8");
-    expect(await activeWorkRuns.listActiveWorkRuns(PROFILE)).toEqual([]);
+    await expect(activeWorkRuns.listActiveWorkRuns(PROFILE)).rejects.toThrow(
+      "Active work tracking could not be read",
+    );
   });
 
   it("gets a run by id", async () => {
@@ -99,9 +101,7 @@ describe("active work runs sidecar", () => {
       { source: "kanban", title: "Task", goal: "Do task", taskId: "t_123" },
       PROFILE,
     );
-    expect(await activeWorkRuns.getActiveWorkRun(run.id, PROFILE)).toEqual(
-      run,
-    );
+    expect(await activeWorkRuns.getActiveWorkRun(run.id, PROFILE)).toEqual(run);
     expect(await activeWorkRuns.getActiveWorkRun("nope", PROFILE)).toBeNull();
   });
 });

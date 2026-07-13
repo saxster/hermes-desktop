@@ -1,6 +1,10 @@
 import { promises as fs } from "fs";
-import { dirname, join } from "path";
-import { profileHome, getActiveProfileNameSync } from "./utils";
+import { join } from "path";
+import {
+  profileHome,
+  getActiveProfileNameSync,
+  safeWriteFileAsync,
+} from "./utils";
 import type {
   ActiveWorkCreateInput,
   ActiveWorkCriterion,
@@ -35,8 +39,13 @@ async function readRuns(profile?: string): Promise<ActiveWorkRun[]> {
     const raw = await fs.readFile(activeWorkPath(profile), "utf-8");
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ActiveWorkRun[]) : [];
-  } catch {
-    return [];
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw new Error(
+      `Active work tracking could not be read: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
   }
 }
 
@@ -45,8 +54,7 @@ async function writeRuns(
   profile?: string,
 ): Promise<void> {
   const p = activeWorkPath(profile);
-  await fs.mkdir(dirname(p), { recursive: true });
-  await fs.writeFile(p, JSON.stringify(runs, null, 2), "utf-8");
+  await safeWriteFileAsync(p, JSON.stringify(runs, null, 2));
 }
 
 export async function listActiveWorkRuns(

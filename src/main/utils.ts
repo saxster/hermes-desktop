@@ -8,6 +8,9 @@ import {
   unlinkSync,
   writeFileSync,
   chmodSync,
+  closeSync,
+  fsyncSync,
+  openSync,
   promises as fs,
 } from "fs";
 import { HERMES_HOME } from "./installer";
@@ -208,18 +211,27 @@ export function safeWriteFile(filePath: string, content: string): void {
       .slice(2)}.tmp`,
   );
 
-  let tempWritten = false;
+  let tempCreated = false;
+  let committed = false;
   try {
-    writeFileSync(tempPath, content, "utf-8");
+    const fd = openSync(tempPath, "w", 0o600);
+    tempCreated = true;
+    try {
+      writeFileSync(fd, content, "utf-8");
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
     try {
       chmodSync(tempPath, 0o600);
     } catch {
       // Ignore chmod failures on filesystems that do not support Unix-like permissions (e.g. FAT32)
     }
-    tempWritten = true;
     renameSync(tempPath, filePath);
+    committed = true;
+    syncDirectory(dir);
   } catch (err) {
-    if (tempWritten) {
+    if (tempCreated && !committed) {
       try {
         unlinkSync(tempPath);
       } catch {
@@ -248,18 +260,27 @@ export async function safeWriteFileAsync(
       .slice(2)}.tmp`,
   );
 
-  let tempWritten = false;
+  let tempCreated = false;
+  let committed = false;
   try {
-    await fs.writeFile(tempPath, content, "utf-8");
+    const handle = await fs.open(tempPath, "w", 0o600);
+    tempCreated = true;
+    try {
+      await handle.writeFile(content, "utf-8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     try {
       await fs.chmod(tempPath, 0o600);
     } catch {
       // Ignore chmod failures on filesystems that do not support Unix-like permissions (e.g. FAT32)
     }
-    tempWritten = true;
     await fs.rename(tempPath, filePath);
+    committed = true;
+    await syncDirectoryAsync(dir);
   } catch (err) {
-    if (tempWritten) {
+    if (tempCreated && !committed) {
       try {
         await fs.unlink(tempPath);
       } catch {
@@ -267,5 +288,38 @@ export async function safeWriteFileAsync(
       }
     }
     throw err;
+  }
+}
+
+function syncDirectory(dir: string): void {
+  if (process.platform === "win32") return;
+  const fd = openSync(dir, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+async function syncDirectoryAsync(dir: string): Promise<void> {
+  if (process.platform === "win32") return;
+  const handle = await fs.open(dir, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Append a record and flush it before returning. Intended for audit journals. */
+export function safeAppendFile(filePath: string, content: string): void {
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const fd = openSync(filePath, "a", 0o600);
+  try {
+    writeFileSync(fd, content, "utf-8");
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
   }
 }

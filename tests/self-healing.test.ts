@@ -34,6 +34,12 @@ vi.mock("../src/main/utils", () => ({
   getActiveProfileNameSync: () => mockGetActiveProfileNameSync(),
   profileHome: (p: string) => mockProfileHome(p),
   profilePaths: () => ({}),
+  safeWriteFile: (path: string, content: string) => {
+    filesInMemory.set(path, content);
+  },
+  safeAppendFile: (path: string, content: string) => {
+    filesInMemory.set(path, `${filesInMemory.get(path) ?? ""}${content}`);
+  },
 }));
 
 // Mock filesystem read/write

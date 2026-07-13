@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { safeWriteFile, safeWriteFileAsync } from "../src/main/utils";
+import {
+  safeAppendFile,
+  safeWriteFile,
+  safeWriteFileAsync,
+} from "../src/main/utils";
 
 const TEST_DIR = join(tmpdir(), `hermes-safe-write-${Date.now()}`);
 
@@ -73,5 +77,14 @@ describe("safeWriteFileAsync", () => {
       const stat = statSync(filePath);
       expect(stat.mode & 0o777).toBe(0o600);
     }
+  });
+});
+
+describe("safeAppendFile", () => {
+  it("creates and durably appends audit records", () => {
+    const filePath = join(TEST_DIR, "append", "audit.jsonl");
+    safeAppendFile(filePath, '{"id":1}\n');
+    safeAppendFile(filePath, '{"id":2}\n');
+    expect(readFileSync(filePath, "utf-8")).toBe('{"id":1}\n{"id":2}\n');
   });
 });
