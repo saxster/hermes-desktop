@@ -2,21 +2,29 @@
 // real read-modify-write against a temp HERMES_HOME so the vault-mode resume path
 // (page→session id survives outside the markdown truth) is covered deterministically
 // without a gateway.
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { spsGetWorkSession, spsSetWorkSession } from "./sps-work-sessions";
 
 let home: string;
+let originalHermesHome: string | undefined;
+let spsGetWorkSession: typeof import("./sps-work-sessions").spsGetWorkSession;
+let spsSetWorkSession: typeof import("./sps-work-sessions").spsSetWorkSession;
 const PROFILE = "default";
 
-beforeEach(() => {
+beforeEach(async () => {
+  originalHermesHome = process.env.HERMES_HOME;
   home = mkdtempSync(join(tmpdir(), "sps-work-"));
   process.env.HERMES_HOME = home;
+  vi.resetModules();
+  ({ spsGetWorkSession, spsSetWorkSession } =
+    await import("./sps-work-sessions"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
+  if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+  else process.env.HERMES_HOME = originalHermesHome;
 });
 
 describe("sps work-session sidecar", () => {
