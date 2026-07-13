@@ -24,6 +24,21 @@ function jobsFilePath(profile?: string): string {
   return join(profileHome(profile), "cron", "jobs.json");
 }
 
+function normalizeDeliveryTargets(deliver: unknown): string[] {
+  const values = Array.isArray(deliver) ? deliver : [deliver];
+  const targets: string[] = [];
+
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    for (const candidate of value.split(",")) {
+      const target = candidate.trim();
+      if (target && !targets.includes(target)) targets.push(target);
+    }
+  }
+
+  return targets.length > 0 ? targets : ["local"];
+}
+
 function normalizeJob(job: Record<string, unknown>): CronJob | null {
   if (!job.id) return null;
   const enabled = job.enabled !== false;
@@ -46,11 +61,7 @@ function normalizeJob(job: Record<string, unknown>): CronJob | null {
     last_status: (job.last_status as string) || null,
     last_error: (job.last_error as string) || null,
     repeat: (job.repeat as CronJob["repeat"]) || null,
-    deliver: Array.isArray(job.deliver)
-      ? (job.deliver as string[])
-      : job.deliver
-        ? [job.deliver as string]
-        : ["local"],
+    deliver: normalizeDeliveryTargets(job.deliver),
     skills:
       (job.skills as string[]) || (job.skill ? [job.skill as string] : []),
     script: (job.script as string) || null,

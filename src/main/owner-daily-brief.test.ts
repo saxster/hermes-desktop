@@ -108,6 +108,42 @@ describe("owner daily brief cron", () => {
     expect(deps.pause).toHaveBeenCalledWith("job-1", "work");
   });
 
+  it.each([
+    {
+      mutation: "pause",
+      configure: () => {
+        settings.events["daily-brief"] = false;
+      },
+      jobs: [job()],
+    },
+    {
+      mutation: "resume",
+      configure: () => undefined,
+      jobs: [job({ state: "paused" })],
+    },
+    {
+      mutation: "remove",
+      configure: () => undefined,
+      jobs: [job({ schedule: "0 8 * * *" })],
+    },
+    {
+      mutation: "create",
+      configure: () => undefined,
+      jobs: [],
+    },
+  ])("throws when the $mutation mutation fails", async (testCase) => {
+    testCase.configure();
+    const deps = dependencies(testCase.jobs);
+    vi.mocked(deps[testCase.mutation]).mockResolvedValue({
+      success: false,
+      error: `${testCase.mutation} failed`,
+    });
+
+    await expect(syncOwnerDailyBriefCron("work", deps)).rejects.toThrow(
+      `${testCase.mutation} failed`,
+    );
+  });
+
   it("suppresses external delivery when 7:00 falls inside quiet hours", () => {
     settings.quietHours = { enabled: true, start: "23:00", end: "08:00" };
 

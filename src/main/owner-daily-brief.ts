@@ -77,9 +77,10 @@ export async function syncOwnerDailyBriefCron(
       return { success: true, action: "unchanged" };
     }
     const paused = await dependencies.pause(existing.id, profile);
-    return paused.success
-      ? { success: true, action: "paused" }
-      : { success: false, action: "paused", error: paused.error };
+    if (!paused.success) {
+      throw new Error(paused.error || "Failed to pause owner daily brief cron");
+    }
+    return { success: true, action: "paused" };
   }
 
   const deliver = ownerDailyBriefDeliveryTarget(profile, dependencies.now());
@@ -92,9 +93,12 @@ export async function syncOwnerDailyBriefCron(
   if (existing && matches) {
     if (existing.state === "paused") {
       const resumed = await dependencies.resume(existing.id, profile);
-      return resumed.success
-        ? { success: true, action: "resumed" }
-        : { success: false, action: "resumed", error: resumed.error };
+      if (!resumed.success) {
+        throw new Error(
+          resumed.error || "Failed to resume owner daily brief cron",
+        );
+      }
+      return { success: true, action: "resumed" };
     }
     return { success: true, action: "unchanged" };
   }
@@ -102,7 +106,9 @@ export async function syncOwnerDailyBriefCron(
   if (existing) {
     const removed = await dependencies.remove(existing.id, profile);
     if (!removed.success) {
-      return { success: false, action: "updated", error: removed.error };
+      throw new Error(
+        removed.error || "Failed to remove outdated owner daily brief cron",
+      );
     }
   }
 
@@ -113,11 +119,8 @@ export async function syncOwnerDailyBriefCron(
     deliver,
     profile,
   );
-  return created.success
-    ? { success: true, action: existing ? "updated" : "created" }
-    : {
-        success: false,
-        action: existing ? "updated" : "created",
-        error: created.error,
-      };
+  if (!created.success) {
+    throw new Error(created.error || "Failed to create owner daily brief cron");
+  }
+  return { success: true, action: existing ? "updated" : "created" };
 }

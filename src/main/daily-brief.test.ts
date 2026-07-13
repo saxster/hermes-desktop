@@ -12,6 +12,28 @@ describe("daily brief capsules", () => {
     );
   });
 
+  it("uses the local calendar date near a UTC day boundary", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "Asia/Kolkata";
+
+    try {
+      const localJuneTwentySix = new Date("2026-06-25T20:00:00.000Z");
+
+      expect(dailyBriefFileName(localJuneTwentySix)).toBe(
+        "Daily Brief - 2026-06-26.md",
+      );
+      expect(
+        buildDailyBriefMarkdown({
+          date: localJuneTwentySix,
+          body: "",
+        }),
+      ).toContain('title: "Daily Brief - 2026-06-26"');
+    } finally {
+      if (originalTimeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
   it("wraps generated content in review-first frontmatter", () => {
     const markdown = buildDailyBriefMarkdown({
       date: new Date("2026-06-26T12:00:00.000Z"),

@@ -4,15 +4,23 @@ import { join } from "path";
 const DAILY_BRIEF_RE = /^Daily Brief - \d{4}-\d{2}-\d{2}\.md$/;
 const MAX_DAILY_BRIEF_CONTEXT_CHARS = 1200;
 
+function localDateKey(date: Date): string {
+  if (Number.isNaN(date.getTime())) throw new RangeError("Invalid time value");
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function dailyBriefFileName(date: Date): string {
-  return `Daily Brief - ${date.toISOString().slice(0, 10)}.md`;
+  return `Daily Brief - ${localDateKey(date)}.md`;
 }
 
 export function buildDailyBriefMarkdown(input: {
   date: Date;
   body: string;
 }): string {
-  const day = input.date.toISOString().slice(0, 10);
+  const day = localDateKey(input.date);
   const title = `Daily Brief - ${day}`;
   const body = input.body.trim() || `# ${title}\n\nNo brief generated.`;
   return `---\ntitle: "${title}"\nkind: daily-brief\ncontext: review\n---\n${body}\n`;

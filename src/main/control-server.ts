@@ -13,11 +13,17 @@ import {
   existsSync,
   chmodSync,
   unlinkSync,
+  copyFileSync,
+  renameSync,
 } from "fs";
 import { homedir } from "os";
 import { join, basename } from "path";
 import { getActiveProfileNameSync, safeWriteFile } from "./utils";
-import { HERMES_HOME } from "./installer/paths";
+import {
+  HERMES_HOME,
+  getBundledScriptPath,
+  getHermesHome,
+} from "./installer/paths";
 import {
   readDesktopConfig,
   writeDesktopConfig,
@@ -713,10 +719,10 @@ function listenOnPort(port: number, maxAttempts = 10): Promise<number> {
       writeDesktopConfig(config);
 
       writeShellHelper(port, authToken);
-      writeCronScript();
+      const cronArtifactInstalled = installCronArtifact();
 
       const backgroundEnabled = config.backgroundSchedulingEnabled !== false;
-      manageLaunchAgent(backgroundEnabled);
+      manageLaunchAgent(backgroundEnabled && cronArtifactInstalled);
 
       resolve(port);
     };
@@ -946,418 +952,48 @@ function writeSpsHelper(binDir: string, port: number, tokenPath: string): void {
   chmodSync(helperPath, 0o755);
 }
 
-export function renderCronScript(): string {
-  return `#!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const { spawn, spawnSync } = require('child_process');
-const os = require('os');
+function installCronArtifact(): boolean {
+  const sourcePath = getBundledScriptPath("hermes-cron.cjs");
+  const binDir = join(getHermesHome(), "bin");
+  const destinationPath = join(binDir, "hermes-cron.cjs");
+  const temporaryPath = `${destinationPath}.tmp-${process.pid}`;
 
-const home = os.homedir();
-const hermesHome = path.join(home, '.hermes');
-const desktopJsonPath = path.join(hermesHome, 'desktop.json');
-
-function formatCronError(error) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  try {
-    const json = JSON.stringify(error);
-    if (json) return json;
-  } catch (err) {}
-  return String(error);
-}
-
-function writeCronLog(level, payload) {
-  try {
-    const logsDir = path.join(hermesHome, 'logs');
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
-    const line = JSON.stringify({
-      ts: new Date().toISOString(),
-      level,
-      scope: 'control-server.cron',
-      ...payload
-    }) + '\\n';
-    fs.appendFileSync(path.join(logsDir, 'desktop.log'), line, 'utf-8');
-  } catch (err) {}
-}
-
-let desktopConfig = {};
-let activeProfile = 'default';
-if (fs.existsSync(desktopJsonPath)) {
-  try {
-    desktopConfig = JSON.parse(fs.readFileSync(desktopJsonPath, 'utf-8'));
-    if (desktopConfig.activeProfile) {
-      activeProfile = desktopConfig.activeProfile;
-    }
-  } catch (err) {}
-}
-
-const profileDir = path.join(hermesHome, activeProfile);
-const jobsPath = path.join(profileDir, 'cron', 'jobs.json');
-const appLaunchProfileDir = activeProfile && activeProfile !== 'default'
-  ? path.join(hermesHome, 'profiles', activeProfile)
-  : hermesHome;
-const appLauncherPath = path.join(appLaunchProfileDir, 'sps-agent', 'app-launcher.json');
-const gatewaySupervisionPath = path.join(hermesHome, 'gateway-supervision.json');
-
-function readGatewaySupervisionState() {
-  try {
-    if (fs.existsSync(gatewaySupervisionPath)) {
-      return JSON.parse(fs.readFileSync(gatewaySupervisionPath, 'utf-8'));
-    }
-  } catch (err) {}
-  return {};
-}
-
-function saveGatewaySupervisionState(state) {
-  const temporaryPath = gatewaySupervisionPath + '.tmp-' + process.pid;
-  fs.writeFileSync(temporaryPath, JSON.stringify(state, null, 2), 'utf-8');
-  fs.renameSync(temporaryPath, gatewaySupervisionPath);
-}
-
-function curlHealthy(url, token) {
-  const args = ['--silent', '--show-error', '--fail', '--max-time', '2'];
-  if (token) args.push('-H', 'Authorization: Bearer ' + token);
-  args.push(url);
-  const result = spawnSync('/usr/bin/curl', args, {
-    shell: false,
-    stdio: 'ignore'
-  });
-  return !result.error && result.status === 0;
-}
-
-function desktopAppOwnsGateway() {
-  const port = Number(desktopConfig.controlServerPort);
-  if (!Number.isInteger(port) || port <= 0) return false;
-  const tokenPath = path.join(hermesHome, 'control-server.token');
-  let token = '';
-  try {
-    token = fs.readFileSync(tokenPath, 'utf-8').trim();
-  } catch (err) {}
-  if (!token) return false;
-  return curlHealthy('http://127.0.0.1:' + port + '/state', token);
-}
-
-function superviseGateway(nowMs) {
-  const config = desktopConfig.gatewaySupervisor || {};
-  if (config.enabled !== true || config.mode !== 'local') return;
-  if (desktopAppOwnsGateway()) return;
-
-  const port = Number(config.port);
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) return;
-
-  const state = readGatewaySupervisionState();
-  state.lastCheckAt = nowMs;
-  state.profile = config.profile || 'default';
-  state.port = port;
-
-  if (curlHealthy('http://127.0.0.1:' + port + '/health')) {
-    state.lastHealthyAt = nowMs;
-    state.status = 'healthy';
-    if (state.outageStartedAt) {
-      state.recoveredAt = nowMs;
-      state.lastOutageDurationMs = Math.max(0, nowMs - state.outageStartedAt);
-      delete state.outageStartedAt;
-      writeCronLog('warn', {
-        msg: 'closed-app gateway recovered',
-        outageDurationMs: state.lastOutageDurationMs,
-        restartAttempts: state.restartAttempts || 0
-      });
-    }
-    saveGatewaySupervisionState(state);
-    return;
-  }
-
-  state.status = 'outage';
-  if (!state.outageStartedAt) {
-    state.outageStartedAt = nowMs;
-    state.restartAttempts = 0;
-    writeCronLog('error', {
-      msg: 'closed-app gateway outage detected',
-      profile: state.profile,
-      port
+  if (!existsSync(sourcePath)) {
+    log.error("control-server", {
+      msg: "bundled cron artifact is missing",
+      sourcePath,
     });
+    return false;
   }
-
-  const lastAttempt = Number(state.lastRestartAttemptAt) || 0;
-  if (nowMs - lastAttempt < 120000) {
-    saveGatewaySupervisionState(state);
-    return;
-  }
-
-  const pythonPath = process.platform === 'win32'
-    ? path.join(hermesHome, 'venv', 'Scripts', 'python.exe')
-    : path.join(hermesHome, 'venv', 'bin', 'python');
-  const repoPath = path.join(hermesHome, 'hermes-agent');
-  const args = ['-m', 'hermes_agent'];
-  if (state.profile && state.profile !== 'default') {
-    args.push('--profile', state.profile);
-  }
-  args.push('gateway', 'run');
-
-  state.lastRestartAttemptAt = nowMs;
-  state.restartAttempts = (Number(state.restartAttempts) || 0) + 1;
-  try {
-    const child = spawn(pythonPath, args, {
-      cwd: repoPath,
-      env: {
-        ...process.env,
-        HERMES_HOME: hermesHome,
-        HOME: home,
-        API_SERVER_ENABLED: 'true',
-        API_SERVER_PORT: String(port),
-        FAZM_HEADLESS: '1'
-      },
-      detached: true,
-      stdio: 'ignore',
-      shell: false
-    });
-    child.unref();
-    delete state.lastError;
-    writeCronLog('warn', {
-      msg: 'closed-app gateway restart attempted',
-      profile: state.profile,
-      attempt: state.restartAttempts
-    });
-  } catch (err) {
-    state.lastError = formatCronError(err);
-    writeCronLog('error', {
-      msg: 'closed-app gateway restart failed',
-      profile: state.profile,
-      error: state.lastError
-    });
-  }
-  saveGatewaySupervisionState(state);
-}
-
-function writeAuditLog(action, command) {
-  try {
-    const logsDir = path.join(hermesHome, 'logs');
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
-    fs.appendFileSync(path.join(logsDir, 'audit.log'), JSON.stringify({
-      ts: Date.now(),
-      action,
-      command,
-      profile: activeProfile
-    }) + '\\n', 'utf-8');
-  } catch (err) {}
-}
-
-function appDayKey(d) {
-  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
-}
-
-function appWeekKey(d) {
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = (monday.getDay() + 6) % 7;
-  monday.setDate(monday.getDate() - dow);
-  return appDayKey(monday);
-}
-
-function appPeriodKey(schedule, d) {
-  if (schedule.cadence === 'weekly') return appWeekKey(d);
-  if (schedule.cadence === 'monthly') return d.getFullYear() + '-' + (d.getMonth() + 1);
-  return appDayKey(d);
-}
-
-function appHasRunThisPeriod(schedule, nowDate) {
-  return !!schedule.lastRunAt &&
-    appPeriodKey(schedule, new Date(schedule.lastRunAt)) === appPeriodKey(schedule, nowDate);
-}
-
-function appInRunWindow(schedule, nowDate) {
-  if (nowDate.getHours() !== schedule.hour) return false;
-  if (schedule.cadence === 'weekly') return nowDate.getDay() === 1;
-  if (schedule.cadence === 'monthly') return nowDate.getDate() === 1;
-  return true;
-}
-
-function appMissedRunWindow(schedule, nowDate) {
-  if (!schedule.enabled || !schedule.runWhenClosed) return false;
-  if (appHasRunThisPeriod(schedule, nowDate)) return false;
-  if (schedule.cadence === 'weekly') {
-    return nowDate.getDay() > 1 ||
-      (nowDate.getDay() === 1 && nowDate.getHours() > schedule.hour);
-  }
-  if (schedule.cadence === 'monthly') {
-    return nowDate.getDate() > 1 ||
-      (nowDate.getDate() === 1 && nowDate.getHours() > schedule.hour);
-  }
-  return nowDate.getHours() > schedule.hour;
-}
-
-function saveAppLauncher(data) {
-  fs.writeFileSync(appLauncherPath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-function runAppLaunchSchedule(schedule, data, nowMs) {
-  const targets = Array.isArray(data.targets) ? data.targets : [];
-  let failed = '';
-
-  for (const targetId of schedule.targetIds || []) {
-    const target = targets.find((item) => item && item.id === targetId);
-    if (!target || target.enabled === false) {
-      failed = 'Launch target is unavailable.';
-      continue;
-    }
-    if (!target.locator || target.locator.kind !== 'macos-app') {
-      failed = 'Run while closed supports macOS app targets only.';
-      continue;
-    }
-    const args = target.locator.bundleId
-      ? ['-b', target.locator.bundleId]
-      : [target.locator.appPath];
-    const res = spawnSync('/usr/bin/open', args, { shell: false });
-    target.lastRunAt = Date.now();
-    target.lastStatus = res.error || res.status !== 0 ? 'failed' : 'ok';
-    if (target.lastStatus === 'failed') {
-      target.lastError = res.error ? formatCronError(res.error) : 'open exited with status ' + res.status;
-      failed = target.lastError;
-      writeAuditLog('app-launch.failure.scheduled', 'macos-app:' + target.label);
-    } else {
-      delete target.lastError;
-      writeAuditLog('app-launch.run.scheduled', 'macos-app:' + target.label);
-    }
-  }
-
-  schedule.lastRunAt = nowMs;
-  schedule.lastStatus = failed ? 'failed' : 'ok';
-  if (failed) schedule.lastError = failed;
-  else delete schedule.lastError;
-}
-
-function runAppLaunchSchedules(nowMs) {
-  if (process.platform !== 'darwin' || !fs.existsSync(appLauncherPath)) return;
 
   try {
-    const data = JSON.parse(fs.readFileSync(appLauncherPath, 'utf-8'));
-    const schedules = Array.isArray(data.schedules) ? data.schedules : [];
-    const nowDate = new Date(nowMs);
-    let changed = false;
-
-    for (const schedule of schedules) {
-      if (!schedule || schedule.enabled !== true || schedule.runWhenClosed !== true) continue;
-      if (appInRunWindow(schedule, nowDate) && !appHasRunThisPeriod(schedule, nowDate)) {
-        runAppLaunchSchedule(schedule, data, nowMs);
-        writeAuditLog('app-launch.schedule.run.scheduled', schedule.label);
-        changed = true;
-      } else if (appMissedRunWindow(schedule, nowDate)) {
-        schedule.lastRunAt = nowMs;
-        schedule.lastStatus = 'skipped';
-        schedule.lastError = 'Scheduled hour passed before Hermes could run it.';
-        writeAuditLog('app-launch.schedule.skipped', schedule.label);
-        changed = true;
-      }
-    }
-
-    if (changed) saveAppLauncher(data);
-  } catch (err) {
-    writeCronLog('error', {
-      msg: 'error running app launch scheduler',
-      error: formatCronError(err)
-    });
-  }
-}
-
-if (fs.existsSync(jobsPath)) {
-try {
-  const data = JSON.parse(fs.readFileSync(jobsPath, 'utf-8'));
-  const jobs = data.jobs || [];
-  const now = Date.now();
-
-  for (const job of jobs) {
-    if (job.enabled && job.state !== 'paused' && job.state !== 'completed' && job.next_run_at) {
-      const nextRun = new Date(job.next_run_at).getTime();
-      if (nextRun <= now) {
-        const jobId = job.id;
-        const lockFile = path.join('/tmp', \`hermes-routine-\${jobId}.lock\`);
-        
-        if (fs.existsSync(lockFile)) {
-          writeCronLog('info', {
-            msg: 'job is currently locked; skipping',
-            jobId
-          });
-          continue;
-        }
-
-        // Acquire lock
-        fs.writeFileSync(lockFile, String(process.pid), 'utf-8');
-
-        writeCronLog('info', {
-          msg: 'triggering due job',
-          jobId,
-          jobName: job.name
-        });
-        
-        const pythonPath = process.platform === 'win32'
-          ? path.join(hermesHome, 'venv', 'Scripts', 'python.exe')
-          : path.join(hermesHome, 'venv', 'bin', 'python');
-
-        const runArgs = ['-m', 'hermes_agent', 'cron', 'run', jobId];
-        if (activeProfile && activeProfile !== 'default') {
-          runArgs.push('-p', activeProfile);
-        }
-
-        const res = spawnSync(pythonPath, runArgs, {
-          cwd: path.join(hermesHome, 'hermes-agent'),
-          env: {
-            ...process.env,
-            HERMES_HOME: hermesHome,
-            HOME: home,
-            FAZM_HEADLESS: '1'
-          }
-        });
-
-        writeCronLog('info', {
-          msg: 'job finished',
-          jobId,
-          status: res.status
-        });
-
-        // Release lock
-        try {
-          fs.unlinkSync(lockFile);
-        } catch (err) {}
-      }
-    }
-  }
-} catch (err) {
-  writeCronLog('error', {
-    msg: 'error running background cron scheduler',
-    error: formatCronError(err)
-  });
-}
-}
-
-const tickNow = Date.now();
-superviseGateway(tickNow);
-runAppLaunchSchedules(tickNow);
-`;
-}
-
-function writeCronScript(): void {
-  try {
-    const binDir = join(homedir(), ".hermes", "bin");
     if (!existsSync(binDir)) {
       mkdirSync(binDir, { recursive: true });
     }
-    const cronPath = join(binDir, "hermes-cron.js");
-    const cronContent = renderCronScript();
-    writeFileSync(cronPath, cronContent, "utf-8");
-    chmodSync(cronPath, 0o755);
+    copyFileSync(sourcePath, temporaryPath);
+    chmodSync(temporaryPath, 0o755);
+    renameSync(temporaryPath, destinationPath);
     log.info("control-server", {
-      msg: "generated headless cron script",
-      path: cronPath,
+      msg: "installed bundled cron artifact",
+      sourcePath,
+      path: destinationPath,
     });
+    return true;
   } catch (err) {
+    try {
+      if (existsSync(temporaryPath)) {
+        unlinkSync(temporaryPath);
+      }
+    } catch {
+      // The install error below remains the actionable failure.
+    }
     log.error("control-server", {
-      msg: "failed to write hermes-cron script",
+      msg: "failed to install bundled cron artifact",
+      sourcePath,
+      path: destinationPath,
       error: formatLogError(err),
     });
+    return false;
   }
 }
 
@@ -1378,13 +1014,33 @@ function launchdGuiTarget(): string | null {
   return typeof uid === "number" ? `gui/${uid}` : null;
 }
 
+function escapePlistXml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&apos;";
+      default:
+        return character;
+    }
+  });
+}
+
 export function manageLaunchAgent(enabled: boolean): void {
   if (process.platform !== "darwin") return;
 
   const home = homedir();
+  const hermesHome = getHermesHome();
   const plistDir = join(home, "Library", "LaunchAgents");
   const plistPath = join(plistDir, "com.nousresearch.hermes-scheduler.plist");
-  const logsDir = join(home, ".hermes", "logs");
+  const logsDir = join(hermesHome, "logs");
   const guiTarget = launchdGuiTarget();
   if (!guiTarget) return;
 
@@ -1413,11 +1069,25 @@ export function manageLaunchAgent(enabled: boolean): void {
       }
 
       const nodePath = findNodePath();
-      const cronScriptPath = join(home, ".hermes", "bin", "hermes-cron.js");
+      const cronScriptPath = join(hermesHome, "bin", "hermes-cron.cjs");
+      const launchdLogPath = join(logsDir, "launchd-scheduler.log");
       const isElectron = nodePath === process.execPath;
-      const envBlock = isElectron
-        ? `    <key>EnvironmentVariables</key>\n    <dict>\n        <key>ELECTRON_RUN_AS_NODE</key>\n        <string>1</string>\n    </dict>`
-        : "";
+      const environmentEntries = [
+        "        <key>HERMES_HOME</key>",
+        `        <string>${escapePlistXml(hermesHome)}</string>`,
+      ];
+      if (isElectron) {
+        environmentEntries.push(
+          "        <key>ELECTRON_RUN_AS_NODE</key>",
+          "        <string>1</string>",
+        );
+      }
+      const envBlock = [
+        "    <key>EnvironmentVariables</key>",
+        "    <dict>",
+        ...environmentEntries,
+        "    </dict>",
+      ].join("\n");
 
       const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1427,8 +1097,8 @@ export function manageLaunchAgent(enabled: boolean): void {
     <string>com.nousresearch.hermes-scheduler</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${nodePath}</string>
-        <string>${cronScriptPath}</string>
+        <string>${escapePlistXml(nodePath)}</string>
+        <string>${escapePlistXml(cronScriptPath)}</string>
     </array>
     <key>StartInterval</key>
     <integer>60</integer>
@@ -1436,9 +1106,9 @@ export function manageLaunchAgent(enabled: boolean): void {
     <true/>
 ${envBlock}
     <key>StandardOutPath</key>
-    <string>${logsDir}/launchd-scheduler.log</string>
+    <string>${escapePlistXml(launchdLogPath)}</string>
     <key>StandardErrorPath</key>
-    <string>${logsDir}/launchd-scheduler.log</string>
+    <string>${escapePlistXml(launchdLogPath)}</string>
 </dict>
 </plist>
 `;

@@ -2,16 +2,54 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const mockWriteFileSync = vi.fn();
 const mockChmodSync = vi.fn();
+const mockCopyFileSync = vi.fn();
+const mockRenameSync = vi.fn();
+const mockUnlinkSync = vi.fn();
+const mockExistsSync = vi.fn((_path: string): boolean => true);
+const mockExecFile = vi.fn(
+  (
+    _file: string,
+    _args: string[],
+    _options: unknown,
+    callback: (error: Error | null) => void,
+  ) => callback(null),
+);
+const mockLogError = vi.fn();
 
 vi.mock("fs", () => {
   const fns = {
-    existsSync: () => true,
+    existsSync: (path: string) => mockExistsSync(path),
     mkdirSync: () => {},
     writeFileSync: (...args: unknown[]) => mockWriteFileSync(...args),
     chmodSync: (...args: unknown[]) => mockChmodSync(...args),
+    copyFileSync: (...args: unknown[]) => mockCopyFileSync(...args),
+    renameSync: (...args: unknown[]) => mockRenameSync(...args),
+    unlinkSync: (...args: unknown[]) => mockUnlinkSync(...args),
   };
   return { ...fns, default: fns };
 });
+
+vi.mock("child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("child_process")>();
+  const execFile = (...args: Parameters<typeof mockExecFile>): void => {
+    mockExecFile(...args);
+  };
+  return {
+    ...actual,
+    default: { ...actual, execFile },
+    execFile,
+  };
+});
+
+vi.mock("../src/main/log", () => ({
+  formatLogError: (error: unknown) =>
+    error instanceof Error ? error.message : String(error),
+  log: {
+    error: (...args: unknown[]) => mockLogError(...args),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
 
 vi.mock("os", () => {
   const fns = {
@@ -68,28 +106,19 @@ vi.mock("../src/main/utils", () => ({
 
 vi.mock("../src/main/installer/paths", () => ({
   HERMES_HOME: "/tmp/hermes-test-home/.hermes",
+  getHermesHome: () => "/tmp/hermes-test-home/.hermes",
+  getBundledScriptPath: (name: string) => `/mock/resources/${name}`,
 }));
 
 import {
-  renderCronScript,
   startControlServer,
   stopControlServer,
 } from "../src/main/control-server";
 
-describe("renderCronScript", () => {
-  it("writes structured desktop logs instead of raw console calls", () => {
-    const script = renderCronScript();
-
-    expect(script).not.toMatch(/\bconsole\.(log|warn|error|debug|info)\b/);
-    expect(script).toContain("desktop.log");
-    expect(script).toContain("writeCronLog('info'");
-    expect(script).toContain("writeCronLog('error'");
-  });
-});
-
 describe("Local Control Server Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExistsSync.mockReturnValue(true);
   });
 
   afterEach(async () => {
@@ -126,6 +155,18 @@ describe("Local Control Server Integration", () => {
     expect(fileContent).not.toContain(String(token));
     expect(tokenCall![1]).toBe(`${token}\n`);
     expect(mockChmodSync).toHaveBeenCalledWith(filePath, 0o755);
+    expect(mockCopyFileSync).toHaveBeenCalledWith(
+      "/mock/resources/hermes-cron.cjs",
+      `/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs.tmp-${process.pid}`,
+    );
+    expect(mockChmodSync).toHaveBeenCalledWith(
+      `/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs.tmp-${process.pid}`,
+      0o755,
+    );
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      `/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs.tmp-${process.pid}`,
+      "/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs",
+    );
 
     // Send HTTP query
     const res = await fetch(`http://127.0.0.1:${port}/state`, {
@@ -153,6 +194,60 @@ describe("Local Control Server Integration", () => {
     });
 
     expect(res.status).toBe(401);
+  });
+
+  it("disables background scheduling and logs when the cron artifact is missing", async () => {
+    const desktopConfig: Record<string, unknown> = {};
+    mockReadDesktopConfig.mockReturnValue(desktopConfig);
+    mockExistsSync.mockImplementation(
+      (path: string) => path !== "/mock/resources/hermes-cron.cjs",
+    );
+
+    await startControlServer();
+
+    expect(mockCopyFileSync).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalledWith(
+      "control-server",
+      expect.objectContaining({
+        msg: "bundled cron artifact is missing",
+        sourcePath: "/mock/resources/hermes-cron.cjs",
+      }),
+    );
+    expect(mockRenameSync).not.toHaveBeenCalled();
+    expect(mockExecFile).not.toHaveBeenCalledWith(
+      "launchctl",
+      expect.arrayContaining(["bootstrap"]),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("disables background scheduling and logs when the cron artifact cannot be copied", async () => {
+    const desktopConfig: Record<string, unknown> = {};
+    mockReadDesktopConfig.mockReturnValue(desktopConfig);
+    mockCopyFileSync.mockImplementationOnce(() => {
+      throw new Error("copy failed");
+    });
+
+    await startControlServer();
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      "control-server",
+      expect.objectContaining({
+        msg: "failed to install bundled cron artifact",
+        error: "copy failed",
+      }),
+    );
+    expect(mockUnlinkSync).toHaveBeenCalledWith(
+      `/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs.tmp-${process.pid}`,
+    );
+    expect(mockRenameSync).not.toHaveBeenCalled();
+    expect(mockExecFile).not.toHaveBeenCalledWith(
+      "launchctl",
+      expect.arrayContaining(["bootstrap"]),
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("serves /calendar.ics with Authorization bearer control token", async () => {

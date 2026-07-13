@@ -1,6 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execFileSpy } = vi.hoisted(() => ({
+const { execFileSpy, localState } = vi.hoisted(() => ({
+  localState: { profileHome: "C:/hermes" },
   execFileSpy: vi.fn(
     (
       _file: string,
@@ -20,7 +24,7 @@ vi.mock("child_process", () => ({
 }));
 
 vi.mock("../src/main/utils", () => ({
-  profileHome: () => "C:/hermes",
+  profileHome: () => localState.profileHome,
 }));
 
 vi.mock("../src/main/hermes", () => ({
@@ -44,8 +48,16 @@ vi.mock("../src/main/installer/paths", () => ({
 }));
 
 describe("createCronJob", () => {
+  let testHome: string | undefined;
+
   beforeEach(() => {
     execFileSpy.mockClear();
+    localState.profileHome = "C:/hermes";
+  });
+
+  afterEach(() => {
+    if (testHome) rmSync(testHome, { recursive: true, force: true });
+    testHome = undefined;
   });
 
   it("passes the prompt as the cron create positional argument before flags", async () => {
@@ -72,5 +84,30 @@ describe("createCronJob", () => {
       "local",
     ]);
     expect(execFileSpy.mock.calls[0][1]).not.toContain("--");
+  });
+
+  it.each([
+    {
+      deliver: "local, telegram,local, email ",
+      expected: ["local", "telegram", "email"],
+    },
+    {
+      deliver: ["local", " telegram ", "local", "email"],
+      expected: ["local", "telegram", "email"],
+    },
+  ])("normalizes $deliver delivery targets", async ({ deliver, expected }) => {
+    testHome = mkdtempSync(join(tmpdir(), "hermes-cronjobs-"));
+    localState.profileHome = testHome;
+    const cronDir = join(testHome, "cron");
+    mkdirSync(cronDir);
+    writeFileSync(
+      join(cronDir, "jobs.json"),
+      JSON.stringify({ jobs: [{ id: "job-1", deliver }] }),
+    );
+    const { listCronJobs } = await import("../src/main/cronjobs");
+
+    const jobs = await listCronJobs();
+
+    expect(jobs[0]?.deliver).toEqual(expected);
   });
 });

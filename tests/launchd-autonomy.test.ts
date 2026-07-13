@@ -11,6 +11,7 @@ const mockExecFile = vi.fn((...args: unknown[]) => {
   if (typeof cb === "function") cb(null, "success", "");
 });
 const mockUnlinkSync = vi.fn();
+const mockHermesHome = vi.fn(() => "/tmp/hermes-test-home/.hermes");
 
 const filesInMemory = new Map<string, string>();
 
@@ -102,6 +103,15 @@ vi.mock("electron", () => {
   };
 });
 
+vi.mock("../src/main/installer/paths", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../src/main/installer/paths")>();
+  return {
+    ...actual,
+    getHermesHome: () => mockHermesHome(),
+  };
+});
+
 const mockReadDesktopConfig = vi.fn(() => ({}));
 const mockWriteDesktopConfig = vi.fn();
 vi.mock("../src/main/config", () => ({
@@ -137,7 +147,6 @@ vi.mock("../src/main/self-healing", () => ({
 
 import {
   manageLaunchAgent,
-  renderCronScript,
   renderTaskProposalHelperScript,
 } from "../src/main/control-server";
 import { runJobHeadless } from "../src/main/scheduler";
@@ -148,6 +157,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     vi.clearAllMocks();
     lockExists = false;
     lockContent = "{}";
+    mockHermesHome.mockReturnValue("/tmp/hermes-test-home/.hermes");
     mockExistsSync.mockImplementation((p: string) => {
       // Mock plist directory and standard paths exists
       if (p.includes("Library/LaunchAgents") || p.includes(".hermes")) {
@@ -175,6 +185,14 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
       "<string>com.nousresearch.hermes-scheduler</string>",
     );
     expect(plistContent).toContain("<key>StartInterval</key>");
+    expect(plistContent).toContain(
+      "<string>/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs</string>",
+    );
+    expect(plistContent).toContain("<key>HERMES_HOME</key>");
+    expect(plistContent).toContain(
+      "<string>/tmp/hermes-test-home/.hermes</string>",
+    );
+    expect(plistContent).toContain("<key>ELECTRON_RUN_AS_NODE</key>");
     expect(mockExec).not.toHaveBeenCalled();
     expect(mockExecFile).toHaveBeenCalledWith(
       "launchctl",
@@ -192,27 +210,44 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     Object.defineProperty(process, "platform", { value: originalPlatform });
   });
 
-  it("generated cron helper handles app launch schedules without shell interpolation", () => {
-    const script = renderCronScript();
+  it("always exports HERMES_HOME when launchd uses a standalone Node binary", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p === "/opt/homebrew/bin/node") return true;
+      return p.includes("Library/LaunchAgents") || p.includes(".hermes");
+    });
 
-    expect(script).toContain("app-launcher.json");
-    expect(script).toContain("runWhenClosed");
-    expect(script).toContain("spawnSync('/usr/bin/open', args");
-    expect(script).toContain("shell: false");
-    expect(script).not.toContain("open ${");
+    manageLaunchAgent(true);
+
+    const plistContent = String(mockWriteFileSync.mock.calls[0][1]);
+    expect(plistContent).toContain("<string>/opt/homebrew/bin/node</string>");
+    expect(plistContent).toContain("<key>HERMES_HOME</key>");
+    expect(plistContent).toContain(
+      "<string>/tmp/hermes-test-home/.hermes</string>",
+    );
+    expect(plistContent).not.toContain("<key>ELECTRON_RUN_AS_NODE</key>");
+
+    Object.defineProperty(process, "platform", { value: originalPlatform });
   });
 
-  it("generated cron helper supervises the gateway only while the app is closed", () => {
-    const script = renderCronScript();
+  it("XML-escapes custom Hermes home paths in the LaunchAgent plist", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    mockHermesHome.mockReturnValue(`/tmp/Hermes & <custom> 'quoted' "home"`);
 
-    expect(script).toContain("desktopAppOwnsGateway()");
-    expect(script).toContain("gateway-supervision.json");
-    expect(script).toContain("/health");
-    expect(script).toContain("nowMs - lastAttempt < 120000");
-    expect(script).toContain("spawn(pythonPath, args");
-    expect(script).toContain("detached: true");
-    expect(script).toContain("shell: false");
-    expect(script).not.toContain("exec(");
+    manageLaunchAgent(true);
+
+    const plistContent = String(mockWriteFileSync.mock.calls[0][1]);
+    const escapedHome =
+      "/tmp/Hermes &amp; &lt;custom&gt; &apos;quoted&apos; &quot;home&quot;";
+    expect(plistContent).toContain(`<string>${escapedHome}</string>`);
+    expect(plistContent).toContain(
+      `<string>${escapedHome}/bin/hermes-cron.cjs</string>`,
+    );
+    expect(plistContent).not.toContain("<custom>");
+
+    Object.defineProperty(process, "platform", { value: originalPlatform });
   });
 
   it("generated task helper writes one atomic review proposal without touching the vault", () => {
