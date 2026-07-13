@@ -86,6 +86,9 @@ import {
   __setGatewayProcessRuntimeForTests,
   isGatewayRunning,
   restartGateway,
+  getGatewayHealthStatus,
+  reportRemoteGatewayHealth,
+  setGatewayHealthBroadcaster,
   setGatewayReadyNotifier,
   startGateway,
   startGatewayWithRecovery,
@@ -174,6 +177,17 @@ describe("gateway process lifecycle", () => {
     setGatewayReadyNotifier((profile) => {
       harness.readyProfiles.push(profile);
     });
+  });
+
+  it("publishes SSH health through the normal gateway health channel", () => {
+    const broadcast = vi.fn();
+    connModeRef.mode = "ssh";
+    setGatewayHealthBroadcaster(broadcast);
+
+    reportRemoteGatewayHealth("recovering");
+
+    expect(getGatewayHealthStatus()).toBe("recovering");
+    expect(broadcast).toHaveBeenCalledWith("recovering");
   });
 
   afterEach(() => {

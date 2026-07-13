@@ -35,9 +35,14 @@ import {
   setGatewayHealthBroadcaster,
   setStreamOpenProvider,
   setGatewayReadyNotifier,
+  reportRemoteGatewayHealth,
 } from "./hermes";
 import { activeChatAborts } from "./ipc/chat";
-import { stopSshTunnel, startSshTunnel } from "./ssh-tunnel";
+import {
+  stopSshTunnel,
+  startSshTunnel,
+  setSshTunnelStatusBroadcaster,
+} from "./ssh-tunnel";
 import { HERMES_HOME, ensureDesktopMcpRegistered } from "./installer";
 import {
   isAllowedAppNavigationUrl,
@@ -916,6 +921,7 @@ app.whenReady().then(() => {
   setGatewayHealthBroadcaster((status) =>
     mainWindow?.webContents.send("gateway-health-changed", { status }),
   );
+  setSshTunnelStatusBroadcaster(reportRemoteGatewayHealth);
   setStreamOpenProvider(() => activeChatAborts.size > 0);
   setGatewayReadyNotifier((profile) => {
     void refreshEngineCapabilities(profile).catch((err) => {

@@ -3,6 +3,7 @@ import { join } from "path";
 import { HERMES_HOME } from "./installer";
 import { normalizeProfileName } from "./utils";
 import { getConfigValue, setConfigValue } from "./config";
+import { log } from "./log";
 
 // The default profile keeps the historical port so existing installs and
 // docs (curl examples, etc.) keep working. Named profiles each get a
@@ -95,6 +96,13 @@ export function getProfilePort(profile?: string): number {
     // setConfigValue replaces the existing nested value in place — the common
     // case here is a profile cloned from default that carries port 8642.
     setConfigValue(API_SERVER_PORT_PATH, String(port), name);
+    log.warn("gateway-ports", {
+      msg: "profile port collision reassigned",
+      profile: name,
+      previousPort: configured,
+      assignedPort: port,
+      nextAction: "Restart this profile gateway to use the reassigned port.",
+    });
     return port;
   }
 

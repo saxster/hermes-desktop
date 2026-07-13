@@ -848,6 +848,14 @@ export function getGatewayHealthStatus(): GatewayHealthStatus {
   return _supervisorState.status;
 }
 
+/** Feed remote/SSH liveness into the existing renderer-visible health channel. */
+export function reportRemoteGatewayHealth(status: GatewayHealthStatus): void {
+  if (!isRemoteMode() || _supervisorState.status === status) return;
+  _supervisorState = { ..._supervisorState, status };
+  apiServerAvailable = status === "healthy";
+  broadcastGatewayHealth(status);
+}
+
 function isStreamOpen(): boolean {
   try {
     return _streamOpenProvider();

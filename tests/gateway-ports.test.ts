@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // In-memory model of each profile's configured api_server port. `undefined`
 // profile is the default. Tests mutate this to set up scenarios.
-const { configuredPorts, dirEntries } = vi.hoisted(() => ({
+const { configuredPorts, dirEntries, logWarnSpy } = vi.hoisted(() => ({
   configuredPorts: new Map<string, string | null>(),
   dirEntries: [] as string[],
+  logWarnSpy: vi.fn(),
 }));
 
 vi.mock("../src/main/installer", () => ({
@@ -29,6 +30,10 @@ vi.mock("../src/main/config", () => ({
     setConfigValueSpy(key, value, profile),
 }));
 
+vi.mock("../src/main/log", () => ({
+  log: { warn: (...args: unknown[]) => logWarnSpy(...args) },
+}));
+
 vi.mock("fs", () => {
   const fns = {
     existsSync: () => true,
@@ -48,6 +53,7 @@ describe("getProfilePort", () => {
     configuredPorts.clear();
     dirEntries.length = 0;
     setConfigValueSpy.mockClear();
+    logWarnSpy.mockClear();
   });
 
   it("pins the default profile to 8642 without touching config", () => {
@@ -70,6 +76,15 @@ describe("getProfilePort", () => {
       "platforms.api_server.extra.port",
       "8643",
       "coder",
+    );
+    expect(logWarnSpy).toHaveBeenCalledWith(
+      "gateway-ports",
+      expect.objectContaining({
+        profile: "coder",
+        previousPort: 8642,
+        assignedPort: 8643,
+        nextAction: expect.stringContaining("Restart"),
+      }),
     );
   });
 

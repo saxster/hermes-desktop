@@ -6,6 +6,8 @@ import http from "node:http";
 import type { ClientRequest, IncomingMessage, RequestOptions } from "node:http";
 import { buildSshControlOptions } from "./ssh-options";
 import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
+import type { GatewayHealthStatus } from "../shared/gateway";
+import { formatLogError, log } from "./log";
 
 export interface SshConfig {
   host: string;
@@ -47,6 +49,9 @@ export interface SshTunnelTiming {
   connectionPollIntervalMs: number;
   connectionOverallTimeoutMs: number;
   connectionHealthRequestTimeoutMs: number;
+  reconnectInitialDelayMs: number;
+  reconnectMaxDelayMs: number;
+  reconnectMaxAttempts: number;
 }
 
 const DEFAULT_SSH_TUNNEL_TIMING: SshTunnelTiming = {
@@ -62,6 +67,9 @@ const DEFAULT_SSH_TUNNEL_TIMING: SshTunnelTiming = {
   connectionPollIntervalMs: 400,
   connectionOverallTimeoutMs: 20000,
   connectionHealthRequestTimeoutMs: 3000,
+  reconnectInitialDelayMs: 1000,
+  reconnectMaxDelayMs: 30000,
+  reconnectMaxAttempts: 5,
 };
 
 function defaultSshTunnelRuntime(): SshTunnelRuntime {
@@ -83,7 +91,30 @@ let sshTunnelTiming: SshTunnelTiming = { ...DEFAULT_SSH_TUNNEL_TIMING };
 
 let tunnelProcess: ChildProcess | null = null;
 let activeConfig: SshConfig | null = null;
+let desiredConfig: SshConfig | null = null;
 let tunnelRunning = false;
+let lifecycleToken = 0;
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let statusBroadcaster: ((status: GatewayHealthStatus) => void) | null = null;
+
+export function setSshTunnelStatusBroadcaster(
+  broadcaster: (status: GatewayHealthStatus) => void,
+): void {
+  statusBroadcaster = broadcaster;
+}
+
+function broadcastStatus(status: GatewayHealthStatus): void {
+  try {
+    statusBroadcaster?.(status);
+  } catch (err) {
+    log.warn("ssh-tunnel", {
+      msg: "health broadcast failed",
+      status,
+      error: formatLogError(err),
+    });
+  }
+}
 
 export function __setSshTunnelRuntimeForTests(
   runtime: Partial<SshTunnelRuntime>,
@@ -95,6 +126,7 @@ export function __setSshTunnelRuntimeForTests(
 
 export function __resetSshTunnelForTests(): void {
   stopSshTunnel();
+  statusBroadcaster = null;
   sshTunnelRuntime = defaultSshTunnelRuntime();
   sshTunnelTiming = { ...DEFAULT_SSH_TUNNEL_TIMING };
 }
@@ -220,14 +252,94 @@ function buildSshArgs(config: SshConfig, localPort: number): string[] {
   ];
 }
 
-export async function startSshTunnel(config: SshConfig): Promise<void> {
-  stopSshTunnel();
+function cancelReconnect(): void {
+  if (!reconnectTimer) return;
+  sshTunnelRuntime.clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function stopCurrentProcess(): void {
+  lifecycleToken += 1;
+  const process = tunnelProcess;
+  tunnelProcess = null;
+  if (process && !process.killed) process.kill("SIGTERM");
+  tunnelRunning = false;
+  activeConfig = null;
+}
+
+function scheduleReconnect(config: SshConfig): void {
+  if (!desiredConfig || reconnectTimer) return;
+  if (reconnectAttempts >= sshTunnelTiming.reconnectMaxAttempts) {
+    broadcastStatus("down");
+    log.error("ssh-tunnel", {
+      msg: "automatic reconnect exhausted",
+      host: config.host,
+      attempts: reconnectAttempts,
+    });
+    return;
+  }
+  const delay = Math.min(
+    sshTunnelTiming.reconnectInitialDelayMs * 2 ** reconnectAttempts,
+    sshTunnelTiming.reconnectMaxDelayMs,
+  );
+  reconnectAttempts += 1;
+  broadcastStatus("recovering");
+  log.warn("ssh-tunnel", {
+    msg: "scheduling reconnect",
+    host: config.host,
+    attempt: reconnectAttempts,
+    delayMs: delay,
+  });
+  // Mark scheduled before invoking the runtime: test/fake timers may execute
+  // synchronously, and must not be overwritten with a stale handle afterward.
+  reconnectTimer = 1 as unknown as ReturnType<typeof setTimeout>;
+  const timer = sshTunnelRuntime.setTimeout(() => {
+    reconnectTimer = null;
+    const target = desiredConfig;
+    if (!target) return;
+    void startTunnelAttempt(target).catch((err) => {
+      log.warn("ssh-tunnel", {
+        msg: "reconnect attempt failed",
+        host: target.host,
+        attempt: reconnectAttempts,
+        error: formatLogError(err),
+      });
+      scheduleReconnect(target);
+    });
+  }, delay);
+  if (reconnectTimer !== null) {
+    reconnectTimer = timer;
+    reconnectTimer.unref?.();
+  }
+}
+
+async function handleTunnelTermination(
+  token: number,
+  config: SshConfig,
+  localPort: number,
+): Promise<void> {
+  if (token !== lifecycleToken || !desiredConfig) return;
+  const healthy = await checkTunnelHealth(
+    localPort,
+    sshTunnelTiming.exitHealthTimeoutMs,
+  );
+  if (token !== lifecycleToken || !desiredConfig) return;
+  if (healthy) return;
+  tunnelRunning = false;
+  activeConfig = null;
+  broadcastStatus("unhealthy");
+  scheduleReconnect(config);
+}
+
+async function startTunnelAttempt(config: SshConfig): Promise<void> {
+  stopCurrentProcess();
 
   const localPort = await findFreePort(config.localPort || 18642);
   activeConfig = { ...config, localPort };
   tunnelRunning = false;
+  const token = lifecycleToken;
 
-  tunnelProcess = sshTunnelRuntime.spawn(
+  const process = sshTunnelRuntime.spawn(
     "ssh",
     buildSshArgs(config, localPort),
     {
@@ -236,50 +348,52 @@ export async function startSshTunnel(config: SshConfig): Promise<void> {
       ...HIDDEN_SUBPROCESS_OPTIONS,
     },
   );
+  tunnelProcess = process;
 
-  tunnelProcess.on("exit", () => {
-    tunnelProcess = null;
-    // With ControlMaster=auto, the spawned SSH process exits immediately
-    // after handing off to the master. The tunnel may still be alive via
-    // the mux master, so check health before declaring it dead.
-    checkTunnelHealth(localPort, sshTunnelTiming.exitHealthTimeoutMs).then(
-      (healthy) => {
-        if (!healthy) {
-          tunnelRunning = false;
-          activeConfig = null;
-        }
-      },
-    );
+  process.on("exit", () => {
+    if (tunnelProcess === process) tunnelProcess = null;
+    // Confirm health before declaring the foreground tunnel dead; an exit event
+    // can race a final successful health response during shutdown/replacement.
+    void handleTunnelTermination(token, config, localPort);
   });
 
-  tunnelProcess.on("error", () => {
-    tunnelProcess = null;
-    checkTunnelHealth(localPort, sshTunnelTiming.exitHealthTimeoutMs).then(
-      (healthy) => {
-        if (!healthy) {
-          tunnelRunning = false;
-          activeConfig = null;
-        }
-      },
-    );
+  process.on("error", () => {
+    if (tunnelProcess === process) tunnelProcess = null;
+    void handleTunnelTermination(token, config, localPort);
   });
 
   try {
     await waitForPort(localPort, sshTunnelTiming.portReadyTimeoutMs);
+    if (token !== lifecycleToken) throw new Error("SSH tunnel start cancelled");
     tunnelRunning = true;
     await waitForHealth(localPort, sshTunnelTiming.startupHealthTimeoutMs);
+    if (token !== lifecycleToken) throw new Error("SSH tunnel start cancelled");
+    reconnectAttempts = 0;
+    broadcastStatus("healthy");
   } catch (err) {
-    stopSshTunnel();
+    if (token === lifecycleToken) stopCurrentProcess();
+    throw err;
+  }
+}
+
+export async function startSshTunnel(config: SshConfig): Promise<void> {
+  cancelReconnect();
+  desiredConfig = { ...config };
+  reconnectAttempts = 0;
+  try {
+    await startTunnelAttempt(config);
+  } catch (err) {
+    desiredConfig = null;
+    broadcastStatus("down");
     throw err;
   }
 }
 
 export function stopSshTunnel(): void {
-  if (tunnelProcess && !tunnelProcess.killed) {
-    tunnelProcess.kill("SIGTERM");
-  }
-  tunnelRunning = false;
-  activeConfig = null;
+  desiredConfig = null;
+  reconnectAttempts = 0;
+  cancelReconnect();
+  stopCurrentProcess();
 }
 
 export async function ensureSshTunnel(config: SshConfig): Promise<void> {

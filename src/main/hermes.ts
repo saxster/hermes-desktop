@@ -55,6 +55,7 @@ export {
   setStreamOpenProvider,
   setGatewayReadyNotifier,
   getGatewayHealthStatus,
+  reportRemoteGatewayHealth,
 } from "./hermes/gateway-process";
 
 // Re-exports from grounding.ts
