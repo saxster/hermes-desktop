@@ -5,7 +5,7 @@ import {
   migrateToVault,
   readVaultWorkspace,
   writeVaultWorkspace,
-  saveVaultPage,
+  saveVaultPages,
   rollbackToBlob,
   deleteVaultPages,
   deleteVaultDbFolders,
@@ -136,6 +136,16 @@ describe("read / write / rollback round-trip", () => {
     expect(await readVaultWorkspace()).toBeNull();
   });
 
+  it("does not disguise a corrupt vault manifest as an empty vault", async () => {
+    stubApi({
+      spsVaultRead: vi.fn().mockResolvedValue({
+        pages: { home: "# Home" },
+        manifest: "{not-json",
+      }),
+    });
+    await expect(readVaultWorkspace()).rejects.toThrow();
+  });
+
   it("rollbackToBlob reconstructs from the vault and saves the blob", async () => {
     const ws = makeWorkspace();
     const snap = workspaceToVault(ws);
@@ -163,15 +173,30 @@ describe("read / write / rollback round-trip", () => {
     ]);
   });
 
-  it("saveVaultPage writes one page plus the manifest in one snapshot IPC call", async () => {
+  it("saveVaultPages writes every changed page plus the manifest in one snapshot IPC call", async () => {
     const writeSnapshot = vi.fn().mockResolvedValue(true);
     stubApi({ spsVaultWriteSnapshot: writeSnapshot });
 
-    await saveVaultPage(makeWorkspace(), "home");
+    const result = await saveVaultPages(makeWorkspace(), ["home", "sub"]);
 
+    expect(result.ok).toBe(true);
     expect(writeSnapshot).toHaveBeenCalledTimes(1);
-    expect(Object.keys(writeSnapshot.mock.calls[0][0].pages)).toEqual(["home"]);
+    expect(Object.keys(writeSnapshot.mock.calls[0][0].pages)).toEqual([
+      "home",
+      "sub",
+    ]);
     expect(writeSnapshot.mock.calls[0][0].manifest).toContain('"page"');
+  });
+
+  it("reports a failed vault snapshot instead of silently treating it as saved", async () => {
+    stubApi({ spsVaultWriteSnapshot: vi.fn().mockResolvedValue(false) });
+
+    await expect(
+      saveVaultPages(makeWorkspace(), ["sub"]),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: "Vault snapshot write failed",
+    });
   });
 });
 

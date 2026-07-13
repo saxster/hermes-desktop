@@ -19,6 +19,7 @@ import {
   readVaultManifest,
   writeVaultManifest,
   writeVaultSnapshot,
+  recoverPendingVaultSnapshot,
   SNAPSHOT_JOURNAL_FILE,
   backupFile,
   writeAssetTo,
@@ -297,8 +298,43 @@ describe("vault-as-authoritative I/O (S6)", () => {
     expect(errors).toHaveLength(1);
     const journal = JSON.parse(
       await readFile(join(dir, SNAPSHOT_JOURNAL_FILE), "utf-8"),
-    ) as { pageIds: string[] };
-    expect(journal.pageIds).toEqual(["home"]);
+    ) as { snapshot: { pages: Record<string, string>; manifest: string } };
+    expect(journal.snapshot.pages).toEqual({ home: "# Home" });
+    expect(journal.snapshot.manifest).toBe("{}");
+  });
+
+  it("replays an interrupted snapshot before the vault is read", async () => {
+    await writeFile(
+      join(dir, SNAPSHOT_JOURNAL_FILE),
+      JSON.stringify({
+        version: 1,
+        startedAt: 1,
+        snapshot: {
+          pages: { home: "# Recovered", sub: "# Background" },
+          manifest: '{"page":"sub"}',
+        },
+      }),
+    );
+
+    expect(await recoverPendingVaultSnapshot(dir)).toBe(true);
+    expect(await readFile(join(dir, "home.md"), "utf-8")).toBe("# Recovered");
+    expect(await readFile(join(dir, "sub.md"), "utf-8")).toBe("# Background");
+    expect(await readVaultManifest(dir)).toBe('{"page":"sub"}');
+    expect(existsSync(join(dir, SNAPSHOT_JOURNAL_FILE))).toBe(false);
+  });
+
+  it("refuses an old non-replayable journal without hiding it", async () => {
+    const errors: unknown[] = [];
+    await writeFile(
+      join(dir, SNAPSHOT_JOURNAL_FILE),
+      JSON.stringify({ startedAt: 1, pageIds: ["home"] }),
+    );
+
+    expect(
+      await recoverPendingVaultSnapshot(dir, (error) => errors.push(error)),
+    ).toBe(false);
+    expect(errors).toHaveLength(1);
+    expect(existsSync(join(dir, SNAPSHOT_JOURNAL_FILE))).toBe(true);
   });
 
   it("backs up a file to a timestamped sibling", async () => {

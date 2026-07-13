@@ -17,58 +17,74 @@ import {
   type VaultSnapshot,
 } from "../editor/workspaceVault";
 import { pageToMarkdown } from "../editor/pageMarkdown";
-import type { Workspace } from "../types";
+import type { SpsSaveResult, Workspace } from "../types";
 
 async function writeVaultSnapshot(
   pages: Record<string, string>,
   manifest: string,
-): Promise<void> {
+): Promise<boolean> {
   const api = window.hermesAPI;
   if (api?.spsVaultWriteSnapshot) {
-    await api.spsVaultWriteSnapshot({ pages, manifest });
-    return;
+    return api.spsVaultWriteSnapshot({ pages, manifest });
   }
-  if (!api?.spsExportPage || !api.spsVaultWriteManifest) return;
-  await Promise.all(
+  if (!api?.spsExportPage || !api.spsVaultWriteManifest) return false;
+  const pageResults = await Promise.all(
     Object.entries(pages).map(([id, md]) => api.spsExportPage(id, md)),
   );
-  await api.spsVaultWriteManifest(manifest);
+  if (pageResults.some((ok) => !ok)) return false;
+  return api.spsVaultWriteManifest(manifest);
 }
 
 /** Read the authoritative vault into a workspace, or null if not populated. */
 export async function readVaultWorkspace(): Promise<Workspace | null> {
   const api = window.hermesAPI;
   if (!api?.spsVaultRead) return null;
-  try {
-    const { pages, manifest } = await api.spsVaultRead();
-    if (!manifest || Object.keys(pages).length === 0) return null;
-    const snapshot: VaultSnapshot = { pages, manifest: JSON.parse(manifest) };
-    return vaultToWorkspace(snapshot);
-  } catch {
-    return null;
-  }
+  const { pages, manifest } = await api.spsVaultRead();
+  if (!manifest || Object.keys(pages).length === 0) return null;
+  const snapshot: VaultSnapshot = { pages, manifest: JSON.parse(manifest) };
+  return vaultToWorkspace(snapshot);
 }
 
 /** Write a whole workspace to the vault (every page file + the manifest). */
 export async function writeVaultWorkspace(ws: Workspace): Promise<void> {
   const { pages, manifest } = workspaceToVault(ws);
-  await writeVaultSnapshot(pages, JSON.stringify(manifest));
+  const ok = await writeVaultSnapshot(pages, JSON.stringify(manifest));
+  if (!ok) throw new Error("Vault snapshot write failed");
 }
 
-/** Persist a single page + the manifest while in vault mode (debounced save). */
-export async function saveVaultPage(
+/** Persist changed pages + the manifest while vault mode is authoritative. */
+export async function saveVaultPages(
   ws: Workspace,
-  pageId: string,
-): Promise<void> {
-  const md = pageToMarkdown(
-    ws.meta[pageId] ?? {},
-    ws.docs[pageId] ?? [],
-    commentAnchorIds(ws.comments),
-  );
-  await writeVaultSnapshot(
-    { [pageId]: md },
-    JSON.stringify(workspaceManifest(ws)),
-  );
+  pageIds: string[],
+): Promise<SpsSaveResult> {
+  try {
+    const anchoredIds = commentAnchorIds(ws.comments);
+    const pages: Record<string, string> = {};
+    for (const pageId of pageIds) {
+      pages[pageId] = pageToMarkdown(
+        ws.meta[pageId] ?? {},
+        ws.docs[pageId] ?? [],
+        anchoredIds,
+      );
+    }
+    const ok = await writeVaultSnapshot(
+      pages,
+      JSON.stringify(workspaceManifest(ws)),
+    );
+    return {
+      ok,
+      error: ok ? undefined : "Vault snapshot write failed",
+      rev: 0,
+      merged: false,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Vault save unavailable",
+      rev: 0,
+      merged: false,
+    };
+  }
 }
 
 /** Best-effort: remove orphaned page files from the vault (F3). Used when pages

@@ -54,6 +54,7 @@ import {
   readVaultManifest,
   writeVaultManifest,
   writeVaultSnapshot,
+  recoverPendingVaultSnapshot,
   writeAssetTo,
   readAssetFrom,
 } from "../sps-vault";
@@ -604,6 +605,12 @@ export function registerNotesIpc(
   const spsVaultDir = (profile?: unknown): string => spsVaultDirFor(profile);
   safeHandle("sps-vault-read", async (_event, profile?: unknown) => {
     const dir = spsVaultDir(profile);
+    const recovered = await recoverPendingVaultSnapshot(dir, noteMirrorFailure);
+    if (!recovered) {
+      throw new Error(
+        "The vault contains an interrupted snapshot that could not be recovered",
+      );
+    }
     const [pages, manifest] = await Promise.all([
       readVaultPages(dir),
       readVaultManifest(dir),

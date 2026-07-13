@@ -8,7 +8,7 @@ import {
 import { getStorageMode } from "../lib/storageMode";
 import {
   readVaultWorkspace,
-  saveVaultPage,
+  saveVaultPages,
   deleteVaultPages,
 } from "../lib/vaultStore";
 import { gcOrphanAssets } from "../lib/assets";
@@ -71,14 +71,44 @@ function mirrorChangedPages(s: Store): void {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lifecycleUsers = 0;
 let stopSubscriptions: Unsubscribe | null = null;
+let vaultSaveQueue: Promise<void> = Promise.resolve();
+
+function changedPageIds(s: Store): string[] {
+  return Object.keys(s.docs).filter(
+    (pageId) =>
+      s.docs[pageId] !== mirroredDocs[pageId] ||
+      s.meta[pageId] !== mirroredMeta[pageId],
+  );
+}
+
+function persistVaultWorkspace(s: Store, ws: Workspace): void {
+  const pageIds = changedPageIds(s);
+  const removed = Object.keys(mirroredDocs).filter((id) => !(id in s.docs));
+  vaultSaveQueue = vaultSaveQueue.then(async () => {
+    const result = await saveVaultPages(ws, pageIds);
+    useStore.getState().reportSaveResult(result);
+    if (!result.ok) return;
+    for (const pageId of pageIds) {
+      mirroredDocs[pageId] = ws.docs[pageId];
+      mirroredMeta[pageId] = ws.meta[pageId];
+    }
+    if (removed.length) {
+      await deleteVaultPages(removed);
+      for (const pageId of removed) {
+        delete mirroredDocs[pageId];
+        delete mirroredMeta[pageId];
+      }
+    }
+  });
+}
 
 function persistCurrentWorkspace(): void {
   const s = useStore.getState();
   const ws = snapshotWorkspace(s);
   if (getStorageMode() === "vault") {
-    // Vault is authoritative (S6): write the current page + manifest.
+    // Vault is authoritative (S6): write every changed page + the manifest.
     // The blob remains untouched as the rollback safety net.
-    void saveVaultPage(ws, s.page);
+    persistVaultWorkspace(s, ws);
     return;
   }
   void saveWorkspace(ws).then((res) =>
@@ -167,6 +197,7 @@ async function loadAndApplyWorkspace(): Promise<void> {
     const vault = await readVaultWorkspace();
     if (vault && vault.docs && vault.tree) {
       applyWorkspace(vault);
+      seedMirrored(useStore.getState());
       gcOrphanAssets(vault.docs);
       return;
     }

@@ -291,7 +291,67 @@ export interface VaultSnapshotWrite {
   manifest: string;
 }
 
-/** Write page files plus the manifest behind a small pending journal. */
+interface VaultSnapshotJournal {
+  version: 1;
+  startedAt: number;
+  snapshot: VaultSnapshotWrite;
+}
+
+function isVaultSnapshotWrite(value: unknown): value is VaultSnapshotWrite {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<VaultSnapshotWrite>;
+  if (!candidate.pages || typeof candidate.pages !== "object") return false;
+  if (typeof candidate.manifest !== "string") return false;
+  return Object.entries(candidate.pages).every(
+    ([pageId, markdown]) =>
+      isValidPageId(pageId) && typeof markdown === "string",
+  );
+}
+
+async function applyVaultSnapshot(
+  vaultDir: string,
+  snapshot: VaultSnapshotWrite,
+  onError?: MirrorWriteErrorSink,
+): Promise<boolean> {
+  for (const [pageId, markdown] of Object.entries(snapshot.pages)) {
+    const ok = await exportPageMarkdownTo(vaultDir, pageId, markdown, onError);
+    if (!ok) return false;
+  }
+  return writeVaultManifest(vaultDir, snapshot.manifest, onError);
+}
+
+/** Replay an interrupted snapshot before the authoritative vault is read. */
+export async function recoverPendingVaultSnapshot(
+  vaultDir: string,
+  onError?: MirrorWriteErrorSink,
+): Promise<boolean> {
+  const journalPath = join(vaultDir, SNAPSHOT_JOURNAL_FILE);
+  let raw: string;
+  try {
+    raw = await fs.readFile(journalPath, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+    onError?.(error);
+    return false;
+  }
+
+  try {
+    const journal = JSON.parse(raw) as Partial<VaultSnapshotJournal>;
+    if (journal.version !== 1 || !isVaultSnapshotWrite(journal.snapshot)) {
+      throw new Error("Vault snapshot journal is invalid or unsupported");
+    }
+    if (!(await applyVaultSnapshot(vaultDir, journal.snapshot, onError))) {
+      return false;
+    }
+    await fs.rm(journalPath, { force: true });
+    return true;
+  } catch (error) {
+    onError?.(error);
+    return false;
+  }
+}
+
+/** Write page files plus the manifest behind a replayable pending journal. */
 export async function writeVaultSnapshot(
   vaultDir: string,
   snapshot: VaultSnapshotWrite,
@@ -304,26 +364,22 @@ export async function writeVaultSnapshot(
   try {
     await safeWriteFileAsync(
       journalPath,
-      JSON.stringify({ startedAt: Date.now(), pageIds }, null, 2),
+      JSON.stringify(
+        {
+          version: 1,
+          startedAt: Date.now(),
+          snapshot,
+        } satisfies VaultSnapshotJournal,
+        null,
+        2,
+      ),
     );
   } catch (err) {
     onError?.(err);
     return false;
   }
 
-  for (const [pageId, markdown] of Object.entries(snapshot.pages)) {
-    const ok = await exportPageMarkdownTo(
-      vaultDir,
-      pageId,
-      markdown,
-      onError,
-    );
-    if (!ok) return false;
-  }
-
-  if (!(await writeVaultManifest(vaultDir, snapshot.manifest, onError))) {
-    return false;
-  }
+  if (!(await applyVaultSnapshot(vaultDir, snapshot, onError))) return false;
 
   try {
     await fs.rm(journalPath, { force: true });

@@ -36,10 +36,10 @@ Everything lives under the active profile's home directory
   database block opts into this folder‑backed mode by carrying a `source` field.
 - **`_manifest.json`**: the page tree, trash, comments, and current page — the
   structure that individual page files can't represent on their own.
-- **`_manifest.pending.json`**: a transient journal created while vault-mode
-  page files and `_manifest.json` are written as one main-process snapshot. It
-  is removed after a successful manifest commit and left behind only when a
-  snapshot write fails mid-flight.
+- **`_manifest.pending.json`**: a replayable journal containing the complete
+  intended vault snapshot while page files and `_manifest.json` are committed.
+  It is recovered before the vault is read after an interrupted write, then
+  removed only after the manifest commit succeeds.
 
 ## Storage modes (the `storageMode` flag)
 
