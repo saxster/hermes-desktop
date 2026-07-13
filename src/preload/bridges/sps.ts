@@ -579,8 +579,12 @@ export const spsBridge = {
     ipcRenderer.invoke("sps-nag-snooze", rowId, snoozedUntil, profile),
   spsAckNag: (rowId: string, profile?: string): Promise<void> =>
     ipcRenderer.invoke("sps-nag-ack", rowId, profile),
-  spsOpenContactChannel: (channel: ContactChannel): Promise<boolean> =>
-    ipcRenderer.invoke("sps-open-contact-channel", channel),
+  spsOpenContactChannel: (
+    channel: ContactChannel,
+    context?: import("../../shared/contacts").ContactOutreachContext,
+    profile?: string,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke("sps-open-contact-channel", channel, context, profile),
   macContactsStatus: (): Promise<MacContactsStatus> =>
     ipcRenderer.invoke("mac-contacts-status"),
   macContactsSync: (profile?: string): Promise<MacSyncResult> =>

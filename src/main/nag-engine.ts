@@ -25,6 +25,7 @@ import {
   type NagTaskMeta,
 } from "../shared/tasks-dump";
 import { formatLogError, log } from "./log";
+import { deliverOwnerEvent } from "./owner-delivery";
 
 interface IndexRow {
   path: string;
@@ -64,6 +65,18 @@ async function fireNag(
   profile?: string,
 ): Promise<void> {
   if (action.tier === "badge") return; // the overdue ToDo row is the badge
+  if (action.kind === "follow-up") {
+    await deliverOwnerEvent(
+      {
+        id: `follow-up:${action.rowId}:${action.occurrenceId || "due"}`,
+        kind: "follow-up",
+        title: "Relationship follow-up",
+        body: action.title,
+      },
+      profile,
+    );
+    return;
+  }
   if (action.tier === "notification") {
     notify("⏰ Still waiting", action.title);
     return;
@@ -99,9 +112,29 @@ export async function nagTick(profile?: string): Promise<void> {
         typeof props.assigneeId === "string" ? props.assigneeId : undefined,
     };
   }
+  const followUpRecords = records.filter((record) =>
+    record.rowId.startsWith("followup:"),
+  );
+  let personRows: IndexRow[] = [];
+  if (followUpRecords.length > 0) {
+    personRows = index.query({ scope: PERSON_FOLDER }) as IndexRow[];
+    for (const row of personRows) {
+      const personId = rowIdFromPath(row.path);
+      const followUpAt = Number(row.props?.followUpAt);
+      if (!Number.isFinite(followUpAt)) continue;
+      meta[`followup:${personId}`] = {
+        title: `Follow up with ${String(row.props?.title || row.title || personId)}`,
+        done: false,
+        autoSendOnEscalate: false,
+        kind: "follow-up",
+      };
+    }
+  }
   const plan = planNagActions(records, meta, now);
   if (plan.actions.length) {
-    const personRows = index.query({ scope: PERSON_FOLDER }) as IndexRow[];
+    if (personRows.length === 0) {
+      personRows = index.query({ scope: PERSON_FOLDER }) as IndexRow[];
+    }
     for (const action of plan.actions) {
       await fireNag(action, personRows, profile);
     }

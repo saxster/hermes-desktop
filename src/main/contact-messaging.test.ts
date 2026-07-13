@@ -1,6 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { readRow, writeRow, setNag, removeNag } = vi.hoisted(() => ({
+  readRow: vi.fn(),
+  writeRow: vi.fn(),
+  setNag: vi.fn(),
+  removeNag: vi.fn(),
+}));
 
 vi.mock("electron", () => ({ shell: { openExternal: vi.fn() } }));
+vi.mock("./sps-storage", () => ({ resolveSpsVaultDir: () => "/vault" }));
+vi.mock("./sps-vault", () => ({
+  readRowMarkdownFrom: readRow,
+  exportRowMarkdownTo: writeRow,
+}));
+vi.mock("./tasks-dump", () => ({
+  setNagRecord: setNag,
+  removeNagRecord: removeNag,
+}));
 
 import { buildHandoffUrl, openContactChannel } from "./contact-messaging";
 import { shell } from "electron";
@@ -30,6 +46,15 @@ describe("buildHandoffUrl", () => {
 });
 
 describe("openContactChannel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    readRow.mockResolvedValue(
+      '---\ntitle: "Priya"\nschema: "person"\n---\nExisting notes',
+    );
+    writeRow.mockResolvedValue(true);
+    setNag.mockResolvedValue(undefined);
+  });
+
   it("opens a handoff URL and reports success", async () => {
     vi.mocked(shell.openExternal).mockResolvedValue(undefined);
     const ok = await openContactChannel(ch("email", "p@x.com"));
@@ -42,5 +67,32 @@ describe("openContactChannel", () => {
     const ok = await openContactChannel(ch("telegram", "12345"));
     expect(ok).toBe(false);
     expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("logs outreach on the contact and creates a follow-up nag", async () => {
+    vi.mocked(shell.openExternal).mockResolvedValue(undefined);
+    const now = Date.now();
+
+    const ok = await openContactChannel(ch("email", "p@x.com"), {
+      personId: "priya",
+      personName: "Priya",
+      followUpAt: now + 86_400_000,
+    });
+
+    expect(ok).toBe(true);
+    expect(writeRow).toHaveBeenCalledWith(
+      "/vault",
+      "people",
+      "priya",
+      expect.stringContaining("lastOutreachChannel: email"),
+    );
+    expect(setNag).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rowId: "followup:priya",
+        nextNagAt: expect.any(Number),
+        cadence: "daily",
+      }),
+      undefined,
+    );
   });
 });

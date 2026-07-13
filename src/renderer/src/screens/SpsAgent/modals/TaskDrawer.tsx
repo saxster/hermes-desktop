@@ -108,6 +108,7 @@ export function TaskDrawer({ task, onClose }: Props) {
     : [];
   const [due, setDue] = useState(task.due);
   const [est, setEst] = useState(task.est);
+  const [followUpDays, setFollowUpDays] = useState(7);
 
   const [desc, setDesc] = useState(task.desc || "");
   const [checklist, setChecklist] = useState<ChecklistItem[]>(
@@ -454,6 +455,20 @@ export function TaskDrawer({ task, onClose }: Props) {
                         flexWrap: "wrap",
                       }}
                     >
+                      <select
+                        aria-label="Outreach follow-up"
+                        className="drawer-select"
+                        style={{ width: "auto", padding: "2px 8px" }}
+                        value={followUpDays}
+                        onChange={(event) =>
+                          setFollowUpDays(Number(event.target.value))
+                        }
+                      >
+                        <option value={0}>No follow-up</option>
+                        <option value={1}>Follow up in 1 day</option>
+                        <option value={7}>Follow up in 1 week</option>
+                        <option value={30}>Follow up in 1 month</option>
+                      </select>
                       {messageChannels.map((channel) => (
                         <button
                           key={channel.kind}
@@ -465,7 +480,18 @@ export function TaskDrawer({ task, onClose }: Props) {
                           }}
                           title={`Message ${assignee?.name ?? ""} via ${CHANNEL_LABEL[channel.kind]}`}
                           onClick={() =>
-                            void window.hermesAPI.spsOpenContactChannel(channel)
+                            void window.hermesAPI.spsOpenContactChannel(
+                              channel,
+                              {
+                                personId: assignee?.id || who,
+                                personName: assignee?.name || who,
+                                followUpAt:
+                                  followUpDays === 0
+                                    ? null
+                                    : Date.now() +
+                                      followUpDays * 86_400_000,
+                              },
+                            )
                           }
                         >
                           {CHANNEL_LABEL[channel.kind]}

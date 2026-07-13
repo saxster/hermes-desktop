@@ -81,4 +81,29 @@ describe("planNagActions", () => {
       assigneeId: "p-wife",
     });
   });
+
+  it("carries relationship follow-up identity through the same ladder", () => {
+    const followUp = record({
+      rowId: "followup:priya",
+      nagCount: 2,
+      nextNagAt: NOW - 1,
+    });
+    const plan = planNagActions(
+      [followUp],
+      {
+        "followup:priya": meta({
+          title: "Follow up with Priya",
+          kind: "follow-up",
+        }),
+      },
+      NOW,
+    );
+
+    expect(plan.actions[0]).toMatchObject({
+      rowId: "followup:priya",
+      kind: "follow-up",
+      tier: "notification",
+      occurrenceId: String(NOW - 1),
+    });
+  });
 });

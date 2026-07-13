@@ -52,6 +52,16 @@ export interface PersonFrontmatter {
   organization?: string;
   tags?: string[];
   fragments?: ContactFragment[];
+  followUpAt?: number;
+  lastOutreachAt?: number;
+  lastOutreachChannel?: ChannelKind;
+}
+
+export interface ContactOutreachContext {
+  personId: string;
+  personName: string;
+  /** null explicitly disables a follow-up; undefined uses the seven-day default. */
+  followUpAt?: number | null;
 }
 
 /** A resolved person: page id + display name + frontmatter. */
@@ -136,6 +146,12 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function asFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
 /** Parse a person page's frontmatter props into a typed PersonFrontmatter. */
 export function parsePersonFrontmatter(
   props: Record<string, unknown>,
@@ -154,6 +170,15 @@ export function parsePersonFrontmatter(
       : {}),
     ...(asString(props.organization)
       ? { organization: asString(props.organization) }
+      : {}),
+    ...(asFiniteNumber(props.followUpAt)
+      ? { followUpAt: asFiniteNumber(props.followUpAt) }
+      : {}),
+    ...(asFiniteNumber(props.lastOutreachAt)
+      ? { lastOutreachAt: asFiniteNumber(props.lastOutreachAt) }
+      : {}),
+    ...((CHANNEL_PRIORITY as string[]).includes(String(props.lastOutreachChannel))
+      ? { lastOutreachChannel: props.lastOutreachChannel as ChannelKind }
       : {}),
   };
 }
@@ -327,6 +352,10 @@ export function personToRowProps(
   if (fm.telegramChatId) props.telegramChatId = fm.telegramChatId;
   if (fm.whatsappPhone) props.whatsappPhone = fm.whatsappPhone;
   if (fm.organization) props.organization = fm.organization;
+  if (fm.followUpAt) props.followUpAt = fm.followUpAt;
+  if (fm.lastOutreachAt) props.lastOutreachAt = fm.lastOutreachAt;
+  if (fm.lastOutreachChannel)
+    props.lastOutreachChannel = fm.lastOutreachChannel;
   return props;
 }
 

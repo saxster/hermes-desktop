@@ -483,7 +483,11 @@ export interface SpsBridgeApi {
 
   spsAckNag: (rowId: string, profile?: string) => Promise<void>;
 
-  spsOpenContactChannel: (channel: ContactChannel) => Promise<boolean>;
+  spsOpenContactChannel: (
+    channel: ContactChannel,
+    context?: import("../../shared/contacts").ContactOutreachContext,
+    profile?: string,
+  ) => Promise<boolean>;
 
   macContactsStatus: () => Promise<MacContactsStatus>;
 

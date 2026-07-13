@@ -10,13 +10,14 @@ const store = vi.hoisted(() => ({
   updateTask: vi.fn(),
   flash: vi.fn(),
 }));
+const personState = vi.hoisted(() => ({ persons: [] as Array<Record<string, unknown>> }));
 
 vi.mock("../store", () => ({
   useStore: (selector: (state: typeof store) => unknown) => selector(store),
 }));
 
 vi.mock("../hooks/usePersonPages", () => ({
-  usePersonPages: () => ({ persons: [] }),
+  usePersonPages: () => ({ persons: personState.persons }),
 }));
 
 vi.mock("../hooks/useKanbanStatuses", () => ({
@@ -47,6 +48,40 @@ function Harness(): React.JSX.Element {
 describe("TaskDrawer folder-backed writes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    personState.persons = [];
+  });
+
+  it("records an outreach handoff with the selected relationship follow-up", async () => {
+    personState.persons = [
+      { id: "you", name: "You", email: "you@example.com", isSelf: true },
+    ];
+    const spsOpenContactChannel = vi.fn().mockResolvedValue(true);
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        spsReadRow: vi.fn().mockResolvedValue(
+          '---\ntitle: "Initial task"\nstatus: "todo"\nprio: "med"\nwho: "you"\n---\n',
+        ),
+        spsExportRow: vi.fn().mockResolvedValue(true),
+        spsOpenContactChannel,
+      },
+    });
+
+    render(<Harness />);
+    await screen.findByDisplayValue("Initial task");
+    fireEvent.change(screen.getByLabelText("Outreach follow-up"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Email" }));
+
+    expect(spsOpenContactChannel).toHaveBeenCalledWith(
+      { kind: "email", value: "you@example.com" },
+      expect.objectContaining({
+        personId: "you",
+        personName: "You",
+        followUpAt: expect.any(Number),
+      }),
+    );
   });
 
   it("keeps optimistic edits visible and serializes whole-row writes", async () => {

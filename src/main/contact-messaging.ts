@@ -12,7 +12,16 @@
 import { shell } from "electron";
 import { gatewayChat } from "./gateway-chat";
 import type { ContactChannel } from "../shared/contacts";
+import type { ContactOutreachContext } from "../shared/contacts";
 import { formatLogError, log } from "./log";
+import { resolveSpsVaultDir } from "./sps-storage";
+import { exportRowMarkdownTo, readRowMarkdownFrom } from "./sps-vault";
+import {
+  parseYamlFrontmatterMarkdown,
+  stringifySortedYamlFrontmatter,
+} from "../shared/sps-frontmatter";
+import { PERSON_FOLDER } from "../shared/contacts";
+import { removeNagRecord, setNagRecord } from "./tasks-dump";
 
 function phoneDigits(value: string): string {
   return value.replace(/[^\d+]/g, "");
@@ -44,11 +53,34 @@ export function buildHandoffUrl(channel: ContactChannel): string | null {
 /** Open the contact's native app for this channel with the recipient filled. */
 export async function openContactChannel(
   channel: ContactChannel,
+  context?: ContactOutreachContext,
+  profile?: string,
 ): Promise<boolean> {
   const url = buildHandoffUrl(channel);
   if (!url) return false;
   try {
     await shell.openExternal(url);
+    if (context) {
+      try {
+        const recorded = await recordContactOutreach(
+          channel,
+          context,
+          profile,
+        );
+        if (!recorded) {
+          log.warn("contact-messaging", {
+            msg: "outreach opened but contact follow-up was not recorded",
+            personId: context.personId,
+          });
+        }
+      } catch (err) {
+        log.error("contact-messaging", {
+          msg: "outreach opened but contact follow-up failed",
+          personId: context.personId,
+          error: formatLogError(err),
+        });
+      }
+    }
     return true;
   } catch (err) {
     log.error("contact-messaging", {
@@ -58,6 +90,71 @@ export async function openContactChannel(
     });
     return false;
   }
+}
+
+const DEFAULT_FOLLOW_UP_MS = 7 * 86_400_000;
+const MAX_FOLLOW_UP_MS = 366 * 86_400_000;
+
+export async function recordContactOutreach(
+  channel: ContactChannel,
+  context: ContactOutreachContext,
+  profile?: string,
+  now = Date.now(),
+): Promise<boolean> {
+  if (!/^[A-Za-z0-9_-]+$/.test(context.personId)) return false;
+  const vaultDir = resolveSpsVaultDir(profile);
+  const current = await readRowMarkdownFrom(
+    vaultDir,
+    PERSON_FOLDER,
+    context.personId,
+  );
+  if (!current) return false;
+
+  const { props, body } = parseYamlFrontmatterMarkdown(current);
+  const requestedFollowUp = context.followUpAt;
+  const followUpAt =
+    requestedFollowUp === null
+      ? null
+      : requestedFollowUp === undefined
+        ? now + DEFAULT_FOLLOW_UP_MS
+        : Math.min(now + MAX_FOLLOW_UP_MS, Math.max(now, requestedFollowUp));
+  const fragments = Array.isArray(props.fragments) ? [...props.fragments] : [];
+  fragments.push({
+    text: `Opened ${channel.kind} outreach handoff`,
+    when: new Date(now).toISOString(),
+    source: "desktop-outreach",
+  });
+  const nextProps: Record<string, unknown> = {
+    ...props,
+    fragments,
+    lastOutreachAt: now,
+    lastOutreachChannel: channel.kind,
+  };
+  if (followUpAt === null) delete nextProps.followUpAt;
+  else nextProps.followUpAt = followUpAt;
+  const saved = await exportRowMarkdownTo(
+    vaultDir,
+    PERSON_FOLDER,
+    context.personId,
+    stringifySortedYamlFrontmatter(nextProps, body),
+  );
+  if (!saved) return false;
+
+  const nagId = `followup:${context.personId}`;
+  if (followUpAt === null) {
+    await removeNagRecord(nagId, profile);
+  } else {
+    await setNagRecord(
+      {
+        rowId: nagId,
+        nagCount: 0,
+        nextNagAt: followUpAt,
+        cadence: "daily",
+      },
+      profile,
+    );
+  }
+  return true;
 }
 
 /**

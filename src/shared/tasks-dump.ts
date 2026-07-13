@@ -161,6 +161,7 @@ export interface NagTaskMeta {
   done: boolean;
   autoSendOnEscalate: boolean;
   assigneeId?: string;
+  kind?: "task" | "follow-up";
 }
 
 /** One nag to fire this tick (the executor turns tier into a notification/send). */
@@ -170,6 +171,8 @@ export interface NagAction {
   tier: EscalationTier;
   autoSend: boolean;
   assigneeId?: string;
+  kind?: "task" | "follow-up";
+  occurrenceId?: string;
 }
 
 export interface NagPlan {
@@ -207,6 +210,8 @@ export function planNagActions(
       tier: escalationTier(record.nagCount),
       autoSend: taskMeta.autoSendOnEscalate,
       assigneeId: taskMeta.assigneeId,
+      ...(taskMeta.kind ? { kind: taskMeta.kind } : {}),
+      occurrenceId: String(record.nextNagAt),
     });
     advanced.push(advanceNagRecord(record, now));
   }
