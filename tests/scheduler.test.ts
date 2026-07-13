@@ -22,13 +22,14 @@ vi.mock("electron", () => {
 const mockSpawn = vi.fn();
 const mockListCronJobs = vi.fn();
 const mockTriggerSelfHealing = vi.fn();
-const mockProfileHome = vi.fn(() => "/tmp/hermes-test-profile");
+const mockProfileHome = vi.fn((_profile: string) => "/tmp/hermes-test-profile");
 const mockWriteDesktopConfig = vi.fn();
 const mockReadDesktopConfig = vi.fn(() => ({}));
 const mockMaybeRunHermesAgentUpdateRoutine = vi.fn();
 const mockMaybeRunHermesUpstreamWatchRoutine = vi.fn();
 const mockMaybeRunDesktopUpdateRoutine = vi.fn();
 const mockMaybeRunAppLaunchSchedules = vi.fn();
+const mockLogEnd = vi.fn();
 
 vi.mock("child_process", () => {
   const fns = {
@@ -50,13 +51,12 @@ vi.mock("child_process", () => {
 
 vi.mock("fs", () => {
   const mockWrite = vi.fn();
-  const mockEnd = vi.fn();
   const fns = {
     existsSync: (p: string) => !p.endsWith(".lock"),
     mkdirSync: () => {},
     createWriteStream: () => ({
       write: mockWrite,
-      end: mockEnd,
+      end: mockLogEnd,
     }),
     readFileSync: () => "{}",
     writeFileSync: () => {},
@@ -194,6 +194,7 @@ describe("Scheduler Service", () => {
 
     // job-1 should be triggered
     expect(mockSpawn).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mockLogEnd).toHaveBeenCalled());
   });
 
   it("checks the managed Hermes Agent update routine on scheduler ticks", async () => {
@@ -238,6 +239,7 @@ describe("Scheduler Service", () => {
       "test-profile",
     );
     await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mockLogEnd).toHaveBeenCalled());
   });
 
   it("checks app launch schedules on scheduler ticks", async () => {

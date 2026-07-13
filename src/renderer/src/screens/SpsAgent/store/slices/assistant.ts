@@ -302,6 +302,16 @@ export const createAssistantSlice: StateCreator<
             });
             return;
           }
+        })
+        .catch((err: unknown) => {
+          setConvThinking(convId, false);
+          addMsg(convId, {
+            id: uid("m"),
+            role: "bot",
+            text: [
+              `Assistant error: ${err instanceof Error ? err.message : String(err)}.`,
+            ],
+          });
         });
     },
 
@@ -346,148 +356,156 @@ export const createAssistantSlice: StateCreator<
     // applied server-side and the desktop never receives a notes/memory/rules
     // count. A chip would have to fabricate one — so provenance is surfaced as the
     // visible tool stream (onChatToolProgress) instead. Don't bolt on a fake count.
-    runWork: async () => {
+    runWork: () => {
       const convId = get().activeConvId;
-      const s = get();
-      const pageId = s.page;
-      const blocks = s.docs[pageId] || [];
-      const meta = s.meta[pageId] || { title: "Untitled" };
-      const resumeId =
-        meta.workSessionId ??
-        (await window.hermesAPI.spsGetWorkSession(pageId)) ??
-        undefined;
-      const runId = uid("run");
+      (async (): Promise<void> => {
+        const s = get();
+        const pageId = s.page;
+        const blocks = s.docs[pageId] || [];
+        const meta = s.meta[pageId] || { title: "Untitled" };
+        const resumeId =
+          meta.workSessionId ??
+          (await window.hermesAPI.spsGetWorkSession(pageId)) ??
+          undefined;
+        const runId = uid("run");
 
-      const planText = serializePlanBlocks(blocks);
-      const message = `${buildWorkPrompt()}\n\n--- PLAN: ${meta.title} ---\n${planText}`;
-      let activeWorkId: string | null = null;
+        const planText = serializePlanBlocks(blocks);
+        const message = `${buildWorkPrompt()}\n\n--- PLAN: ${meta.title} ---\n${planText}`;
+        let activeWorkId: string | null = null;
 
-      get().openPanelTab("assistant");
-      const userLabel = resumeId
-        ? "Resume work on this plan"
-        : "Work this plan";
-      addMsg(convId, { id: uid("m"), role: "user", text: [userLabel] });
-      maybeTitle(convId, `Work: ${meta.title}`);
-      setConvThinking(convId, true);
+        get().openPanelTab("assistant");
+        const userLabel = resumeId
+          ? "Resume work on this plan"
+          : "Work this plan";
+        addMsg(convId, { id: uid("m"), role: "user", text: [userLabel] });
+        maybeTitle(convId, `Work: ${meta.title}`);
+        setConvThinking(convId, true);
 
-      const botId = uid("m");
-      addMsg(convId, { id: botId, role: "bot", text: [""] });
-      let acc = "";
-      let tool: string | null = null;
-      const render = (): void => {
-        const note = tool ? `\n\n_running ${tool}…_` : "";
-        updateMsg(convId, botId, { text: [acc + note] });
-      };
+        const botId = uid("m");
+        addMsg(convId, { id: botId, role: "bot", text: [""] });
+        let acc = "";
+        let tool: string | null = null;
+        const render = (): void => {
+          const note = tool ? `\n\n_running ${tool}…_` : "";
+          updateMsg(convId, botId, { text: [acc + note] });
+        };
 
-      try {
-        const active = await window.hermesAPI.spsCreateActiveWorkRun({
-          source: "sps-work",
-          title: `Work: ${meta.title}`,
-          goal: `Execute the plan "${meta.title}"`,
-          pageId,
-          pageTitle: meta.title,
-          sessionId: resumeId,
-          clientRunId: runId,
-          criteria: activeCriteriaFromBlocks(blocks),
-        });
-        activeWorkId = active.id;
-      } catch {
-        activeWorkId = null;
-      }
+        try {
+          const active = await window.hermesAPI.spsCreateActiveWorkRun({
+            source: "sps-work",
+            title: `Work: ${meta.title}`,
+            goal: `Execute the plan "${meta.title}"`,
+            pageId,
+            pageTitle: meta.title,
+            sessionId: resumeId,
+            clientRunId: runId,
+            criteria: activeCriteriaFromBlocks(blocks),
+          });
+          activeWorkId = active.id;
+        } catch {
+          activeWorkId = null;
+        }
 
-      const cleanups = [
-        window.hermesAPI.onChatChunk((chunk, rid) => {
-          if (rid !== runId) return;
-          acc += chunk;
+        const cleanups = [
+          window.hermesAPI.onChatChunk((chunk, rid) => {
+            if (rid !== runId) return;
+            acc += chunk;
+            render();
+          }),
+          window.hermesAPI.onChatToolProgress((t, rid) => {
+            if (rid !== runId) return;
+            tool = t;
+            if (activeWorkId) {
+              void window.hermesAPI.spsUpdateActiveWorkRun(activeWorkId, {
+                lastTool: t,
+                lastHeartbeatAt: Date.now(),
+              });
+            }
+            render();
+          }),
+          window.hermesAPI.onChatApprovalAuto((req, rid) => {
+            if (rid !== runId) return;
+            acc += `\n\n_✓ auto-approved: ${req.command ?? req.toolName ?? "command"}_`;
+            render();
+          }),
+        ];
+
+        try {
+          const result = await window.hermesAPI.sendMessage(
+            message,
+            undefined, // profile
+            resumeId,
+            undefined, // history
+            undefined, // attachments
+            undefined, // contextFolder
+            undefined, // groundInWorkspace
+            runId, // clientRunId
+          );
+          if (result.response && !acc) acc = result.response;
+          tool = null;
           render();
-        }),
-        window.hermesAPI.onChatToolProgress((t, rid) => {
-          if (rid !== runId) return;
-          tool = t;
+          if (result.sessionId) {
+            const sessionId = result.sessionId;
+            set((st) => ({
+              meta: {
+                ...st.meta,
+                [pageId]: { ...st.meta[pageId], workSessionId: sessionId },
+              },
+            }));
+            void window.hermesAPI.spsSetWorkSession(pageId, sessionId);
+          }
           if (activeWorkId) {
             void window.hermesAPI.spsUpdateActiveWorkRun(activeWorkId, {
-              lastTool: t,
-              lastHeartbeatAt: Date.now(),
+              sessionId: result.sessionId,
+              status: "completed",
+              summary: acc.slice(0, 500),
+              completedAt: Date.now(),
+              lastTool: null,
+              artifacts: [
+                {
+                  id: uid("artifact"),
+                  kind: "page",
+                  label: meta.title,
+                  ref: pageId,
+                  createdAt: Date.now(),
+                },
+                ...(result.sessionId
+                  ? [
+                      {
+                        id: uid("artifact"),
+                        kind: "session" as const,
+                        label: "Assistant session",
+                        ref: result.sessionId,
+                        createdAt: Date.now(),
+                      },
+                    ]
+                  : []),
+              ],
             });
           }
+        } catch (err) {
+          acc += `\n\nError: ${err instanceof Error ? err.message : "work failed"}.`;
+          tool = null;
           render();
-        }),
-        window.hermesAPI.onChatApprovalAuto((req, rid) => {
-          if (rid !== runId) return;
-          acc += `\n\n_✓ auto-approved: ${req.command ?? req.toolName ?? "command"}_`;
-          render();
-        }),
-      ];
-
-      try {
-        const result = await window.hermesAPI.sendMessage(
-          message,
-          undefined, // profile
-          resumeId,
-          undefined, // history
-          undefined, // attachments
-          undefined, // contextFolder
-          undefined, // groundInWorkspace
-          runId, // clientRunId
-        );
-        if (result.response && !acc) acc = result.response;
-        tool = null;
-        render();
-        if (result.sessionId) {
-          const sessionId = result.sessionId;
-          set((st) => ({
-            meta: {
-              ...st.meta,
-              [pageId]: { ...st.meta[pageId], workSessionId: sessionId },
-            },
-          }));
-          void window.hermesAPI.spsSetWorkSession(pageId, sessionId);
+          if (activeWorkId) {
+            void window.hermesAPI.spsUpdateActiveWorkRun(activeWorkId, {
+              status: "failed",
+              error: err instanceof Error ? err.message : "work failed",
+              completedAt: Date.now(),
+              lastTool: null,
+            });
+          }
+        } finally {
+          cleanups.forEach((off) => off());
+          setConvThinking(convId, false);
         }
-        if (activeWorkId) {
-          void window.hermesAPI.spsUpdateActiveWorkRun(activeWorkId, {
-            sessionId: result.sessionId,
-            status: "completed",
-            summary: acc.slice(0, 500),
-            completedAt: Date.now(),
-            lastTool: null,
-            artifacts: [
-              {
-                id: uid("artifact"),
-                kind: "page",
-                label: meta.title,
-                ref: pageId,
-                createdAt: Date.now(),
-              },
-              ...(result.sessionId
-                ? [
-                    {
-                      id: uid("artifact"),
-                      kind: "session" as const,
-                      label: "Assistant session",
-                      ref: result.sessionId,
-                      createdAt: Date.now(),
-                    },
-                  ]
-                : []),
-            ],
-          });
-        }
-      } catch (err) {
-        acc += `\n\nError: ${err instanceof Error ? err.message : "work failed"}.`;
-        tool = null;
-        render();
-        if (activeWorkId) {
-          void window.hermesAPI.spsUpdateActiveWorkRun(activeWorkId, {
-            status: "failed",
-            error: err instanceof Error ? err.message : "work failed",
-            completedAt: Date.now(),
-            lastTool: null,
-          });
-        }
-      } finally {
-        cleanups.forEach((off) => off());
+      })().catch((err: unknown) => {
         setConvThinking(convId, false);
-      }
+        get().flash(
+          `Work failed: ${err instanceof Error ? err.message : String(err)}`,
+          { tone: "warn" },
+        );
+      });
     },
 
     decideProposal: (pid, accept) => {
@@ -581,70 +599,86 @@ export const createAssistantSlice: StateCreator<
         })),
       })),
 
-    applySshAction: async (mid, action) => {
-      try {
-        let ok = false;
-        if (action === "start") {
-          ok = await window.hermesAPI.startSshTunnel();
-        } else {
-          ok = await window.hermesAPI.stopSshTunnel();
+    applySshAction: (mid, action) => {
+      void (async (): Promise<void> => {
+        try {
+          let ok = false;
+          if (action === "start") {
+            ok = await window.hermesAPI.startSshTunnel();
+          } else {
+            ok = await window.hermesAPI.stopSshTunnel();
+          }
+          set((s) => ({
+            conversations: s.conversations.map((c) => ({
+              ...c,
+              messages: c.messages.map((m) =>
+                m.id === mid
+                  ? { ...m, status: ok ? "applied" : "rejected" }
+                  : m,
+              ),
+            })),
+          }));
+          get().flash(
+            ok ? `SSH tunnel ${action}ed` : `Failed to ${action} SSH tunnel`,
+            ok ? undefined : { tone: "warn" },
+          );
+        } catch (err) {
+          get().flash(
+            `SSH error: ${err instanceof Error ? err.message : String(err)}`,
+            { tone: "warn" },
+          );
         }
-        set((s) => ({
-          conversations: s.conversations.map((c) => ({
-            ...c,
-            messages: c.messages.map((m) =>
-              m.id === mid ? { ...m, status: ok ? "applied" : "rejected" } : m,
-            ),
-          })),
-        }));
+      })().catch((error: unknown) => {
         get().flash(
-          ok ? `SSH tunnel ${action}ed` : `Failed to ${action} SSH tunnel`,
-          ok ? undefined : { tone: "warn" },
-        );
-      } catch (err) {
-        get().flash(
-          `SSH error: ${err instanceof Error ? err.message : String(err)}`,
+          `SSH error: ${error instanceof Error ? error.message : String(error)}`,
           { tone: "warn" },
         );
-      }
+      });
     },
 
-    applyConfigAction: async (mid, provider, key) => {
-      try {
-        // MED-2: route through the allowlisted provider-key IPC (validates the
-        // provider and maps to the env var server-side) instead of the generic
-        // set-env, so this path can't write arbitrary env.
-        const ok = await window.hermesAPI.setProviderKey(provider, key);
-        set((s) => ({
-          conversations: s.conversations.map((c) => ({
-            ...c,
-            messages: c.messages.map((m) =>
-              m.id === mid
-                ? {
-                    ...m,
-                    status: ok ? "applied" : "rejected",
-                    // MED-2: scrub the raw key so it never persists into the
-                    // conversation transcript / workspace.json.
-                    configAction: m.configAction
-                      ? { ...m.configAction, key: "••••" }
-                      : m.configAction,
-                  }
-                : m,
-            ),
-          })),
-        }));
+    applyConfigAction: (mid, provider, key) => {
+      (async (): Promise<void> => {
+        try {
+          // MED-2: route through the allowlisted provider-key IPC (validates the
+          // provider and maps to the env var server-side) instead of the generic
+          // set-env, so this path can't write arbitrary env.
+          const ok = await window.hermesAPI.setProviderKey(provider, key);
+          set((s) => ({
+            conversations: s.conversations.map((c) => ({
+              ...c,
+              messages: c.messages.map((m) =>
+                m.id === mid
+                  ? {
+                      ...m,
+                      status: ok ? "applied" : "rejected",
+                      // MED-2: scrub the raw key so it never persists into the
+                      // conversation transcript / workspace.json.
+                      configAction: m.configAction
+                        ? { ...m.configAction, key: "••••" }
+                        : m.configAction,
+                    }
+                  : m,
+              ),
+            })),
+          }));
+          get().flash(
+            ok
+              ? `Saved key for ${provider}`
+              : `Failed to save key for ${provider}`,
+            ok ? undefined : { tone: "warn" },
+          );
+        } catch (err) {
+          get().flash(
+            `Config error: ${err instanceof Error ? err.message : String(err)}`,
+            { tone: "warn" },
+          );
+        }
+      })().catch((error: unknown) => {
         get().flash(
-          ok
-            ? `Saved key for ${provider}`
-            : `Failed to save key for ${provider}`,
-          ok ? undefined : { tone: "warn" },
-        );
-      } catch (err) {
-        get().flash(
-          `Config error: ${err instanceof Error ? err.message : String(err)}`,
+          `Config error: ${error instanceof Error ? error.message : String(error)}`,
           { tone: "warn" },
         );
-      }
+      });
     },
     fileAnswerToWiki: async (messageId) => {
       // Find the bot answer and the user question that produced it (the nearest

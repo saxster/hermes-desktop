@@ -143,15 +143,19 @@ export function App() {
         () => {
           if (!getAutoApply()) return;
           const commitPage = useStore.getState().ingestCommitPage;
-          void runAutoIngest(commitPage).then((res) => {
-            if (res.ok && (res.pages || res.memory)) {
-              useStore
-                .getState()
-                .flash(
-                  `Auto-filed ${res.pages} page${res.pages === 1 ? "" : "s"}`,
-                );
-            }
-          });
+          runAutoIngest(commitPage)
+            .then((res) => {
+              if (res.ok && (res.pages || res.memory)) {
+                useStore
+                  .getState()
+                  .flash(
+                    `Auto-filed ${res.pages} page${res.pages === 1 ? "" : "s"}`,
+                  );
+              }
+            })
+            .catch((error: unknown) => {
+              console.error("Automatic inbox ingest failed:", error);
+            });
         },
         min * 60 * 1000,
       );

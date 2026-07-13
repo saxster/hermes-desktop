@@ -213,12 +213,19 @@ function Layout({
 
   // Re-check remote mode on tab switch (picks up Settings changes)
   useEffect(() => {
-    window.hermesAPI.isRemoteOnlyMode().then(setRemoteMode);
+    window.hermesAPI
+      .isRemoteOnlyMode()
+      .then(setRemoteMode)
+      .catch((err: unknown) => {
+        console.error("Failed to read remote mode:", err);
+      });
   }, [view]);
 
   // Apply the active skin (idea A6) for the current profile at the app root.
   useEffect(() => {
-    void loadAndApplyActiveSkin(activeProfile);
+    loadAndApplyActiveSkin(activeProfile).catch((err: unknown) => {
+      console.error("Failed to apply active skin:", err);
+    });
   }, [activeProfile]);
 
   // Restore the last-activated profile on launch. The main process persists it
@@ -423,7 +430,14 @@ function Layout({
               className={`sidebar-update-btn ${
                 updateState === "error" ? "error" : ""
               }`}
-              onClick={handleUpdate}
+              onClick={() => {
+                handleUpdate().catch((err: unknown) => {
+                  setUpdateError(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                  setUpdateState("error");
+                });
+              }}
               disabled={updateState === "downloading"}
               title={updateError ?? undefined}
             >
@@ -455,7 +469,12 @@ function Layout({
                 if (hermesUpdateState === "available") {
                   setShowChangelogModal(true);
                 } else {
-                  handleHermesUpdate();
+                  handleHermesUpdate().catch((err: unknown) => {
+                    setHermesUpdateState("error");
+                    setHermesUpdateDetail(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
                 }
               }}
               disabled={
@@ -626,7 +645,12 @@ function Layout({
                 className="btn btn-primary"
                 onClick={() => {
                   setShowAppUpdateModal(false);
-                  void downloadAppUpdate();
+                  downloadAppUpdate().catch((err: unknown) => {
+                    setUpdateError(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                    setUpdateState("error");
+                  });
                 }}
               >
                 {t("common.downloadUpdate")}
@@ -694,7 +718,12 @@ function Layout({
                 className="btn btn-primary"
                 onClick={() => {
                   setShowChangelogModal(false);
-                  handleHermesUpdate();
+                  handleHermesUpdate().catch((err: unknown) => {
+                    setHermesUpdateState("error");
+                    setHermesUpdateDetail(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
                 }}
               >
                 Update Now

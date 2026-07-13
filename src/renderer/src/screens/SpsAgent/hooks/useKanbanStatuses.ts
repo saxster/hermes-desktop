@@ -43,8 +43,14 @@ export function useKanbanStatuses(kanbanIds: string[]): KanbanStatuses {
         /* Kanban unreachable — leave the prior map; badges degrade to hidden. */
       }
     };
-    void load();
-    const timer = setInterval(() => void load(), POLL_MS);
+    load().catch((error: unknown) => {
+      console.error("Failed to load Kanban statuses:", error);
+    });
+    const timer = setInterval(() => {
+      load().catch((error: unknown) => {
+        console.error("Failed to refresh Kanban statuses:", error);
+      });
+    }, POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);

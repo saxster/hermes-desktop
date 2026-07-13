@@ -460,7 +460,7 @@ describe("LearningSurface", () => {
 
     fireEvent.click(screen.getByText("Assistants"));
     expect(await screen.findByText(/saved/)).toBeInTheDocument();
-    fireEvent.click(screen.getByText("View past runs"));
+    fireEvent.click(await screen.findByText("View past runs"));
     expect(screen.getAllByText(/saved/).length).toBeGreaterThan(1);
   });
 

@@ -45,6 +45,15 @@ export function MemoryTimeline({
     [profile, load, onRefresh],
   );
 
+  const removeEntry = useCallback(
+    (index: number): void => {
+      handleRemove(index).catch((error: unknown) => {
+        console.error("[Memory Timeline] Failed to remove entry:", error);
+      });
+    },
+    [handleRemove],
+  );
+
   if (loading) {
     return <div className="memory-timeline-empty">Loading…</div>;
   }
@@ -64,7 +73,7 @@ export function MemoryTimeline({
         <TimelineRow
           key={entry.index}
           entry={entry}
-          onRemove={() => handleRemove(entry.index)}
+          onRemove={() => removeEntry(entry.index)}
           onOpenSession={onOpenSession}
         />
       ))}

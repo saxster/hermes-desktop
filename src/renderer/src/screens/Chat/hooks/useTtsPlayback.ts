@@ -51,7 +51,7 @@ export function useTtsPlayback(profile: string | undefined): TtsPlayback {
     setPlayingId(null);
   }, []);
 
-  const play = useCallback(
+  const requestPlayback = useCallback(
     async (id: string, text: string): Promise<void> => {
       stop();
       setError(null);
@@ -83,6 +83,15 @@ export function useTtsPlayback(profile: string | undefined): TtsPlayback {
       }
     },
     [profile, stop],
+  );
+
+  const play = useCallback(
+    (id: string, text: string): void => {
+      requestPlayback(id, text).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    },
+    [requestPlayback],
   );
 
   useEffect(() => () => stop(), [stop]);

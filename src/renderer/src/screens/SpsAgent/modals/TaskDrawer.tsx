@@ -90,6 +90,12 @@ export function TaskDrawer({ task, onClose }: Props) {
   const setOpenTask = useStore((s) => s.setOpenTask);
   const updateTask = useStore((s) => s.updateTask);
   const flash = useStore((s) => s.flash);
+  const runInBackground = (task: Promise<unknown>, message: string): void => {
+    task.catch((error) => {
+      console.error(message, error);
+      flash(message, { tone: "warn", ms: 8000 });
+    });
+  };
 
   const isFolderBacked = task.id.includes("/");
   const dbFolder = isFolderBacked ? task.id.split("/")[0] : "";
@@ -146,7 +152,7 @@ export function TaskDrawer({ task, onClose }: Props) {
       return;
     }
     let cancelled = false;
-    void window.hermesAPI
+    window.hermesAPI
       .spsNagGet?.(rowId)
       .then((rec) => {
         if (!cancelled) setNag(rec ?? null);
@@ -205,7 +211,9 @@ export function TaskDrawer({ task, onClose }: Props) {
         if (!cancelled) setLoading(false);
       }
     };
-    void loadData();
+    loadData().catch((error) =>
+      console.error("Failed to load task details:", error),
+    );
     return () => {
       cancelled = true;
     };
@@ -313,7 +321,10 @@ export function TaskDrawer({ task, onClose }: Props) {
     };
     const nextList = [...checklist, newItem];
     setChecklist(nextList);
-    void saveChanges({ checklistVal: nextList });
+    runInBackground(
+      saveChanges({ checklistVal: nextList }),
+      "Failed to save the checklist.",
+    );
   };
 
   const updateChecklistItem = (
@@ -325,13 +336,19 @@ export function TaskDrawer({ task, onClose }: Props) {
       item.id === itemId ? { ...item, text, checked } : item,
     );
     setChecklist(nextList);
-    void saveChanges({ checklistVal: nextList });
+    runInBackground(
+      saveChanges({ checklistVal: nextList }),
+      "Failed to save the checklist.",
+    );
   };
 
   const removeChecklistItem = (itemId: string) => {
     const nextList = checklist.filter((item) => item.id !== itemId);
     setChecklist(nextList);
-    void saveChanges({ checklistVal: nextList });
+    runInBackground(
+      saveChanges({ checklistVal: nextList }),
+      "Failed to save the checklist.",
+    );
   };
 
   return (
@@ -357,7 +374,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                 className="drawer-title-input"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => void saveChanges({ title })}
+                onBlur={() =>
+                  runInBackground(
+                    saveChanges({ title }),
+                    "Failed to save the task title.",
+                  )
+                }
                 title="Task Title"
                 placeholder="Task Title"
               />
@@ -371,7 +393,10 @@ export function TaskDrawer({ task, onClose }: Props) {
                     onChange={(e) => {
                       const val = e.target.value as StatusKey;
                       setStatus(val);
-                      void saveChanges({ status: val });
+                      runInBackground(
+                        saveChanges({ status: val }),
+                        "Failed to save the task status.",
+                      );
                     }}
                     className="drawer-select"
                     title="Status"
@@ -409,7 +434,10 @@ export function TaskDrawer({ task, onClose }: Props) {
                     onChange={(e) => {
                       const val = e.target.value as PrioKey;
                       setPrio(val);
-                      void saveChanges({ prio: val });
+                      runInBackground(
+                        saveChanges({ prio: val }),
+                        "Failed to save the task priority.",
+                      );
                     }}
                     className="drawer-select"
                     title="Priority"
@@ -431,7 +459,10 @@ export function TaskDrawer({ task, onClose }: Props) {
                     onChange={(e) => {
                       const val = e.target.value as PersonKey;
                       setWho(val);
-                      void saveChanges({ who: val });
+                      runInBackground(
+                        saveChanges({ who: val }),
+                        "Failed to save the task owner.",
+                      );
                     }}
                     className="drawer-select"
                     title="Owner"
@@ -480,16 +511,16 @@ export function TaskDrawer({ task, onClose }: Props) {
                           }}
                           title={`Message ${assignee?.name ?? ""} via ${CHANNEL_LABEL[channel.kind]}`}
                           onClick={() =>
-                            void window.hermesAPI.spsOpenContactChannel(
-                              channel,
-                              {
+                            runInBackground(
+                              window.hermesAPI.spsOpenContactChannel(channel, {
                                 personId: assignee?.id || who,
                                 personName: assignee?.name || who,
                                 followUpAt:
                                   followUpDays === 0
                                     ? null
                                     : Date.now() + followUpDays * 86_400_000,
-                              },
+                              }),
+                              "Failed to open the contact channel.",
                             )
                           }
                         >
@@ -507,7 +538,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                     type="text"
                     value={due}
                     onChange={(e) => setDue(e.target.value)}
-                    onBlur={() => void saveChanges({ due })}
+                    onBlur={() =>
+                      runInBackground(
+                        saveChanges({ due }),
+                        "Failed to save the due date.",
+                      )
+                    }
                     placeholder="e.g. Jun 9 or 2026-06-20"
                     className="drawer-input"
                     title="Due date"
@@ -521,7 +557,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                     type="text"
                     value={est}
                     onChange={(e) => setEst(e.target.value)}
-                    onBlur={() => void saveChanges({ est })}
+                    onBlur={() =>
+                      runInBackground(
+                        saveChanges({ est }),
+                        "Failed to save the estimate.",
+                      )
+                    }
                     placeholder="e.g. 1d or 4h"
                     className="drawer-input"
                     title="Estimate"
@@ -550,7 +591,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                     {nagSummary.snoozed ? (
                       <button
                         className="btn btn-ghost btn-sm"
-                        onClick={() => void snoozeNag(0)}
+                        onClick={() =>
+                          runInBackground(
+                            snoozeNag(0),
+                            "Failed to resume reminders.",
+                          )
+                        }
                       >
                         Resume now
                       </button>
@@ -559,7 +605,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                         <button
                           key={preset.label}
                           className="btn btn-ghost btn-sm"
-                          onClick={() => void snoozeNag(preset.ms)}
+                          onClick={() =>
+                            runInBackground(
+                              snoozeNag(preset.ms),
+                              "Failed to snooze the reminder.",
+                            )
+                          }
                         >
                           Snooze {preset.label}
                         </button>
@@ -567,7 +618,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                     )}
                     <button
                       className="btn btn-ghost btn-sm"
-                      onClick={() => void ackNag()}
+                      onClick={() =>
+                        runInBackground(
+                          ackNag(),
+                          "Failed to dismiss the reminder.",
+                        )
+                      }
                       title="Stop reminding me about this task"
                     >
                       Stop reminders
@@ -581,7 +637,12 @@ export function TaskDrawer({ task, onClose }: Props) {
                 <textarea
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  onBlur={() => void saveChanges({ descVal: desc })}
+                  onBlur={() =>
+                    runInBackground(
+                      saveChanges({ descVal: desc }),
+                      "Failed to save the task description.",
+                    )
+                  }
                   placeholder="Write a description here..."
                   className="drawer-textarea"
                   title="Description"
@@ -620,7 +681,10 @@ export function TaskDrawer({ task, onClose }: Props) {
                         setChecklist(nextList);
                       }}
                       onBlur={() =>
-                        void saveChanges({ checklistVal: checklist })
+                        runInBackground(
+                          saveChanges({ checklistVal: checklist }),
+                          "Failed to save the checklist.",
+                        )
                       }
                       title="Subtask text"
                       placeholder="Subtask text"

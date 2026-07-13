@@ -52,6 +52,35 @@ export function MemoryProviders({
     onRefresh();
   }
 
+  function reportProviderError(action: string, error: unknown): void {
+    console.error(`[Memory Providers] ${action} failed:`, error);
+    setActivating(null);
+  }
+
+  function saveProviderEnv(envKey: string): void {
+    window.hermesAPI
+      .setEnv(envKey, providerEnv[envKey] || "", profile)
+      .then(() => {
+        setProviderSavedKey(envKey);
+        setTimeout(() => setProviderSavedKey(null), 2000);
+      })
+      .catch((error: unknown) => {
+        reportProviderError(`saving ${envKey}`, error);
+      });
+  }
+
+  function activateProvider(name: string): void {
+    handleActivate(name).catch((error: unknown) => {
+      reportProviderError(`activating ${name}`, error);
+    });
+  }
+
+  function deactivateProvider(): void {
+    handleDeactivate().catch((error: unknown) => {
+      reportProviderError("deactivation", error);
+    });
+  }
+
   return (
     <div className="memory-providers">
       <div className="memory-providers-hint">
@@ -132,15 +161,7 @@ export function MemoryProviders({
                             [envKey]: e.target.value,
                           }))
                         }
-                        onBlur={async () => {
-                          await window.hermesAPI.setEnv(
-                            envKey,
-                            providerEnv[envKey] || "",
-                            profile,
-                          );
-                          setProviderSavedKey(envKey);
-                          setTimeout(() => setProviderSavedKey(null), 2000);
-                        }}
+                        onBlur={() => saveProviderEnv(envKey)}
                         placeholder={t("memory.enterEnvKey", { key: envKey })}
                         style={{ fontSize: 12 }}
                       />
@@ -153,7 +174,7 @@ export function MemoryProviders({
                 {p.active ? (
                   <button
                     className="btn btn-secondary btn-sm"
-                    onClick={handleDeactivate}
+                    onClick={deactivateProvider}
                     disabled={activating !== null}
                   >
                     {t("memory.deactivate")}
@@ -161,7 +182,7 @@ export function MemoryProviders({
                 ) : (
                   <button
                     className="btn btn-primary btn-sm"
-                    onClick={() => handleActivate(p.name)}
+                    onClick={() => activateProvider(p.name)}
                     disabled={activating !== null}
                   >
                     {activating === p.name

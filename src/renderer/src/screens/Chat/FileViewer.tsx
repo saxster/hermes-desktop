@@ -207,7 +207,12 @@ export const FileViewer = memo(function FileViewer({
       setIsLoading(false);
     };
 
-    void loadFile();
+    loadFile().catch((err: unknown) => {
+      if (cancelled) return;
+      console.error("Failed to load file preview:", err);
+      setError(t("worktree.errorLoading"));
+      setIsLoading(false);
+    });
     return () => {
       cancelled = true;
     };

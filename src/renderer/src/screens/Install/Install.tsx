@@ -102,9 +102,15 @@ function Install({
 
   function handleCopyLogs(): void {
     const text = `Installation Error:\n${failed}\n\n--- Full Log ---\n${progress.log}`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error: unknown) => {
+        console.error("[Install] Failed to copy logs:", error);
+      });
   }
 
   // "Use an existing installation": let the user point the app at a Hermes
@@ -196,7 +202,18 @@ function Install({
             >
               {t("install.confirmInstallBtn")}
             </button>
-            <button className="btn btn-secondary" onClick={handleUseExisting}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                handleUseExisting().catch((err: unknown) => {
+                  setUseExistingError(
+                    err instanceof Error
+                      ? err.message
+                      : t("install.useExistingInvalid"),
+                  );
+                });
+              }}
+            >
               {t("install.useExistingBtn")}
             </button>
             <button className="btn btn-secondary" onClick={onCancel}>

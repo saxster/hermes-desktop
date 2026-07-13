@@ -110,7 +110,7 @@ function createHarness(): RuntimeHarness {
         if (result === "open") {
           queueMicrotask(() => onConnect?.());
         }
-        return socket as ReturnType<SshTunnelRuntime["connect"]>;
+        return socket as unknown as ReturnType<SshTunnelRuntime["connect"]>;
       },
     ) as unknown as SshTunnelRuntime["connect"],
     request: vi.fn(

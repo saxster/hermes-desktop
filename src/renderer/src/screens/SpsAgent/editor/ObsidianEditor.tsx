@@ -39,7 +39,9 @@ export function ObsidianEditor() {
       }
     };
 
-    void load();
+    load().catch((error: unknown) => {
+      console.error("Failed to load Obsidian note:", error);
+    });
   }, [path, flash]);
 
   // Handle auto-save on content change (500ms debounce)
@@ -51,7 +53,7 @@ export function ObsidianEditor() {
       clearTimeout(saveTimer.current);
     }
 
-    saveTimer.current = setTimeout(async () => {
+    const save = async (): Promise<void> => {
       if (!path) return;
       try {
         await window.hermesAPI.writeObsidianFile(path, val, profile);
@@ -61,6 +63,13 @@ export function ObsidianEditor() {
         flash("Failed to save Obsidian note", { tone: "warn" });
         setSyncStatus("clean");
       }
+    };
+
+    saveTimer.current = setTimeout(() => {
+      save().catch((error: unknown) => {
+        console.error("Failed to save Obsidian note:", error);
+        flash("Failed to save Obsidian note", { tone: "warn" });
+      });
     }, 500);
   };
 
@@ -219,7 +228,14 @@ export function ObsidianEditor() {
         </span>
 
         <button
-          onClick={openInObsidian}
+          onClick={() => {
+            openInObsidian().catch((error: unknown) => {
+              console.error("Failed to open note in Obsidian:", error);
+              flash("Obsidian is not running or bridge is disconnected", {
+                tone: "warn",
+              });
+            });
+          }}
           style={{
             background: "var(--accent-soft)",
             border: "1px solid var(--accent)",

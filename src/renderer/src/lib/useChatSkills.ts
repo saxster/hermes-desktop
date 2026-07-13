@@ -83,7 +83,9 @@ export function useChatSkills({
   }, [profile]);
 
   useEffect(() => {
-    void refresh();
+    refresh().catch((err: unknown) => {
+      console.error("Failed to refresh chat skills:", err);
+    });
   }, [refresh]);
 
   const match = useCallback((text: string): SkillCommandMatch | null => {

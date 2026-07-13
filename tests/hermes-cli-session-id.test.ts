@@ -251,20 +251,22 @@ describe("CLI fallback session id propagation", () => {
   });
 
   it("captures the quiet CLI session id from stderr so the next desktop turn can resume it", async () => {
-    const done = new Promise<string | undefined>((resolve) => {
+    const done = new Promise<string | undefined>((resolve, reject) => {
       sendMessage("hi", {
         onChunk: () => {},
         onDone: resolve,
         onError: () => {},
-      }).then(() => {
-        const proc = spawned[0];
-        proc.stdout.emit("data", Buffer.from("Hi there"));
-        proc.stderr.emit(
-          "data",
-          Buffer.from("\nsession_id: 20260527_143413_10df4c\n"),
-        );
-        proc.emit("close", 0);
-      });
+      })
+        .then(() => {
+          const proc = spawned[0];
+          proc.stdout.emit("data", Buffer.from("Hi there"));
+          proc.stderr.emit(
+            "data",
+            Buffer.from("\nsession_id: 20260527_143413_10df4c\n"),
+          );
+          proc.emit("close", 0);
+        })
+        .catch(reject);
     });
 
     await expect(done).resolves.toBe("20260527_143413_10df4c");
@@ -272,20 +274,22 @@ describe("CLI fallback session id propagation", () => {
 
   it("continues a CLI-created timestamp session over the API instead of minting a desk id", async () => {
     const cliSessionId = "20260527_143413_10df4c";
-    const firstDone = new Promise<string | undefined>((resolve) => {
+    const firstDone = new Promise<string | undefined>((resolve, reject) => {
       sendMessage("hi", {
         onChunk: () => {},
         onDone: resolve,
         onError: () => {},
-      }).then(() => {
-        const proc = spawned[0];
-        proc.stdout.emit("data", Buffer.from("Hi there"));
-        proc.stderr.emit(
-          "data",
-          Buffer.from(`\nsession_id: ${cliSessionId}\n`),
-        );
-        proc.emit("close", 0);
-      });
+      })
+        .then(() => {
+          const proc = spawned[0];
+          proc.stdout.emit("data", Buffer.from("Hi there"));
+          proc.stderr.emit(
+            "data",
+            Buffer.from(`\nsession_id: ${cliSessionId}\n`),
+          );
+          proc.emit("close", 0);
+        })
+        .catch(reject);
     });
 
     await expect(firstDone).resolves.toBe(cliSessionId);

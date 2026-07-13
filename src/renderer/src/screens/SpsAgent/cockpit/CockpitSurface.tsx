@@ -855,8 +855,11 @@ function PulseWidget() {
   }, []);
 
   useEffect(() => {
-    void loadPulseStreams();
-  }, [loadPulseStreams]);
+    loadPulseStreams().catch((error: unknown) => {
+      console.error("Failed to load workspace pulse:", error);
+      flash("Could not refresh workspace pulse", { tone: "warn" });
+    });
+  }, [flash, loadPulseStreams]);
 
   const saveFocus = async () => {
     const res = await window.hermesAPI.writeFocus(focusInput);
@@ -999,7 +1002,7 @@ function PulseWidget() {
         const speakRes = await window.hermesAPI.speakText(textToSpeak);
         if (speakRes && speakRes.audioUrl) {
           const audio = new Audio(speakRes.audioUrl);
-          audio.play();
+          await audio.play();
           flash("Playing briefing...");
         } else {
           speakBrowserNative(textToSpeak);
@@ -1041,7 +1044,14 @@ function PulseWidget() {
             {!editingFocus && (
               <button
                 className="ck-pulse-link-btn"
-                onClick={playVoiceBriefing}
+                onClick={() => {
+                  playVoiceBriefing().catch((error: unknown) => {
+                    console.error("Failed to play focus briefing:", error);
+                    flash("Could not play the focus briefing", {
+                      tone: "warn",
+                    });
+                  });
+                }}
                 disabled={briefingLoading}
                 title="Listen to today's focus briefing"
               >
@@ -1058,7 +1068,15 @@ function PulseWidget() {
               </button>
             ) : (
               <div className="ck-flex-row-gap-8">
-                <button className="ck-pulse-link-btn" onClick={saveFocus}>
+                <button
+                  className="ck-pulse-link-btn"
+                  onClick={() => {
+                    saveFocus().catch((error: unknown) => {
+                      console.error("Failed to save daily focus:", error);
+                      flash("Failed to save focus", { tone: "warn" });
+                    });
+                  }}
+                >
                   Save
                 </button>
                 <button
@@ -1094,7 +1112,15 @@ function PulseWidget() {
       <div className="ck-pulse-section">
         <div className="ck-pulse-title-row">
           <span className="ck-pulse-sect-title">Workspace Pulse</span>
-          <button className="ck-pulse-link-btn" onClick={loadPulseStreams}>
+          <button
+            className="ck-pulse-link-btn"
+            onClick={() => {
+              loadPulseStreams().catch((error: unknown) => {
+                console.error("Failed to refresh workspace pulse:", error);
+                flash("Could not refresh workspace pulse", { tone: "warn" });
+              });
+            }}
+          >
             Refresh
           </button>
         </div>
@@ -1124,7 +1150,12 @@ function PulseWidget() {
           <span className="ck-pulse-sect-title">Action Receipts</span>
           <button
             className="ck-pulse-link-btn"
-            onClick={ensureAgentOrientation}
+            onClick={() => {
+              ensureAgentOrientation().catch((error: unknown) => {
+                console.error("Failed to open agent orientation:", error);
+                flash("Could not open agent orientation", { tone: "warn" });
+              });
+            }}
           >
             Agent Orientation
           </button>
@@ -1247,8 +1278,15 @@ function PipingWidget() {
   }
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(outputResult);
-    flash("Copied result to clipboard!");
+    navigator.clipboard
+      .writeText(outputResult)
+      .then(() => flash("Copied result to clipboard!"))
+      .catch((err: unknown) => {
+        flash(
+          `Could not copy result: ${err instanceof Error ? err.message : String(err)}`,
+          { tone: "warn" },
+        );
+      });
   };
 
   const handleCreatePage = () => {
@@ -1310,7 +1348,12 @@ function PipingWidget() {
         </select>
         <button
           className="btn btn-primary btn-sm ck-piping-btn-primary"
-          onClick={handlePipe}
+          onClick={() => {
+            handlePipe().catch((error: unknown) => {
+              console.error("Piping action failed:", error);
+              setErrorMsg("Piping failed.");
+            });
+          }}
           disabled={loading || !inputText.trim()}
         >
           {loading ? "Piping..." : "Pipe Text"}

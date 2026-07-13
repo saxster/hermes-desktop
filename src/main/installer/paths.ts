@@ -94,10 +94,15 @@ export function setHermesHomeOverride(home: string): void {
   }
 }
 
-export const HERMES_HOME =
-  process.env.HERMES_HOME?.trim() ||
-  readHermesHomeOverride() ||
-  defaultHermesHome();
+export function getHermesHome(): string {
+  return (
+    process.env.HERMES_HOME?.trim() ||
+    readHermesHomeOverride() ||
+    defaultHermesHome()
+  );
+}
+
+export const HERMES_HOME = getHermesHome();
 export const HERMES_REPO = join(HERMES_HOME, "hermes-agent");
 export const HERMES_VENV = join(HERMES_REPO, "venv");
 export const HERMES_PYTHON = IS_WINDOWS

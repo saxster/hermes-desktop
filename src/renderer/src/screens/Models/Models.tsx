@@ -61,21 +61,32 @@ function Models({ visible }: ModelsProps = {}): React.JSX.Element {
   const [providerTouched, setProviderTouched] = useState(false);
   const [providerAutoFilled, setProviderAutoFilled] = useState(false);
 
-  const loadModels = useCallback(async () => {
-    const list = await window.hermesAPI.listModels();
-    setModels(list);
-    setLoading(false);
+  const loadModels = useCallback(async (): Promise<void> => {
+    try {
+      const list = await window.hermesAPI.listModels();
+      setModels(list);
+    } catch (err) {
+      console.error("Failed to load models:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    loadModels();
+    loadModels().catch((err: unknown) => {
+      console.error("Unexpected model load failure:", err);
+    });
   }, [loadModels]);
 
   // Re-load whenever the Models pane becomes visible — entries added
   // elsewhere (Providers save → addModel, chat picker → addModel) won't
   // otherwise appear since the component is mounted once and kept alive.
   useEffect(() => {
-    if (visible) loadModels();
+    if (visible) {
+      loadModels().catch((err: unknown) => {
+        console.error("Unexpected model refresh failure:", err);
+      });
+    }
   }, [visible, loadModels]);
 
   // Live model discovery for the Add/Edit modal — feeds an HTML
@@ -332,7 +343,11 @@ function Models({ visible }: ModelsProps = {}): React.JSX.Element {
                     <button
                       type="button"
                       className="btn btn-sm btn-danger-text"
-                      onClick={() => handleDelete(m.id)}
+                      onClick={() => {
+                        handleDelete(m.id).catch((err: unknown) => {
+                          console.error("Failed to delete model:", err);
+                        });
+                      }}
                     >
                       {t("models.yes")}
                     </button>
@@ -542,7 +557,16 @@ function Models({ visible }: ModelsProps = {}): React.JSX.Element {
               <button className="btn btn-secondary btn-sm" onClick={closeModal}>
                 {t("common.cancel")}
               </button>
-              <button className="btn btn-primary btn-sm" onClick={handleSave}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  handleSave().catch((err: unknown) => {
+                    setFormError(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
+              >
                 {editingModel ? t("models.update") : t("models.addModel")}
               </button>
             </div>

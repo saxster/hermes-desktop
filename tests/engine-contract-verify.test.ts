@@ -48,6 +48,7 @@ function readyState(): EngineCapabilityState {
   return {
     installedSha: "abc123",
     lastVerifiedSha: null,
+    lastVerification: null,
     snapshot: {
       status: "ready",
       fetchedAt: "2026-07-03T00:00:00.000Z",

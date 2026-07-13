@@ -31,10 +31,15 @@ function loadHighlighter(): Promise<void> {
   _loadingPromise = Promise.all([
     import("react-syntax-highlighter"),
     import("react-syntax-highlighter/dist/esm/styles/prism/one-dark"),
-  ]).then(([mod, style]) => {
-    _highlighterMod = mod;
-    _oneDark = style.default;
-  });
+  ])
+    .then(([mod, style]) => {
+      _highlighterMod = mod;
+      _oneDark = style.default;
+    })
+    .catch((err: unknown) => {
+      _loadingPromise = null;
+      throw err;
+    });
   return _loadingPromise;
 }
 
@@ -79,14 +84,24 @@ function CodeBlock({
   // Trigger lazy load when code block mounts
   useEffect(() => {
     if (!highlighterReady) {
-      loadHighlighter().then(() => setHighlighterReady(true));
+      loadHighlighter()
+        .then(() => setHighlighterReady(true))
+        .catch((err: unknown) => {
+          console.error("Failed to load syntax highlighter:", err);
+        });
     }
   }, [highlighterReady]);
 
   function handleCopy(): void {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to copy code:", err);
+      });
   }
 
   const fallbackPre = <pre className="agent-markdown-fallback-pre">{code}</pre>;

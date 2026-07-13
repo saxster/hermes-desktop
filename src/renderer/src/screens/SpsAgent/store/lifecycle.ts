@@ -60,7 +60,12 @@ function mirrorChangedPages(s: Store): void {
   // drop their mirror files so search/backlinks stop resurrecting them.
   const removed = Object.keys(mirroredDocs).filter((id) => !(id in s.docs));
   if (removed.length) {
-    void deleteVaultPages(removed);
+    deleteVaultPages(removed).catch((error: unknown) => {
+      console.error("[SPS lifecycle] Failed to delete mirrored pages:", error);
+      useStore.getState().flash("Some deleted pages remain in the vault", {
+        tone: "warn",
+      });
+    });
     for (const id of removed) {
       delete mirroredDocs[id];
       delete mirroredMeta[id];
@@ -113,9 +118,14 @@ function persistCurrentWorkspace(): void {
     persistVaultWorkspace(s, ws);
     return;
   }
-  void saveWorkspace(ws).then((res) =>
-    useStore.getState().reportSaveResult(res),
-  );
+  saveWorkspace(ws)
+    .then((res) => useStore.getState().reportSaveResult(res))
+    .catch((error: unknown) => {
+      console.error("[SPS lifecycle] Workspace save failed:", error);
+      useStore.getState().flash("Workspace changes were not saved", {
+        tone: "warn",
+      });
+    });
   mirrorChangedPages(s);
 }
 

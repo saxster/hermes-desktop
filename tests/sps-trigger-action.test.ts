@@ -17,7 +17,7 @@ const { execFileMock, fetchMock } = vi.hoisted(() => ({
     (
       cmd: string,
       args: string[],
-      opts: unknown,
+      _opts: unknown,
       cb: (e: Error | null, out: Buffer, err: Buffer) => void,
     ) => {
       cb(null, Buffer.from(`${cmd} ${args.join(" ")}`), Buffer.from(""));

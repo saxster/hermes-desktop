@@ -29,7 +29,9 @@ export default function WorkspaceBackups({
   }, [profile]);
 
   useEffect(() => {
-    void refresh();
+    refresh().catch((err: unknown) => {
+      console.error("Unexpected workspace backup refresh failure:", err);
+    });
   }, [refresh]);
 
   async function createBackup(): Promise<void> {

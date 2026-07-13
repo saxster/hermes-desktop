@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChildProcess, ExecFileOptions } from "child_process";
+import type {
+  ChildProcess,
+  ExecFileOptions,
+  ExecFileSyncOptions,
+} from "child_process";
 import {
   __setHermesCliRuntimeForTests,
   hermesCliCommandArgs,
@@ -75,12 +79,23 @@ describe("Hermes CLI runner", () => {
   });
 
   it("uses the same command and environment contract for sync commands", () => {
-    const execFileSync = vi.fn(() => Buffer.from("Hermes 1.0\n"));
-    __setHermesCliRuntimeForTests({ execFileSync });
+    const execFileSync = vi.fn(
+      (
+        _file: string,
+        _args: readonly string[],
+        _options: ExecFileSyncOptions,
+      ) => Buffer.from("Hermes 1.0\n"),
+    );
+    __setHermesCliRuntimeForTests({
+      execFileSync:
+        execFileSync as unknown as typeof import("child_process").execFileSync,
+    });
 
     expect(runHermesCliSync(["--version"])).toBe("Hermes 1.0\n");
-    expect(execFileSync.mock.calls[0][1].slice(-1)).toEqual(["--version"]);
-    expect(execFileSync.mock.calls[0][2]).toMatchObject({
+    const call = execFileSync.mock.calls[0];
+    expect(call).toBeDefined();
+    expect(call![1].slice(-1)).toEqual(["--version"]);
+    expect(call![2]).toMatchObject({
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });

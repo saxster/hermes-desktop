@@ -30,14 +30,9 @@ export default function ExcalidrawCanvas({ initialScene, onPersist }: Props) {
     initialData = undefined;
   }
 
-  const handleChange: ChangeHandler = (elements, appState, files) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      void persist(elements, appState, files);
-    }, 600);
-  };
-
-  const persist: ChangeHandler = async (elements, appState, files) => {
+  const persist = async (
+    ...[elements, appState, files]: Parameters<ChangeHandler>
+  ): Promise<void> => {
     try {
       const sceneJson = serializeAsJSON(elements, appState, files, "local");
       const svgEl = await exportToSvg({ elements, appState, files });
@@ -45,6 +40,15 @@ export default function ExcalidrawCanvas({ initialScene, onPersist }: Props) {
     } catch {
       // A transient serialize/export failure must never break editing.
     }
+  };
+
+  const handleChange: ChangeHandler = (elements, appState, files) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      persist(elements, appState, files).catch((error: unknown) => {
+        console.error("Excalidraw persistence failed:", error);
+      });
+    }, 600);
   };
 
   return (

@@ -282,7 +282,15 @@ function Setup({
                   setApiKey(e.target.value);
                   setError("");
                 }}
-                onKeyDown={(e) => e.key === "Enter" && handleContinue()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleContinue().catch((err: unknown) => {
+                      setError(
+                        err instanceof Error ? err.message : String(err),
+                      );
+                    });
+                  }
+                }}
                 autoFocus
               />
               <button
@@ -320,7 +328,13 @@ function Setup({
               placeholder={t("setup.modelNamePlaceholder")}
               value={modelName}
               onChange={(e) => setModelName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleContinue()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleContinue().catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : String(err));
+                  });
+                }
+              }}
               autoFocus
             />
             <div className="setup-field-hint">
@@ -333,7 +347,11 @@ function Setup({
 
         <button
           className="btn btn-primary setup-continue"
-          onClick={handleContinue}
+          onClick={() => {
+            handleContinue().catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : String(err));
+            });
+          }}
           disabled={
             saving ||
             (provider.needsKey && !apiKey.trim()) ||

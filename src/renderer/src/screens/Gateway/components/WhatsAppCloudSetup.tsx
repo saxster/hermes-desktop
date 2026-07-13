@@ -134,7 +134,9 @@ function WhatsAppCloudSetup({
   }, [profile]);
 
   useEffect(() => {
-    void refreshStatus();
+    refreshStatus().catch((err: unknown) => {
+      console.error("Failed to refresh WhatsApp Cloud status:", err);
+    });
   }, [refreshStatus, gatewayRunning]);
 
   useEffect(() => {
@@ -144,7 +146,9 @@ function WhatsAppCloudSetup({
         savedKey as (typeof WHATSAPP_CLOUD_FIELD_KEYS)[number],
       )
     ) {
-      void refreshStatus();
+      refreshStatus().catch((err: unknown) => {
+        console.error("Failed to refresh WhatsApp Cloud status:", err);
+      });
     }
   }, [refreshStatus, savedKey]);
 
@@ -170,7 +174,11 @@ function WhatsAppCloudSetup({
         <button
           className="btn btn-secondary btn-sm"
           type="button"
-          onClick={refreshStatus}
+          onClick={() => {
+            refreshStatus().catch((err: unknown) => {
+              console.error("Failed to refresh WhatsApp Cloud status:", err);
+            });
+          }}
           disabled={loading}
         >
           {loading ? "Checking..." : "Check status"}
@@ -229,7 +237,13 @@ function WhatsAppCloudSetup({
           <button
             className="btn btn-secondary btn-sm"
             type="button"
-            onClick={() => copyText("cloudflared", cloudflaredCommand)}
+            onClick={() => {
+              copyText("cloudflared", cloudflaredCommand).catch(
+                (err: unknown) => {
+                  console.error("Failed to copy cloudflared command:", err);
+                },
+              );
+            }}
           >
             {copied === "cloudflared" ? "Copied" : "Copy"}
           </button>
@@ -240,7 +254,11 @@ function WhatsAppCloudSetup({
           <button
             className="btn btn-secondary btn-sm"
             type="button"
-            onClick={() => copyText("ngrok", ngrokCommand)}
+            onClick={() => {
+              copyText("ngrok", ngrokCommand).catch((err: unknown) => {
+                console.error("Failed to copy ngrok command:", err);
+              });
+            }}
           >
             {copied === "ngrok" ? "Copied" : "Copy"}
           </button>
@@ -261,7 +279,11 @@ function WhatsAppCloudSetup({
             className="btn btn-secondary btn-sm"
             type="button"
             disabled={!callbackUrl}
-            onClick={() => copyText("callback", callbackUrl)}
+            onClick={() => {
+              copyText("callback", callbackUrl).catch((err: unknown) => {
+                console.error("Failed to copy callback URL:", err);
+              });
+            }}
           >
             {copied === "callback" ? "Copied" : "Copy callback"}
           </button>
@@ -283,7 +305,13 @@ function WhatsAppCloudSetup({
         <button
           className="btn btn-secondary btn-sm"
           type="button"
-          onClick={() => copyText("wizard", "hermes whatsapp-cloud")}
+          onClick={() => {
+            copyText("wizard", "hermes whatsapp-cloud").catch(
+              (err: unknown) => {
+                console.error("Failed to copy WhatsApp wizard command:", err);
+              },
+            );
+          }}
         >
           {copied === "wizard" ? "Copied" : "Copy Hermes wizard command"}
         </button>

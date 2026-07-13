@@ -83,7 +83,10 @@ export function HealthSurface({
   }, [profile]);
 
   useEffect(() => {
-    run();
+    run().catch((error: unknown) => {
+      console.error("Vault health check failed:", error);
+      setError(error instanceof Error ? error.message : String(error));
+    });
   }, [run]);
 
   const runDeep = useCallback(async () => {
@@ -139,7 +142,10 @@ export function HealthSurface({
       );
       setApplied(true);
       flash(`Applied ${pages} lint fix${pages === 1 ? "" : "es"}`);
-      void run(); // refresh the mechanical report after fixing
+      run().catch((error: unknown) => {
+        console.error("Vault health refresh failed:", error);
+        setError(error instanceof Error ? error.message : String(error));
+      });
     } catch (e) {
       flash(e instanceof Error ? e.message : "Couldn't apply fixes", {
         tone: "warn",

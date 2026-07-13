@@ -86,7 +86,9 @@ function WorkScheduledPanel(): React.JSX.Element {
   }
 
   useEffect(() => {
-    void refresh();
+    refresh().catch((error: unknown) => {
+      console.error("Failed to refresh scheduled work:", error);
+    });
   }, []);
 
   async function toggleSchedule(rule: Schedule): Promise<void> {

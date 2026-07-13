@@ -129,7 +129,9 @@ function McpServersManager({
 
   useEffect(() => {
     if (!active || loaded) return;
-    void reload();
+    reload().catch((err: unknown) => {
+      console.error("Unexpected MCP server reload failure:", err);
+    });
   }, [active, loaded, reload]);
 
   const filteredServers = useMemo(() => {

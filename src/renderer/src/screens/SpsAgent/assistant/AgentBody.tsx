@@ -109,6 +109,11 @@ export function AgentBody() {
     if (msg) flash(msg.replace(/\*\*/g, ""));
   };
 
+  const reportCommandFailure = (error: unknown): void => {
+    console.error("Assistant command failed:", error);
+    flash("Assistant command failed", { tone: "warn" });
+  };
+
   const dismissChip = (id: string): void => {
     setDismissedChips((prev) => {
       const next = new Set(prev);
@@ -168,7 +173,7 @@ export function AgentBody() {
       taRef.current?.focus();
       return;
     }
-    void runSkillCommand(token);
+    runSkillCommand(token).catch(reportCommandFailure);
     clearComposer();
   };
 
@@ -178,7 +183,7 @@ export function AgentBody() {
     // `/skill <name>`, `/unload [name]`, or a bare `/<skill-slug>` — load/unload
     // instead of sending to the model. Falls through for everything else.
     if (skills.match(v)) {
-      void runSkillCommand(v);
+      runSkillCommand(v).catch(reportCommandFailure);
       clearComposer();
       return;
     }
@@ -247,7 +252,12 @@ export function AgentBody() {
                 className="sg-chip"
                 disabled={filing.has(m.id)}
                 title="Synthesize this answer into a durable, cross-linked wiki page"
-                onClick={() => onFileToWiki(m.id)}
+                onClick={() => {
+                  onFileToWiki(m.id).catch((error: unknown) => {
+                    console.error("Failed to file assistant answer:", error);
+                    flash("Couldn't file to wiki", { tone: "warn" });
+                  });
+                }}
               >
                 <Icon name="sparkle" size={12} />{" "}
                 {filing.has(m.id) ? "Filing…" : "Save to wiki"}
@@ -571,7 +581,9 @@ export function AgentBody() {
       <div className="agent-foot">
         <ActiveSkillChips
           skills={skills.active}
-          onUnload={skills.unloadByName}
+          onUnload={(name) => {
+            skills.unloadByName(name).catch(reportCommandFailure);
+          }}
         />
         <div className="composer" style={{ position: "relative" }}>
           {slashOpen && slashEntries.length > 0 && (

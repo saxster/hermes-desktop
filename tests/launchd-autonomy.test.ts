@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const mockWriteFileSync = vi.fn();
 const mockExistsSync = vi.fn();
-const mockExec = vi.fn((cmd, cb) => {
+const mockExec = vi.fn((...args: unknown[]) => {
+  const cb = args[1];
   if (typeof cb === "function") cb(null, "success", "");
 });
-const mockExecFile = vi.fn((_file, _args, _opts, cb) => {
+const mockExecFile = vi.fn((...args: unknown[]) => {
+  const cb = args[3];
   if (typeof cb === "function") cb(null, "success", "");
 });
 const mockUnlinkSync = vi.fn();

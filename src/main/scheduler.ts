@@ -253,7 +253,13 @@ export async function tickScheduler(profile?: string): Promise<void> {
         date: todayStr,
         profile: activeProfile,
       });
-      void runDreamCycle(activeProfile);
+      runDreamCycle(activeProfile).catch((err) => {
+        log.error("scheduler", {
+          msg: "3:00 AM Dream Cycle failed",
+          profile: activeProfile,
+          error: formatLogError(err),
+        });
+      });
     }
   } catch (err) {
     log.error("scheduler", {
@@ -281,7 +287,13 @@ export async function tickScheduler(profile?: string): Promise<void> {
           idleTimeSeconds: idleTime,
           profile: activeProfile,
         });
-        void runDreamCycle(activeProfile);
+        runDreamCycle(activeProfile).catch((err) => {
+          log.error("scheduler", {
+            msg: "idle Dream Cycle failed",
+            profile: activeProfile,
+            error: formatLogError(err),
+          });
+        });
       } else if (!isIdleNow) {
         wasIdle = false;
       }
@@ -345,7 +357,15 @@ export async function tickScheduler(profile?: string): Promise<void> {
           jobName: job.name,
           profile: activeProfile,
         });
-        void runJobHeadless(job.id, job.name, activeProfile);
+        runJobHeadless(job.id, job.name, activeProfile).catch((err) => {
+          log.error("scheduler", {
+            msg: "due job execution failed",
+            jobId: job.id,
+            jobName: job.name,
+            profile: activeProfile,
+            error: formatLogError(err),
+          });
+        });
       }
     }
   } catch (err) {
@@ -682,7 +702,7 @@ export async function runJobHeadless(
       }, JOB_TIMEOUT_MS);
       reapTimer.unref?.();
 
-      proc.on("close", async (code) => {
+      const handleProcessClose = async (code: number | null): Promise<void> => {
         clearTimeout(reapTimer);
         const duration = Date.now() - startTime;
         logStream.write(
@@ -729,21 +749,51 @@ export async function runJobHeadless(
               error: formatLogError(captureErr),
             });
           }
-          void triageFailedJob(
+          triageFailedJob(
             jobId,
             jobName,
             logFilePath,
             profile,
             `Exit Code ${code}`,
+          ).catch((err) => {
+            log.error("scheduler", {
+              msg: "failed-job triage failed",
+              jobId,
+              jobName,
+              profile,
+              error: formatLogError(err),
+            });
+          });
+          triggerSelfHealing(jobId, jobName, logFilePath, profile).catch(
+            (err) => {
+              log.error("scheduler", {
+                msg: "self-healing trigger failed",
+                jobId,
+                jobName,
+                profile,
+                error: formatLogError(err),
+              });
+            },
           );
-          void triggerSelfHealing(jobId, jobName, logFilePath, profile);
           resolve(false);
         } else {
           resolve(true);
         }
+      };
+      proc.on("close", (code) => {
+        handleProcessClose(code).catch((err) => {
+          log.error("scheduler", {
+            msg: "job close handler failed",
+            jobId,
+            jobName,
+            profile,
+            error: formatLogError(err),
+          });
+          resolve(false);
+        });
       });
 
-      proc.on("error", async (err) => {
+      const handleProcessError = async (err: Error): Promise<void> => {
         clearTimeout(reapTimer);
         logStream.write(`\nProcess spawn error: ${err.message}\n`);
         logStream.end();
@@ -776,15 +826,45 @@ export async function runJobHeadless(
             error: formatLogError(captureErr),
           });
         }
-        void triageFailedJob(
+        triageFailedJob(
           jobId,
           jobName,
           logFilePath,
           profile,
           `Spawn Error: ${err.message}`,
+        ).catch((triageError) => {
+          log.error("scheduler", {
+            msg: "spawn-error triage failed",
+            jobId,
+            jobName,
+            profile,
+            error: formatLogError(triageError),
+          });
+        });
+        triggerSelfHealing(jobId, jobName, logFilePath, profile).catch(
+          (healingError) => {
+            log.error("scheduler", {
+              msg: "spawn-error self-healing trigger failed",
+              jobId,
+              jobName,
+              profile,
+              error: formatLogError(healingError),
+            });
+          },
         );
-        void triggerSelfHealing(jobId, jobName, logFilePath, profile);
         resolve(false);
+      };
+      proc.on("error", (err) => {
+        handleProcessError(err).catch((handlerError) => {
+          log.error("scheduler", {
+            msg: "job error handler failed",
+            jobId,
+            jobName,
+            profile,
+            error: formatLogError(handlerError),
+          });
+          resolve(false);
+        });
       });
     } catch (err) {
       activeRuns.delete(jobId);
@@ -831,7 +911,12 @@ export function startScheduler(config: Partial<SchedulerConfig> = {}): void {
     tickIntervalMs: merged.tickIntervalMs,
   });
   schedulerInterval = setInterval(() => {
-    void tickScheduler();
+    tickScheduler().catch((err) => {
+      log.error("scheduler", {
+        msg: "scheduler tick failed",
+        error: formatLogError(err),
+      });
+    });
   }, merged.tickIntervalMs);
 }
 

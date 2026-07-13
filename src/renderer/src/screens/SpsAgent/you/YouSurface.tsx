@@ -122,12 +122,18 @@ export function YouSurface({
     setFocus(foc);
     setHook(hk);
     setLoading(false);
-    void loadProviders();
+    loadProviders().catch((error: unknown) => {
+      console.error("[You] Failed to load memory providers:", error);
+      setProvidersAvailable(false);
+    });
   }, [profile, loadProviders]);
 
   useEffect(() => {
     setLoading(true);
-    load();
+    load().catch((error: unknown) => {
+      console.error("[You] Failed to load personalization data:", error);
+      setLoading(false);
+    });
   }, [load]);
 
   // The one place USER.md is written. Refuses an over-budget save so the agent's
@@ -170,6 +176,36 @@ export function YouSurface({
     setHookBusy(false);
   }
 
+  function changeRules(next: Rule[]): void {
+    handleRulesChange(next).catch((error: unknown) => {
+      console.error("[You] Failed to save rules:", error);
+      setRulesError(error instanceof Error ? error.message : String(error));
+    });
+  }
+
+  function changeHook(enabled: boolean): void {
+    toggleHook(enabled).catch((error: unknown) => {
+      console.error("[You] Failed to update daily context hook:", error);
+      setHookError(error instanceof Error ? error.message : String(error));
+      setHookBusy(false);
+    });
+  }
+
+  function runAudit(): void {
+    handleRunAudit().catch((error: unknown) => {
+      console.error("[You] Alignment audit failed:", error);
+      setAuditError(error instanceof Error ? error.message : String(error));
+      setAuditing(false);
+    });
+  }
+
+  function refreshProviders(): void {
+    loadProviders().catch((error: unknown) => {
+      console.error("[You] Failed to refresh memory providers:", error);
+      setProvidersAvailable(false);
+    });
+  }
+
   if (loading) {
     return (
       <div className="settings-container">
@@ -196,7 +232,7 @@ export function YouSurface({
         </div>
       </div>
 
-      <RulesManager rules={rules} onChange={handleRulesChange} />
+      <RulesManager rules={rules} onChange={changeRules} />
       {rulesError && (
         <div className="memory-error" style={{ margin: "0 0 12px" }}>
           {rulesError}
@@ -257,7 +293,7 @@ export function YouSurface({
             providers={providers}
             activeProvider={memoryProvider}
             profile={profile}
-            onRefresh={loadProviders}
+            onRefresh={refreshProviders}
           />
         </div>
       )}
@@ -275,7 +311,7 @@ export function YouSurface({
                 type="checkbox"
                 checked={!!hook?.enabled}
                 disabled={hookBusy}
-                onChange={(e) => toggleHook(e.target.checked)}
+                onChange={(e) => changeHook(e.target.checked)}
               />
               <span className="tools-toggle-track" />
             </label>
@@ -303,7 +339,7 @@ export function YouSurface({
           </p>
           <button
             className="btn btn-primary btn-sm"
-            onClick={handleRunAudit}
+            onClick={runAudit}
             disabled={auditing}
             style={{ minWidth: 140 }}
           >

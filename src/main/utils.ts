@@ -51,6 +51,10 @@ export function normalizeProfileName(profile?: unknown): string | undefined {
   return profile;
 }
 
+function currentHermesHome(): string {
+  return process.env.HERMES_HOME?.trim() || HERMES_HOME;
+}
+
 /**
  * Resolve the home directory for a given profile.
  * 'default' or undefined maps to ~/.hermes; named profiles
@@ -58,7 +62,8 @@ export function normalizeProfileName(profile?: unknown): string | undefined {
  */
 export function profileHome(profile?: unknown): string {
   const normalized = normalizeProfileName(profile);
-  return normalized ? join(HERMES_HOME, "profiles", normalized) : HERMES_HOME;
+  const hermesHome = currentHermesHome();
+  return normalized ? join(hermesHome, "profiles", normalized) : hermesHome;
 }
 
 /**
@@ -168,7 +173,7 @@ export function pidIsAliveAs(
  */
 export function getActiveProfileNameSync(): string {
   try {
-    const activeFile = join(HERMES_HOME, "active_profile");
+    const activeFile = join(currentHermesHome(), "active_profile");
     if (!existsSync(activeFile)) return "default";
     const name = readFileSync(activeFile, "utf-8").trim();
     return name || "default";

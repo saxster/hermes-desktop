@@ -354,12 +354,22 @@ async function startTunnelAttempt(config: SshConfig): Promise<void> {
     if (tunnelProcess === process) tunnelProcess = null;
     // Confirm health before declaring the foreground tunnel dead; an exit event
     // can race a final successful health response during shutdown/replacement.
-    void handleTunnelTermination(token, config, localPort);
+    handleTunnelTermination(token, config, localPort).catch((err) => {
+      log.error("ssh-tunnel", {
+        msg: "exit handling failed",
+        error: formatLogError(err),
+      });
+    });
   });
 
   process.on("error", () => {
     if (tunnelProcess === process) tunnelProcess = null;
-    void handleTunnelTermination(token, config, localPort);
+    handleTunnelTermination(token, config, localPort).catch((err) => {
+      log.error("ssh-tunnel", {
+        msg: "process error handling failed",
+        error: formatLogError(err),
+      });
+    });
   });
 
   try {
@@ -450,10 +460,7 @@ export function testSshConnection(config: SshConfig): Promise<boolean> {
                 finish(false);
                 return;
               }
-              sshTunnelRuntime.setTimeout(
-                poll,
-                sshTunnelTiming.connectionPollIntervalMs,
-              );
+              schedulePoll(sshTunnelTiming.connectionPollIntervalMs);
               return;
             }
 
@@ -477,10 +484,19 @@ export function testSshConnection(config: SshConfig): Promise<boolean> {
             req.end();
           }
 
-          sshTunnelRuntime.setTimeout(
-            poll,
-            sshTunnelTiming.connectionReadyDelayMs,
-          );
+          function schedulePoll(delayMs: number): void {
+            sshTunnelRuntime.setTimeout(() => {
+              poll().catch((err) => {
+                log.error("ssh-tunnel", {
+                  msg: "connection readiness poll failed",
+                  error: formatLogError(err),
+                });
+                finish(false);
+              });
+            }, delayMs);
+          }
+
+          schedulePoll(sshTunnelTiming.connectionReadyDelayMs);
         }),
     )
     .catch(() => false);

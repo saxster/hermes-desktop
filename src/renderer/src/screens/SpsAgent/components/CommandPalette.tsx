@@ -375,9 +375,20 @@ export function CommandPalette() {
         label: "Open current page in Obsidian",
         desc: "Ask the Obsidian bridge to open the current markdown note.",
         run: () => {
-          void window.hermesAPI.openObsidianNote?.(`${page}.md`).then((ok) => {
-            flash(ok ? "Opened in Obsidian" : "Obsidian bridge is unavailable");
-          });
+          window.hermesAPI
+            .openObsidianNote?.(`${page}.md`)
+            .then((ok) => {
+              flash(
+                ok ? "Opened in Obsidian" : "Obsidian bridge is unavailable",
+              );
+            })
+            .catch((error: unknown) => {
+              console.error(
+                "Failed to open the current note in Obsidian:",
+                error,
+              );
+              flash("Obsidian bridge is unavailable", { tone: "warn" });
+            });
         },
       },
       {
@@ -388,11 +399,17 @@ export function CommandPalette() {
         desc: "Force-write the current SPS page through the markdown vault path.",
         run: () => {
           const markdown = pageToMarkdown(meta[page] ?? {}, docs[page] ?? []);
-          void window.hermesAPI.spsExportPage?.(page, markdown).then((ok) => {
-            flash(
-              ok ? "Synced current page to vault" : "Vault sync unavailable",
-            );
-          });
+          window.hermesAPI
+            .spsExportPage?.(page, markdown)
+            .then((ok) => {
+              flash(
+                ok ? "Synced current page to vault" : "Vault sync unavailable",
+              );
+            })
+            .catch((error: unknown) => {
+              console.error("Failed to sync the current page to vault:", error);
+              flash("Vault sync failed", { tone: "warn" });
+            });
         },
       },
       {
@@ -402,7 +419,12 @@ export function CommandPalette() {
         label: "Process selected Obsidian note",
         desc: "Read Obsidian's active note and queue it for SPS wiki review.",
         run: () => {
-          void processActiveObsidianNote();
+          processActiveObsidianNote().catch((error: unknown) => {
+            console.error("Failed to process the active Obsidian note:", error);
+            flash("Could not process the active Obsidian note", {
+              tone: "warn",
+            });
+          });
         },
       },
       {
@@ -412,7 +434,10 @@ export function CommandPalette() {
         label: "Import from Obsidian folder",
         desc: "Choose a markdown folder and import its notes into the SPS vault.",
         run: () => {
-          void importObsidianFolder();
+          importObsidianFolder().catch((error: unknown) => {
+            console.error("Failed to import the Obsidian folder:", error);
+            flash("Could not import the Obsidian folder", { tone: "warn" });
+          });
         },
       },
       {
@@ -422,7 +447,7 @@ export function CommandPalette() {
         label: "Save context pack for current page",
         desc: "Package this note, backlinks, sources, tasks, and provenance as markdown.",
         run: () => {
-          void window.hermesAPI
+          window.hermesAPI
             .spsBuildContextPack?.({
               pageId: page,
               depth: 1,
@@ -437,6 +462,10 @@ export function CommandPalette() {
                   ? `Saved context pack: ${result.savedPath}`
                   : "Built context pack",
               );
+            })
+            .catch((error: unknown) => {
+              console.error("Failed to build the current context pack:", error);
+              flash("Could not build the context pack", { tone: "warn" });
             });
         },
       },
@@ -451,11 +480,18 @@ export function CommandPalette() {
           const folderId =
             crumbIds.length > 1 ? crumbIds[crumbIds.length - 2] : page;
           const folder = meta[folderId]?.title || folderId || "Projects";
-          void window.hermesAPI
+          window.hermesAPI
             .spsCreateBaseProposal?.({ recipe: "projects", folder })
             .then((proposal) => {
               flash(`Queued ${proposal.title} Base for review`);
               setSurface("review");
+            })
+            .catch((error: unknown) => {
+              console.error(
+                "Failed to create the folder Base proposal:",
+                error,
+              );
+              flash("Could not create the Base proposal", { tone: "warn" });
             });
         },
       },
@@ -466,7 +502,13 @@ export function CommandPalette() {
         label: "Save selection as content idea",
         desc: "Capture selected workspace text into Content Studio.",
         run: () => {
-          void saveSelectionAsContentIdea();
+          saveSelectionAsContentIdea().catch((error: unknown) => {
+            console.error(
+              "Failed to save the selection as a content idea:",
+              error,
+            );
+            flash("Could not save the content idea", { tone: "warn" });
+          });
         },
       },
       {
@@ -534,7 +576,12 @@ export function CommandPalette() {
           const confirmed = window.confirm(
             "Delete all workspace content and reset to a blank Home page? A backup will be attempted first.",
           );
-          if (confirmed) void resetWorkspace();
+          if (confirmed) {
+            resetWorkspace().catch((error: unknown) => {
+              console.error("Failed to reset the workspace:", error);
+              flash("Workspace reset failed", { tone: "warn" });
+            });
+          }
         },
       },
       {

@@ -26,9 +26,14 @@ export default function ConnectedApps({
   useEffect(() => {
     if (!isMac) return;
     let cancelled = false;
-    void window.hermesAPI.macContactsStatus().then((s) => {
-      if (!cancelled) setStatus(s);
-    });
+    window.hermesAPI
+      .macContactsStatus()
+      .then((s) => {
+        if (!cancelled) setStatus(s);
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to read Contacts status:", err);
+      });
     return () => {
       cancelled = true;
     };
@@ -99,7 +104,17 @@ export default function ConnectedApps({
         <div className="settings-hermes-actions">
           <button
             className="btn btn-secondary"
-            onClick={handleSync}
+            onClick={() => {
+              handleSync().catch((err: unknown) => {
+                setResult({
+                  available: status?.available ?? true,
+                  authorized: status?.authorized ?? false,
+                  added: 0,
+                  updated: 0,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              });
+            }}
             disabled={syncing || unavailable}
           >
             <RefreshCw size={14} style={{ marginRight: 6 }} />

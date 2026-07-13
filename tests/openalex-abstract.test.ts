@@ -28,12 +28,10 @@ describe("reconstructAbstract", () => {
   it("ignores non-array / non-numeric / negative positions", () => {
     const inv = {
       good: [0],
-      // @ts-expect-error — malformed positions are tolerated at runtime
       bad: "x",
-      // @ts-expect-error — mixed/negative positions are tolerated at runtime
       worse: [-1, "y"],
       tail: [1],
-    };
+    } as unknown as Record<string, number[]>;
     expect(reconstructAbstract(inv)).toBe("good tail");
   });
 

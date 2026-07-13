@@ -617,7 +617,12 @@ export function SourceIntakePanel({
                 setMessage("");
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter") void preview();
+                if (event.key === "Enter") {
+                  preview().catch((error: unknown) => {
+                    console.error("[Source Intake] Preview failed:", error);
+                    setMessage("Could not preview that source.");
+                  });
+                }
               }}
             />
           </div>

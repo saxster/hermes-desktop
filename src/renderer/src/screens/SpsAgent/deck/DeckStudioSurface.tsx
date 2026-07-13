@@ -297,6 +297,12 @@ export function DeckStudioSurface({
   const [reviewedWarnings, setReviewedWarnings] = useState(false);
   const [lastExportPath, setLastExportPath] = useState("");
   const [lastNotesPath, setLastNotesPath] = useState("");
+
+  const reportDeckFailure = (label: string, error: unknown): void => {
+    console.error(`${label} failed:`, error);
+    setMessageTone("error");
+    setMessage(`${label} failed.`);
+  };
   const selectedSlide = useMemo(
     () => project?.slides.find((slide) => slide.id === selectedSlideId) ?? null,
     [project, selectedSlideId],
@@ -330,7 +336,7 @@ export function DeckStudioSurface({
   }, [makePage, meta, tree]);
 
   useEffect(() => {
-    void listDeckProjects(profile)
+    listDeckProjects(profile)
       .then((rows) => setSavedRows(rows))
       .catch(() => setSavedRows([]));
   }, [profile]);
@@ -530,7 +536,14 @@ export function DeckStudioSurface({
               >
                 Use current page
               </button>
-              <button type="button" onClick={generateOutline}>
+              <button
+                type="button"
+                onClick={() => {
+                  generateOutline().catch((error: unknown) => {
+                    reportDeckFailure("Outline generation", error);
+                  });
+                }}
+              >
                 Generate outline
               </button>
             </div>
@@ -614,7 +627,11 @@ export function DeckStudioSurface({
                   <button
                     key={row.path}
                     type="button"
-                    onClick={() => loadSavedDeck(row.path)}
+                    onClick={() => {
+                      loadSavedDeck(row.path).catch((error: unknown) => {
+                        reportDeckFailure("Saved deck load", error);
+                      });
+                    }}
                   >
                     {row.title}
                   </button>
@@ -647,11 +664,22 @@ export function DeckStudioSurface({
             <button
               type="button"
               className="secondary"
-              onClick={generateOutline}
+              onClick={() => {
+                generateOutline().catch((error: unknown) => {
+                  reportDeckFailure("Outline generation", error);
+                });
+              }}
             >
               Regenerate outline
             </button>
-            <button type="button" onClick={approveOutline}>
+            <button
+              type="button"
+              onClick={() => {
+                approveOutline().catch((error: unknown) => {
+                  reportDeckFailure("Outline approval", error);
+                });
+              }}
+            >
               Approve outline
             </button>
           </div>
@@ -727,7 +755,11 @@ export function DeckStudioSurface({
               (issues.some((issue) => issue.severity === "warning") &&
                 !reviewedWarnings)
             }
-            onClick={exportPdf}
+            onClick={() => {
+              exportPdf().catch((error: unknown) => {
+                reportDeckFailure("PDF export", error);
+              });
+            }}
           >
             Export PDF
           </button>
@@ -739,7 +771,11 @@ export function DeckStudioSurface({
               (issues.some((issue) => issue.severity === "warning") &&
                 !reviewedWarnings)
             }
-            onClick={exportPptx}
+            onClick={() => {
+              exportPptx().catch((error: unknown) => {
+                reportDeckFailure("PPTX export", error);
+              });
+            }}
           >
             Export PPTX
           </button>
@@ -747,7 +783,11 @@ export function DeckStudioSurface({
             <button
               type="button"
               className="secondary"
-              onClick={openLastExport}
+              onClick={() => {
+                openLastExport().catch((error: unknown) => {
+                  reportDeckFailure("Export reveal", error);
+                });
+              }}
             >
               Reveal in Finder
             </button>

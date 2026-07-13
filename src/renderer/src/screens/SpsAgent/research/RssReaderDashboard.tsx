@@ -77,7 +77,9 @@ export function RssReaderDashboard(): React.JSX.Element {
   }, [activeFeedId, filterMode, searchText]);
 
   useEffect(() => {
-    loadData();
+    loadData().catch((error: unknown) => {
+      console.error("[RSS UI] Initial load failed:", error);
+    });
   }, [loadData]);
 
   const handleSyncFeeds = async (): Promise<void> => {
@@ -103,7 +105,7 @@ export function RssReaderDashboard(): React.JSX.Element {
     if (activeFeedId === feedId) {
       setActiveFeedId(null);
     }
-    loadData();
+    await loadData();
   };
 
   const selectArticle = async (art: RssArticle): Promise<void> => {
@@ -192,6 +194,12 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
     openContentStudioIdea(idea);
   };
 
+  const runAction = (action: () => Promise<void>, label: string): void => {
+    action().catch((error: unknown) => {
+      console.error(`[RSS UI] ${label} failed:`, error);
+    });
+  };
+
   // Group feeds by category
   const categories = Array.from(new Set(feeds.map((f) => f.category)));
 
@@ -211,7 +219,7 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
           </button>
           <button
             className="log-submit-btn refresh-btn-style"
-            onClick={handleSyncFeeds}
+            onClick={() => runAction(handleSyncFeeds, "feed sync")}
             disabled={isSyncing}
           >
             <Icon name="refresh" size={13} className="refresh-icon-style" />{" "}
@@ -311,7 +319,9 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
                       className="feed-tree-item-delete-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteFeed(feed.id);
+                        handleDeleteFeed(feed.id).catch((err: unknown) => {
+                          console.error("[RSS UI] Delete feed error:", err);
+                        });
                       }}
                       title="Delete Feed"
                       aria-label="Delete Feed"
@@ -343,7 +353,9 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
               type="button"
               key={art.id}
               className={`article-card ${activeArticle?.id === art.id ? "active" : ""} ${art.read_status === 0 ? "unread" : ""}`}
-              onClick={() => selectArticle(art)}
+              onClick={() =>
+                runAction(() => selectArticle(art), "article selection")
+              }
             >
               <div className="article-card-header">
                 <span>{art.feed_title}</span>
@@ -383,7 +395,12 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
                 <div className="reader-header-row">
                   <button
                     className="log-submit-btn protocol-record-btn"
-                    onClick={() => toggleStarArticle(activeArticle)}
+                    onClick={() =>
+                      runAction(
+                        () => toggleStarArticle(activeArticle),
+                        "article star update",
+                      )
+                    }
                   >
                     {activeArticle.star_status === 1 ? "Starred" : "Star"}
                   </button>
@@ -406,14 +423,22 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
                     </button>
                     <button
                       className="log-submit-btn protocol-record-btn ingest-rss-btn"
-                      onClick={() => saveToSpsPage(activeArticle)}
+                      onClick={() =>
+                        runAction(
+                          () => saveToSpsPage(activeArticle),
+                          "workspace save",
+                        )
+                      }
                     >
                       Save to Workspace
                     </button>
                     <button
                       className="log-submit-btn protocol-record-btn"
                       onClick={() =>
-                        void saveArticleAsContentIdea(activeArticle)
+                        runAction(
+                          () => saveArticleAsContentIdea(activeArticle),
+                          "content idea save",
+                        )
                       }
                     >
                       Save as content idea

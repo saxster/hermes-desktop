@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
 import { spawn } from "child_process";
 import { join } from "path";
 import { ASKPASS_SUBMIT_CHANNEL } from "../shared/askpass";
+import { formatLogError, log } from "./log";
 
 export interface SudoPrecacheResult {
   ok: boolean;
@@ -157,10 +158,18 @@ function showSudoDialog(parent: BrowserWindow | null): Promise<string | null> {
       event.preventDefault(),
     );
 
-    win.loadURL(
-      "data:text/html;charset=UTF-8;base64," +
-        Buffer.from(buildDialogHtml()).toString("base64"),
-    );
+    win
+      .loadURL(
+        "data:text/html;charset=UTF-8;base64," +
+          Buffer.from(buildDialogHtml()).toString("base64"),
+      )
+      .catch((error) => {
+        log.error("sudo-credentials", {
+          msg: "failed to load password dialog",
+          error: formatLogError(error),
+        });
+        finish(null);
+      });
   });
 }
 

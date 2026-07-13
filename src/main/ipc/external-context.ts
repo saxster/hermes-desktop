@@ -53,6 +53,7 @@ import {
   scanExternalSources,
   sourceAvailability,
 } from "../external-context/index";
+import { formatLogError, log } from "../log";
 
 /** App start delay before the first background backfill (let the UI settle). */
 const STARTUP_SCAN_DELAY_MS = 10_000;
@@ -150,7 +151,13 @@ export function registerExternalContextIpc(
       });
       if (enabled) {
         // Backfill the newly-enabled source immediately.
-        void runScan(getWindow);
+        runScan(getWindow).catch((error) => {
+          log.error("external-context", {
+            msg: "newly enabled source backfill failed",
+            source,
+            error: formatLogError(error),
+          });
+        });
       } else {
         // Disabling a source purges its indexed content.
         getExternalContextDb().purgeSource(source);
@@ -450,12 +457,26 @@ export function scheduleExternalContextScans(
   const startup = setTimeout(() => {
     const enabled = getExternalContextSources();
     const anyOn = Object.values(enabled).some(Boolean);
-    if (anyOn) void runScan(getWindow);
+    if (anyOn) {
+      runScan(getWindow).catch((error) => {
+        log.error("external-context", {
+          msg: "startup scan failed",
+          error: formatLogError(error),
+        });
+      });
+    }
   }, STARTUP_SCAN_DELAY_MS);
   const interval = setInterval(() => {
     const enabled = getExternalContextSources();
     const anyOn = Object.values(enabled).some(Boolean);
-    if (anyOn) void runScan(getWindow);
+    if (anyOn) {
+      runScan(getWindow).catch((error) => {
+        log.error("external-context", {
+          msg: "periodic scan failed",
+          error: formatLogError(error),
+        });
+      });
+    }
   }, SCAN_INTERVAL_MS);
   startup.unref?.();
   interval.unref?.();

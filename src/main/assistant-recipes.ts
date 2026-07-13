@@ -29,6 +29,7 @@ import {
   type AssistantRecipeSchedule,
   type CreateAssistantRecipeInput,
 } from "../shared/assistant-recipes";
+import { formatLogError, log } from "./log";
 
 function recipesPath(profile?: string): string {
   return join(profileHome(profile), "sps-agent", "assistant-recipes.json");
@@ -822,6 +823,15 @@ async function tick(): Promise<void> {
   }
 }
 
+function scheduleTick(): void {
+  tick().catch((error) => {
+    log.error("assistant-recipes", {
+      msg: "scheduler tick failed",
+      error: formatLogError(error),
+    });
+  });
+}
+
 export function startAssistantRecipeScheduler(
   getWindow: () => BrowserWindow | null,
 ): void {
@@ -829,10 +839,10 @@ export function startAssistantRecipeScheduler(
   getMainWindow = getWindow;
   startupTimer = setTimeout(() => {
     startupTimer = null;
-    void tick();
+    scheduleTick();
   }, 25000);
   startupTimer.unref?.();
-  timer = setInterval(() => void tick(), 60000);
+  timer = setInterval(scheduleTick, 60000);
   timer.unref?.();
 }
 

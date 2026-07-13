@@ -67,7 +67,10 @@ function TreeItem({
   const handleClick = (): void => {
     if (entry.isDirectory) {
       if (!isExpanded) {
-        void loadChildren();
+        loadChildren().catch((err: unknown) => {
+          console.error("Failed to load worktree folder:", err);
+          setIsLoading(false);
+        });
       }
       setIsExpanded(!isExpanded);
     } else {
@@ -168,7 +171,12 @@ export const WorktreePanel = memo(function WorktreePanel({
       setIsLoading(false);
     };
 
-    void loadRoot();
+    loadRoot().catch((err: unknown) => {
+      if (cancelled) return;
+      console.error("Failed to load worktree root:", err);
+      setError("Failed to load folder contents");
+      setIsLoading(false);
+    });
     return () => {
       cancelled = true;
     };

@@ -1120,7 +1120,13 @@ export class NoteIndex {
     if (this.watcherDrainTimer) clearTimeout(this.watcherDrainTimer);
     this.watcherDrainTimer = setTimeout(() => {
       this.watcherDrainTimer = null;
-      void this.drainWatcherEvents();
+      this.drainWatcherEvents().catch((error) => {
+        log.error("note-index.watcher", {
+          msg: "failed to drain watcher events",
+          root: this.root,
+          error: formatLogError(error),
+        });
+      });
     }, 250);
   }
 

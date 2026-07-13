@@ -3,9 +3,11 @@ import type { BrowserWindow } from "electron";
 
 const mockReadDesktopConfig = vi.fn(() => ({}));
 const mockReadEnv = vi.fn(() => ({}));
-const mockListInstalledSkills = vi.fn(() => []);
+const mockListInstalledSkills = vi.fn(
+  (): Array<{ name: string; path: string }> => [],
+);
 const mockGetActiveProfileNameSync = vi.fn(() => "test-profile");
-const mockProfileHome = vi.fn(() => "/tmp/hermes-test-profile");
+const mockProfileHome = vi.fn((_profile: string) => "/tmp/hermes-test-profile");
 const mockSend = vi.fn();
 
 vi.mock("../src/main/config", () => ({

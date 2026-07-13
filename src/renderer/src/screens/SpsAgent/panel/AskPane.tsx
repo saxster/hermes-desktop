@@ -130,7 +130,9 @@ export function AskPane() {
         className="ask-form"
         onSubmit={(e) => {
           e.preventDefault();
-          void run();
+          run().catch((error: unknown) => {
+            console.error("[Ask] Workspace query failed:", error);
+          });
         }}
       >
         <input

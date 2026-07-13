@@ -108,6 +108,12 @@ async function sendMessageViaApiWithLocalRecovery(
     cb.onError(recovered ? LOCAL_GATEWAY_RESTARTED_RESEND_MESSAGE : error);
   };
 
+  const handleRecoveryFailure = (error: unknown): void => {
+    if (settled) return;
+    settled = true;
+    cb.onError(error instanceof Error ? error.message : String(error));
+  };
+
   const callbacks: ChatCallbacks = {
     ...cb,
     onChunk: (text) => {
@@ -126,11 +132,11 @@ async function sendMessageViaApiWithLocalRecovery(
     onError: (error) => {
       if (settled) return;
       if (isLocalApiTransportError(error)) {
-        void recoverAndRetry(error);
+        recoverAndRetry(error).catch(handleRecoveryFailure);
         return;
       }
       if (isLocalGatewayAcceptedError(error)) {
-        void recoverAndFail(error);
+        recoverAndFail(error).catch(handleRecoveryFailure);
         return;
       }
       settled = true;

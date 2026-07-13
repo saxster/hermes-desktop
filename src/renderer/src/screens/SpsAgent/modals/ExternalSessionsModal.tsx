@@ -175,17 +175,26 @@ export function ExternalSessionsModal() {
 
   useEffect(() => {
     queryRef.current?.focus();
-    void window.hermesAPI?.externalContextGetConfig?.().then((c) => {
-      if (c) setConfig(c);
-      const anyOn = c && Object.values(c).some(Boolean);
-      if (!anyOn) setView("settings");
-    });
-    void refreshStatus();
+    window.hermesAPI
+      ?.externalContextGetConfig?.()
+      .then((c) => {
+        if (c) setConfig(c);
+        const anyOn = c && Object.values(c).some(Boolean);
+        if (!anyOn) setView("settings");
+      })
+      .catch((error) =>
+        console.error("Failed to load external sources:", error),
+      );
+    refreshStatus().catch((error) =>
+      console.error("Failed to refresh external context status:", error),
+    );
     const off = window.hermesAPI?.onExternalContextProgress?.((p) => {
       setProgress(p);
       if (p.phase === "done") {
         setProgress(null);
-        void refreshStatus();
+        refreshStatus().catch((error) =>
+          console.error("Failed to refresh external context status:", error),
+        );
       }
     });
     return () => off?.();
@@ -261,7 +270,9 @@ export function ExternalSessionsModal() {
       title: t.title,
     };
     setView("search");
-    void openViewer(hit);
+    openViewer(hit).catch((error) =>
+      console.error("Failed to open the requested external session:", error),
+    );
     clearExternalSessionsTarget();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalSessionsTarget]);
@@ -272,7 +283,9 @@ export function ExternalSessionsModal() {
       enabled,
     );
     if (cfg) setConfig(cfg);
-    void refreshStatus();
+    refreshStatus().catch((error) =>
+      console.error("Failed to refresh external context status:", error),
+    );
   };
 
   const doScan = async () => {
@@ -350,21 +363,99 @@ export function ExternalSessionsModal() {
               status={status}
               importing={importing}
               note={importNote}
-              onPick={pickAndImport}
-              onDropFile={importFile}
-              onPasteCapture={importPaste}
+              onPick={(source) => {
+                pickAndImport(source).catch((error) =>
+                  setImportNote(
+                    error instanceof Error
+                      ? error.message
+                      : "Import failed unexpectedly.",
+                  ),
+                );
+              }}
+              onDropFile={(source, filePath) => {
+                importFile(source, filePath).catch((error) =>
+                  setImportNote(
+                    error instanceof Error
+                      ? error.message
+                      : "Import failed unexpectedly.",
+                  ),
+                );
+              }}
+              onPasteCapture={(text, origin) => {
+                importPaste(text, origin).catch((error) =>
+                  setImportNote(
+                    error instanceof Error
+                      ? error.message
+                      : "Capture failed unexpectedly.",
+                  ),
+                );
+              }}
             />
           ) : view === "settings" ? (
             <SettingsView
               config={config}
               status={status}
               progress={progress}
-              onToggle={toggleSource}
-              onScan={doScan}
-              onRebuild={doRebuild}
-              onSetMaxAge={doSetMaxAge}
-              onCreateDigest={createDigest}
-              onExposeMcp={exposeMcp}
+              onToggle={(source, enabled) => {
+                toggleSource(source, enabled).catch((error) =>
+                  flash(
+                    error instanceof Error
+                      ? error.message
+                      : "Couldn't update the external source",
+                    { tone: "warn" },
+                  ),
+                );
+              }}
+              onScan={() => {
+                doScan().catch((error) =>
+                  flash(
+                    error instanceof Error
+                      ? error.message
+                      : "Couldn't scan external sessions",
+                    { tone: "warn" },
+                  ),
+                );
+              }}
+              onRebuild={() => {
+                doRebuild().catch((error) =>
+                  flash(
+                    error instanceof Error
+                      ? error.message
+                      : "Couldn't rebuild external sessions",
+                    { tone: "warn" },
+                  ),
+                );
+              }}
+              onSetMaxAge={(days) => {
+                doSetMaxAge(days).catch((error) =>
+                  flash(
+                    error instanceof Error
+                      ? error.message
+                      : "Couldn't update external session retention",
+                    { tone: "warn" },
+                  ),
+                );
+              }}
+              onCreateDigest={(cadence, source) => {
+                createDigest(cadence, source).catch((error) =>
+                  flash(
+                    error instanceof Error
+                      ? error.message
+                      : "Couldn't create the digest",
+                    { tone: "warn" },
+                  ),
+                );
+              }}
+              onExposeMcp={() => {
+                exposeMcp().catch((error) =>
+                  flash(
+                    error instanceof Error
+                      ? error.message
+                      : "Couldn't update MCP access",
+                    { tone: "warn" },
+                  ),
+                );
+              }}
               mcpState={mcpState}
             />
           ) : (
@@ -379,8 +470,16 @@ export function ExternalSessionsModal() {
               hits={hits}
               searching={searching}
               searched={searched}
-              onSearch={runSearch}
-              onOpen={openViewer}
+              onSearch={() => {
+                runSearch().catch((error) =>
+                  console.error("External session search failed:", error),
+                );
+              }}
+              onOpen={(hit) => {
+                openViewer(hit).catch((error) =>
+                  console.error("Failed to open external session:", error),
+                );
+              }}
             />
           )}
         </div>
@@ -746,8 +845,8 @@ function SettingsView(props: {
   onScan: () => void;
   onRebuild: () => void;
   onSetMaxAge: (days: number | null) => void;
-  onCreateDigest: (cadence: Cadence, source?: ExternalSource) => Promise<void>;
-  onExposeMcp: () => Promise<void>;
+  onCreateDigest: (cadence: Cadence, source?: ExternalSource) => void;
+  onExposeMcp: () => void;
   mcpState: "idle" | "working" | "done";
 }) {
   const maxAgeDays = props.status?.maxAgeDays ?? null;
@@ -849,10 +948,7 @@ function SettingsView(props: {
           <button
             className="cover-btn"
             onClick={() =>
-              void props.onCreateDigest(
-                digestCadence,
-                digestSource || undefined,
-              )
+              props.onCreateDigest(digestCadence, digestSource || undefined)
             }
           >
             + Digest
@@ -908,7 +1004,7 @@ function SettingsView(props: {
       >
         <button
           className="cover-btn"
-          onClick={() => void props.onExposeMcp()}
+          onClick={props.onExposeMcp}
           disabled={props.mcpState !== "idle"}
           title="Let My Assistant search these sessions in chat (registers a local MCP tool)"
         >

@@ -74,7 +74,9 @@ export function ConfigHealthBanner({
       } catch {
         // Silent — config-health is best-effort. No banner if it fails.
       }
-    })();
+    })().catch((err: unknown) => {
+      console.error("Unexpected config-health banner failure:", err);
+    });
     return (): void => {
       cancelled = true;
     };

@@ -55,11 +55,22 @@ export function BookmarkBlock({ block, setType }: Props) {
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") void commit();
+          if (e.key === "Enter") {
+            commit().catch((error: unknown) => {
+              console.error("Bookmark creation failed:", error);
+            });
+          }
         }}
         style={{ width: 320 }}
       />
-      <button className="pa-btn pa-accept" onClick={() => void commit()}>
+      <button
+        className="pa-btn pa-accept"
+        onClick={() => {
+          commit().catch((error: unknown) => {
+            console.error("Bookmark creation failed:", error);
+          });
+        }}
+      >
         Create
       </button>
     </div>

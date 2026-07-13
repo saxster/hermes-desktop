@@ -171,11 +171,17 @@ export function ScheduledModal() {
 
   useEffect(() => {
     topicRef.current?.focus();
-    void refresh();
-    // A scheduled tick / Run now that produces a change pushes this event.
-    const off = window.hermesAPI.onScheduledResearchUpdate(
-      () => void refresh(),
+    refresh().catch((err) =>
+      setError(err instanceof Error ? err.message : "Failed to load schedules"),
     );
+    // A scheduled tick / Run now that produces a change pushes this event.
+    const off = window.hermesAPI.onScheduledResearchUpdate(() => {
+      refresh().catch((err) =>
+        setError(
+          err instanceof Error ? err.message : "Failed to refresh schedules",
+        ),
+      );
+    });
     return () => {
       off();
     };
@@ -405,7 +411,15 @@ export function ScheduledModal() {
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") void onCreate();
+                if (e.key === "Enter") {
+                  onCreate().catch((err) =>
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to create schedule",
+                    ),
+                  );
+                }
               }}
               placeholder="Monitor this topic…"
             />

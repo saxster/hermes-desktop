@@ -725,7 +725,7 @@ export async function spsIngestInbox(profile?: string): Promise<IngestResult> {
 
     // Ingestion Concept Audit (Component 6)
     if (changeset.pages && changeset.pages.length > 0) {
-      Promise.resolve().then(async () => {
+      const runConceptAudit = async (): Promise<void> => {
         try {
           const auditUrl = `${getApiUrl(profile)}/v1/chat/completions`;
           const conceptAuditSystemPrompt = `You are a technical pedagogy expert. You scan the provided document content for any unfamiliar technical terms, key concepts, or specialized jargon that the user might need to study or memorize.
@@ -806,6 +806,13 @@ Return ONLY a JSON array, with no other prose or markdown formatting (no code fe
             error: formatLogError(e),
           });
         }
+      };
+      runConceptAudit().catch((error) => {
+        log.error("sps-agent", {
+          msg: "failed to start ingest concept audit",
+          profile,
+          error: formatLogError(error),
+        });
       });
     }
 

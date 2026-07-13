@@ -9,7 +9,6 @@ import {
   mkdtempSync,
 } from "fs";
 import { tmpdir } from "os";
-// @ts-expect-error - .mjs has no type declarations; we test it as JS.
 import { generateWingetManifests } from "../scripts/generate-winget-manifests.mjs";
 
 let TEST_DIR: string;

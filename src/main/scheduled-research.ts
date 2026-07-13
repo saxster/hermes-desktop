@@ -935,6 +935,15 @@ async function tick(): Promise<void> {
   }
 }
 
+function scheduleTick(): void {
+  tick().catch((error) => {
+    log.error("scheduled-research", {
+      msg: "scheduler tick failed",
+      error: formatLogError(error),
+    });
+  });
+}
+
 /** Start the scheduler: a catch-up pass shortly after launch, then hourly-ish
  *  ticks (every 60s the due-check is cheap; runs only fire per cadence). */
 export function startScheduledResearch(
@@ -945,10 +954,10 @@ export function startScheduledResearch(
   // Delay the first pass so the gateway has a moment to be reachable on launch.
   _startupTimer = setTimeout(() => {
     _startupTimer = null;
-    void tick();
+    scheduleTick();
   }, 20000);
   _startupTimer.unref?.();
-  _timer = setInterval(() => void tick(), 60000);
+  _timer = setInterval(scheduleTick, 60000);
   _timer.unref?.();
 }
 

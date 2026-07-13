@@ -44,6 +44,21 @@ let currentPort = 8645;
 let authToken = "";
 let calendarFeedToken = "";
 
+function handleAsyncRequestFailure(
+  res: ServerResponse,
+  route: string,
+  error: unknown,
+): void {
+  log.error("control-server", {
+    msg: "async request handler failed",
+    route,
+    error: formatLogError(error),
+  });
+  if (!res.writableEnded) {
+    writeJson(res, 500, { error: "Internal server error." });
+  }
+}
+
 /**
  * Generate a secure token if one is not already present, and store it in desktop.json.
  */
@@ -464,7 +479,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
       body += chunk.toString();
     });
 
-    req.on("end", async () => {
+    const handleQuery = async (): Promise<void> => {
       try {
         const payload = JSON.parse(body);
         const { message, resumeSessionId, groundInWorkspace } = payload;
@@ -488,7 +503,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
             Connection: "keep-alive",
           });
 
-          sendMessage(
+          await sendMessage(
             message,
             {
               onChunk: (chunk) => {
@@ -518,7 +533,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
           );
         } else {
           let fullText = "";
-          sendMessage(
+          await sendMessage(
             message,
             {
               onChunk: (chunk) => {
@@ -545,6 +560,11 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Invalid JSON body." }));
       }
+    };
+    req.on("end", () => {
+      handleQuery().catch((error) => {
+        handleAsyncRequestFailure(res, "/query", error);
+      });
     });
     return;
   }
@@ -555,7 +575,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
       body += chunk.toString();
     });
 
-    req.on("end", async () => {
+    const handleCronCreate = async (): Promise<void> => {
       try {
         const payload = JSON.parse(body);
         const { schedule, prompt, name, deliver, opts } = payload;
@@ -587,6 +607,11 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
           }),
         );
       }
+    };
+    req.on("end", () => {
+      handleCronCreate().catch((error) => {
+        handleAsyncRequestFailure(res, "/cron/create", error);
+      });
     });
     return;
   }
@@ -597,7 +622,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
       body += chunk.toString();
     });
 
-    req.on("end", async () => {
+    const handleCronTrigger = async (): Promise<void> => {
       try {
         const payload = JSON.parse(body);
         const { jobId, jobName } = payload;
@@ -623,13 +648,24 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Invalid JSON body." }));
       }
+    };
+    req.on("end", () => {
+      handleCronTrigger().catch((error) => {
+        handleAsyncRequestFailure(res, "/cron/trigger", error);
+      });
     });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/cron/trigger-due") {
     const profile = getActiveProfileNameSync();
-    void tickScheduler(profile);
+    tickScheduler(profile).catch((error) => {
+      log.error("control-server", {
+        msg: "trigger-due scheduler tick failed",
+        profile,
+        error: formatLogError(error),
+      });
+    });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: true }));
     return;

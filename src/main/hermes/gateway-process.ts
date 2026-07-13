@@ -893,7 +893,12 @@ function scheduleSupervisedRestart(backoffMs: number): void {
     // Re-check the guards at fire time — conditions may have changed during backoff.
     if (isRemoteMode()) return;
     if (isStreamOpen()) return;
-    void restartGateway();
+    restartGateway().catch((err) => {
+      log.error("gateway-supervisor", {
+        msg: "supervised restart failed",
+        error: formatLogError(err),
+      });
+    });
   }, backoffMs);
 }
 
@@ -945,7 +950,12 @@ async function runSupervisorTick(): Promise<void> {
 export function startHealthPolling(): void {
   if (_healthCheckInterval) return;
   _healthCheckInterval = gatewayProcessRuntime.setInterval(() => {
-    void runSupervisorTick();
+    runSupervisorTick().catch((err) => {
+      log.error("gateway-supervisor", {
+        msg: "health poll failed",
+        error: formatLogError(err),
+      });
+    });
   }, SUPERVISOR_INTERVAL_MS);
 }
 

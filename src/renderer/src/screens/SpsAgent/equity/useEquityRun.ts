@@ -94,7 +94,7 @@ export function useEquityRun(): EquityRunState {
       setTicker(symbol);
       setStatus("running");
 
-      void (async () => {
+      (async () => {
         const skillMd = await loadOrchestratorSkill();
         const lanes =
           depth === "quick"
@@ -117,7 +117,10 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
           setError(String(e));
           setStatus("error");
         }
-      })();
+      })().catch((error: unknown) => {
+        setError(String(error));
+        setStatus("error");
+      });
     },
     [],
   );

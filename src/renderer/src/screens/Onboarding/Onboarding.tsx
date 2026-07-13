@@ -40,7 +40,7 @@ function Onboarding({
   useEffect(() => {
     if (!isLocal) return;
     let alive = true;
-    void (async () => {
+    (async () => {
       try {
         const status = await window.hermesAPI.checkInstall();
         const model = await window.hermesAPI.getModelConfig();
@@ -52,7 +52,10 @@ function Onboarding({
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    })().catch((err: unknown) => {
+      console.error("Unexpected onboarding status failure:", err);
+      if (alive) setLoading(false);
+    });
     return () => {
       alive = false;
     };

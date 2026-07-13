@@ -26876,4 +26876,10 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
-void main();
+main().catch((error2) => {
+  console.error(
+    "External-context MCP server failed:",
+    error2 instanceof Error ? error2.message : String(error2)
+  );
+  process.exitCode = 1;
+});

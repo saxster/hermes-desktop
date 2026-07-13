@@ -203,6 +203,11 @@ export function ContentStudioSurface({
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const [evidenceSnippet, setEvidenceSnippet] = useState("");
   const [manualPublishUrl, setManualPublishUrl] = useState("");
+
+  const reportContentFailure = (label: string, error: unknown): void => {
+    console.error(`${label} failed:`, error);
+    flash(`${label} failed`, { tone: "warn" });
+  };
   const [plannedPublishedAt, setPlannedPublishedAt] = useState("");
   const [analyticsSlug, setAnalyticsSlug] = useState("");
   const [views, setViews] = useState("");
@@ -621,7 +626,7 @@ export function ContentStudioSurface({
   function approveVariant(variant: DraftVariant): void {
     setDraftText(variant.text);
     setDraftId(variant.id);
-    void saveDraftVariant(
+    saveDraftVariant(
       {
         ...variant,
         approved: true,
@@ -629,7 +634,9 @@ export function ContentStudioSurface({
         approvedAt: new Date().toISOString(),
       },
       profile,
-    );
+    ).catch((error: unknown) => {
+      reportContentFailure("Draft approval", error);
+    });
   }
 
   async function markPublished(): Promise<void> {
@@ -689,7 +696,9 @@ export function ContentStudioSurface({
       comments: numberValue(comments),
       capturedAt: new Date().toISOString(),
     };
-    void saveAnalyticsSnapshot(snapshot, profile);
+    saveAnalyticsSnapshot(snapshot, profile).catch((error: unknown) => {
+      reportContentFailure("Analytics snapshot", error);
+    });
     setAnalytics((items) => [
       ...items,
       {
@@ -885,10 +894,26 @@ export function ContentStudioSurface({
           onRubricChange={updateRubric}
           onOverrideChange={setOverrideLowScore}
           onScoreIdea={scoreIdea}
-          onStartRun={() => void startRun()}
-          onGenerateCuratedBrief={() => void generateCuratedBrief()}
-          onGenerateVariants={() => void generateVariants()}
-          onSaveAssistantResult={() => void saveAssistantResult()}
+          onStartRun={() => {
+            startRun().catch((error: unknown) => {
+              reportContentFailure("Content run", error);
+            });
+          }}
+          onGenerateCuratedBrief={() => {
+            generateCuratedBrief().catch((error: unknown) => {
+              reportContentFailure("Curated brief", error);
+            });
+          }}
+          onGenerateVariants={() => {
+            generateVariants().catch((error: unknown) => {
+              reportContentFailure("Draft variants", error);
+            });
+          }}
+          onSaveAssistantResult={() => {
+            saveAssistantResult().catch((error: unknown) => {
+              reportContentFailure("Assistant result", error);
+            });
+          }}
         />
       )}
 
@@ -929,7 +954,11 @@ export function ContentStudioSurface({
             qualityMessage.startsWith("Draft approved") ? "success" : "warning"
           }
           onDraftTextChange={setDraftText}
-          onApproveDraft={() => void runQualityGate()}
+          onApproveDraft={() => {
+            runQualityGate().catch((error: unknown) => {
+              reportContentFailure("Quality gate", error);
+            });
+          }}
           onApproveVariant={approveVariant}
         >
           <div className="you-rules-list learning-surface-list-mt">
@@ -981,7 +1010,11 @@ export function ContentStudioSurface({
             evidenceSnippet={evidenceSnippet}
             onEvidenceUrlChange={setEvidenceUrl}
             onEvidenceSnippetChange={setEvidenceSnippet}
-            onAttachEvidence={() => void attachEvidence()}
+            onAttachEvidence={() => {
+              attachEvidence().catch((error: unknown) => {
+                reportContentFailure("Evidence attachment", error);
+              });
+            }}
           />
         </DraftWorkbench>
       )}
@@ -992,8 +1025,16 @@ export function ContentStudioSurface({
           plannedPublishedAt={plannedPublishedAt}
           onManualPublishUrlChange={setManualPublishUrl}
           onPlannedPublishedAtChange={setPlannedPublishedAt}
-          onMarkPublished={() => void markPublished()}
-          onRunWeeklyReview={() => void runWeeklyReview()}
+          onMarkPublished={() => {
+            markPublished().catch((error: unknown) => {
+              reportContentFailure("Publish update", error);
+            });
+          }}
+          onRunWeeklyReview={() => {
+            runWeeklyReview().catch((error: unknown) => {
+              reportContentFailure("Weekly review", error);
+            });
+          }}
         />
       )}
 
@@ -1015,7 +1056,13 @@ export function ContentStudioSurface({
       )}
 
       {activePanel === "review" && (
-        <WeeklyReviewPanel onRunWeeklyReview={() => void runWeeklyReview()} />
+        <WeeklyReviewPanel
+          onRunWeeklyReview={() => {
+            runWeeklyReview().catch((error: unknown) => {
+              reportContentFailure("Weekly review", error);
+            });
+          }}
+        />
       )}
     </div>
   );

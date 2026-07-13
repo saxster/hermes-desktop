@@ -27,7 +27,10 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
   }, [profile]);
 
   useEffect(() => {
-    loadSoul();
+    loadSoul().catch((error: unknown) => {
+      console.error("[Soul] Failed to load SOUL.md:", error);
+      setLoading(false);
+    });
   }, [loadSoul]);
 
   const saveSoul = useCallback(
@@ -44,7 +47,9 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
     if (!loaded.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      saveSoul(content);
+      saveSoul(content).catch((error: unknown) => {
+        console.error("[Soul] Failed to save SOUL.md:", error);
+      });
     }, 500);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -61,6 +66,12 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
       loaded.current = true;
       setSaved(false);
     }, 2000);
+  }
+
+  function resetSoul(): void {
+    handleReset().catch((error: unknown) => {
+      console.error("[Soul] Failed to reset SOUL.md:", error);
+    });
   }
 
   if (loading) {
@@ -97,7 +108,7 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
         <div className="soul-reset-confirm">
           <span>{t("soul.resetConfirm")}</span>
           <div className="soul-reset-actions">
-            <button className="btn btn-primary btn-sm" onClick={handleReset}>
+            <button className="btn btn-primary btn-sm" onClick={resetSoul}>
               {t("soul.reset")}
             </button>
             <button

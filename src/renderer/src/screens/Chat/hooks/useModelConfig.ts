@@ -60,7 +60,9 @@ export function useModelConfig(profile?: string): UseModelConfigResult {
   // Initial load + reload whenever the profile changes (canonical
   // load-on-mount; setState happens inside `reload` via an awaited IPC call).
   useEffect(() => {
-    reload();
+    reload().catch((error: unknown) => {
+      console.error("[Chat] Failed to load model configuration:", error);
+    });
   }, [reload]);
 
   const selectModel = useCallback(

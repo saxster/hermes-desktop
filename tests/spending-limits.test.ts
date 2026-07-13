@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const mockReadDesktopConfig = vi.fn(() => ({}));
 const mockWriteDesktopConfig = vi.fn();
 const mockSetModelConfig = vi.fn();
-const mockGetModelConfig = vi.fn(() => ({}));
+const mockGetModelConfig = vi.fn((_profile?: string) => ({}));
 const mockGetUsageStats = vi.fn();
 
 vi.mock("../src/main/config", () => ({

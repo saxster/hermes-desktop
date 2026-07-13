@@ -94,7 +94,7 @@ import {
   accumulateOAuthPromptAction,
 } from "../hermes-auth";
 import { refreshEngineCapabilities } from "../engine-capabilities";
-import { log } from "../log";
+import { formatLogError, log } from "../log";
 import { registerDualHandler } from "./utility";
 import {
   getSchedulerConfig,
@@ -123,6 +123,30 @@ function refreshEngineCapabilitiesForActiveProfile(): void {
       error: err instanceof Error ? err.message : String(err),
     });
   });
+}
+
+function restartGatewayAfterConfigChange(
+  reason: string,
+  profile?: string,
+): void {
+  restartGateway(profile)
+    .then((restarted) => {
+      if (!restarted) {
+        log.warn("gateway", {
+          msg: "background restart after config change did not become ready",
+          reason,
+          profile: profile ?? "default",
+        });
+      }
+    })
+    .catch((error) => {
+      log.error("gateway", {
+        msg: "background restart after config change failed",
+        reason,
+        profile: profile ?? "default",
+        error: formatLogError(error),
+      });
+    });
 }
 
 export function registerConfigIpc(): void {
@@ -154,7 +178,7 @@ export function registerConfigIpc(): void {
         );
       }
       if (isGatewayRunning(profile) && looksLikeCredential) {
-        void restartGateway(profile);
+        restartGatewayAfterConfigChange("credential updated", profile);
       }
       return true;
     },
@@ -184,7 +208,9 @@ export function registerConfigIpc(): void {
         },
         profile,
       );
-      if (isGatewayRunning(profile)) void restartGateway(profile);
+      if (isGatewayRunning(profile)) {
+        restartGatewayAfterConfigChange("provider credential updated", profile);
+      }
       return true;
     },
     async (ssh, provider: string, key: string, profile?: string) => {
@@ -251,7 +277,7 @@ export function registerConfigIpc(): void {
           prev.model !== model ||
           prev.baseUrl !== baseUrl)
       ) {
-        void restartGateway(profile);
+        restartGatewayAfterConfigChange("model config updated", profile);
       }
 
       return true;
@@ -569,7 +595,7 @@ export function registerConfigIpc(): void {
     async (platform: string, enabled: boolean, profile?: string) => {
       setPlatformEnabled(platform, enabled, profile);
       if (isGatewayRunning(profile)) {
-        void restartGateway(profile);
+        restartGatewayAfterConfigChange("platform setting updated", profile);
       }
       return true;
     },

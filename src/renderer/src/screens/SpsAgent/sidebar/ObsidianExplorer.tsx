@@ -47,13 +47,20 @@ export function ObsidianExplorer() {
   }, []);
 
   useEffect(() => {
-    refreshTree();
+    refreshTree().catch((refreshError: unknown) => {
+      console.error("[Obsidian] Failed to refresh vault tree:", refreshError);
+    });
 
     const api = window.hermesAPI;
     if (api?.onObsidianFileChanged) {
       // Refresh the tree on external file modifications
       const cleanup = api.onObsidianFileChanged(() => {
-        refreshTree();
+        refreshTree().catch((refreshError: unknown) => {
+          console.error(
+            "[Obsidian] Failed to refresh changed vault tree:",
+            refreshError,
+          );
+        });
       });
       return cleanup;
     }
@@ -191,7 +198,14 @@ export function ObsidianExplorer() {
       >
         <span>Files</span>
         <button
-          onClick={refreshTree}
+          onClick={() => {
+            refreshTree().catch((refreshError: unknown) => {
+              console.error(
+                "[Obsidian] Failed to refresh vault tree:",
+                refreshError,
+              );
+            });
+          }}
           title="Refresh vault files"
           style={{
             background: "none",

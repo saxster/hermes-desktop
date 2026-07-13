@@ -18,7 +18,7 @@ vi.mock("../src/main/utils", () => ({
 }));
 
 const setConfigValueSpy = vi.fn(
-  (key: string, value: string, profile?: string) => {
+  (_key: string, value: string, profile?: string) => {
     configuredPorts.set(profile ?? "default", value);
   },
 );

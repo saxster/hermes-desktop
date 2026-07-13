@@ -69,18 +69,25 @@ let locale: AppLocale = DEFAULT_ACTIVE_LOCALE;
 
 export const sharedI18n = i18next.createInstance();
 
-void sharedI18n.init({
-  lng: locale,
-  fallbackLng: FALLBACK_LOCALE,
-  supportedLngs: APP_LOCALES,
-  defaultNS: "translation",
-  ns: ["translation"],
-  interpolation: {
-    escapeValue: false,
-  },
-  resources,
-  initImmediate: false,
-});
+sharedI18n
+  .init({
+    lng: locale,
+    fallbackLng: FALLBACK_LOCALE,
+    supportedLngs: APP_LOCALES,
+    defaultNS: "translation",
+    ns: ["translation"],
+    interpolation: {
+      escapeValue: false,
+    },
+    resources,
+    initImmediate: false,
+  })
+  .catch((error) => {
+    console.error(
+      "Failed to initialize shared i18n:",
+      error instanceof Error ? error.message : String(error),
+    );
+  });
 
 export function getLocale(): AppLocale {
   return locale;
@@ -88,7 +95,12 @@ export function getLocale(): AppLocale {
 
 export function setLocale(nextLocale: AppLocale): AppLocale {
   locale = normalizeLocale(nextLocale);
-  void sharedI18n.changeLanguage(locale);
+  sharedI18n.changeLanguage(locale).catch((error) => {
+    console.error(
+      "Failed to change shared i18n locale:",
+      error instanceof Error ? error.message : String(error),
+    );
+  });
   return locale;
 }
 

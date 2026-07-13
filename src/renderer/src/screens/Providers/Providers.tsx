@@ -220,13 +220,15 @@ function Providers({
 
   useEffect(() => {
     modelLoaded.current = false;
-    loadConfig();
+    loadConfig().catch((err: unknown) => {
+      console.error("Failed to load provider config:", err);
+    });
   }, [loadConfig]);
 
   // Refresh model config when the screen becomes visible
   useEffect(() => {
     if (!visible) return;
-    (async (): Promise<void> => {
+    void (async (): Promise<void> => {
       const [mc, oauth, routine, watch] = await Promise.all([
         window.hermesAPI.getModelConfig(profile),
         fetchOAuthStatuses(),
@@ -243,7 +245,9 @@ function Providers({
       requestAnimationFrame(() => {
         modelLoaded.current = true;
       });
-    })();
+    })().catch((err: unknown) => {
+      console.error("Failed to refresh provider config:", err);
+    });
   }, [fetchOAuthStatuses, visible, profile]);
 
   // Auto-save the active model config (config.yaml) — debounced 500 ms so
@@ -264,7 +268,9 @@ function Providers({
     if (!modelLoaded.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      saveModelConfig();
+      saveModelConfig().catch((err: unknown) => {
+        console.error("Failed to save model config:", err);
+      });
     }, 500);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -343,7 +349,11 @@ function Providers({
     return () => {
       for (const [key, timer] of timers) {
         clearTimeout(timer);
-        void window.hermesAPI.setEnv(key, envRef.current[key] || "", profile);
+        window.hermesAPI
+          .setEnv(key, envRef.current[key] || "", profile)
+          .catch((err: unknown) => {
+            console.error(`Failed to flush provider key ${key}:`, err);
+          });
       }
       timers.clear();
     };
@@ -936,7 +946,11 @@ function Providers({
             />
             <button
               className="btn btn-primary btn-sm"
-              onClick={handleAddPoolKey}
+              onClick={() => {
+                handleAddPoolKey().catch((err: unknown) => {
+                  console.error("Failed to add credential pool key:", err);
+                });
+              }}
               disabled={!poolProvider || !poolNewKey.trim()}
             >
               {t("settings.add")}
@@ -979,7 +993,16 @@ function Providers({
                         <button
                           className="btn-ghost"
                           style={{ color: "var(--error)", fontSize: 11 }}
-                          onClick={() => handleRemovePoolKey(provider, idx)}
+                          onClick={() => {
+                            handleRemovePoolKey(provider, idx).catch(
+                              (err: unknown) => {
+                                console.error(
+                                  "Failed to remove credential pool key:",
+                                  err,
+                                );
+                              },
+                            );
+                          }}
                         >
                           {t("settings.remove")}
                         </button>
@@ -1474,7 +1497,9 @@ function Providers({
           profile={profile}
           onClose={() => {
             setOauthModal(null);
-            void refreshOAuthStatuses();
+            refreshOAuthStatuses().catch((err: unknown) => {
+              console.error("Failed to refresh OAuth status:", err);
+            });
           }}
         />
       )}

@@ -334,17 +334,17 @@ describe("startGateway / restartGateway in remote mode", () => {
     expect(spawnSpy).not.toHaveBeenCalled();
   });
 
-  it("restartGateway is a no-op in remote mode", () => {
+  it("restartGateway is a no-op in remote mode", async () => {
     spawnSpy.mockClear();
     connModeRef.mode = "remote";
-    restartGateway();
+    await expect(restartGateway()).resolves.toBe(false);
     expect(spawnSpy).not.toHaveBeenCalled();
   });
 
-  it("restartGateway is a no-op in ssh mode", () => {
+  it("restartGateway is a no-op in ssh mode", async () => {
     spawnSpy.mockClear();
     connModeRef.mode = "ssh";
-    restartGateway();
+    await expect(restartGateway()).resolves.toBe(false);
     expect(spawnSpy).not.toHaveBeenCalled();
   });
 });

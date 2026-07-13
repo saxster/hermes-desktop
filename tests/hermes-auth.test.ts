@@ -23,14 +23,20 @@ const { spawnSpy, fakeProcs } = vi.hoisted(() => {
   const fakeProcs: FakeProc[] = [];
   return {
     fakeProcs,
-    spawnSpy: vi.fn(() => {
-      const proc = new EE() as FakeProc;
-      proc.stdout = new EE();
-      proc.stderr = new EE();
-      proc.kill = vi.fn();
-      fakeProcs.push(proc);
-      return proc;
-    }),
+    spawnSpy: vi.fn(
+      (
+        _command: string,
+        _args: readonly string[],
+        _options: { env?: NodeJS.ProcessEnv },
+      ) => {
+        const proc = new EE() as FakeProc;
+        proc.stdout = new EE();
+        proc.stderr = new EE();
+        proc.kill = vi.fn();
+        fakeProcs.push(proc);
+        return proc;
+      },
+    ),
   };
 });
 

@@ -384,17 +384,24 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // If there's also text, let the textarea handle the text portion
       // normally; we still consume the files (browser delivers both).
       if (!hasText) e.preventDefault();
-      void ingestFiles(files);
+      ingestFiles(files).catch((err: unknown) => {
+        setAttachmentError(err instanceof Error ? err.message : String(err));
+      });
     }
 
-    async function handleFileInputChange(
+    function handleFileInputChange(
       e: React.ChangeEvent<HTMLInputElement>,
-    ): Promise<void> {
+    ): void {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      await ingestFiles(files);
-      // Reset so the same file can be picked again later
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      ingestFiles(files)
+        .then(() => {
+          // Reset so the same file can be picked again later
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        })
+        .catch((err: unknown) => {
+          setAttachmentError(err instanceof Error ? err.message : String(err));
+        });
     }
 
     function removeAttachment(id: string): void {

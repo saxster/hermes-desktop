@@ -102,7 +102,17 @@ export function ButtonBlock({ block, setType }: Props) {
   return (
     <div className={wrapClassName}>
       <div className="b-button-row">
-        <button className="b-agent-button" onClick={run} disabled={running}>
+        <button
+          className="b-agent-button"
+          onClick={() => {
+            run().catch((error: unknown) => {
+              console.error("Agent button failed:", error);
+              setStatus("error");
+              setFeedback("The action failed unexpectedly.");
+            });
+          }}
+          disabled={running}
+        >
           <span className="emoji">
             {running
               ? "⏳"

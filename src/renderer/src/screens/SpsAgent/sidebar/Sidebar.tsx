@@ -329,13 +329,11 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
             className="nav-add"
             title="Import PDF"
             aria-label="Import PDF"
-            onClick={async (e) => {
+            onClick={(e) => {
               e.stopPropagation();
-              try {
-                await importPdf();
-              } catch (err) {
-                console.error(err);
-              }
+              importPdf().catch((error: unknown) => {
+                console.error("[Sidebar] PDF import failed:", error);
+              });
             }}
           >
             <Icon name="plus" size={14} />

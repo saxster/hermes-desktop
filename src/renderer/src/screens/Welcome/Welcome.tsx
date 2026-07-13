@@ -135,7 +135,13 @@ function Welcome({
             value={remoteUrl}
             onChange={(e) => setRemoteUrl(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleConnectRemote();
+              if (e.key === "Enter") {
+                handleConnectRemote().catch((err: unknown) => {
+                  setRemoteError(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }
             }}
             autoFocus
           />
@@ -150,14 +156,26 @@ function Welcome({
             value={remoteApiKey}
             onChange={(e) => setRemoteApiKey(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleConnectRemote();
+              if (e.key === "Enter") {
+                handleConnectRemote().catch((err: unknown) => {
+                  setRemoteError(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }
             }}
           />
 
           <div className="welcome-remote-row" style={{ marginTop: 12 }}>
             <button
               className="btn btn-primary"
-              onClick={handleConnectRemote}
+              onClick={() => {
+                handleConnectRemote().catch((err: unknown) => {
+                  setRemoteError(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }}
               disabled={remoteTesting}
               style={{ whiteSpace: "nowrap", width: "100%" }}
             >
@@ -272,7 +290,11 @@ function Welcome({
           <div className="welcome-remote-row" style={{ marginTop: 16 }}>
             <button
               className="btn btn-primary"
-              onClick={handleConnectSsh}
+              onClick={() => {
+                handleConnectSsh().catch((err: unknown) => {
+                  setSshError(err instanceof Error ? err.message : String(err));
+                });
+              }}
               disabled={sshTesting || !sshHost.trim() || !sshUser.trim()}
               style={{ whiteSpace: "nowrap", width: "100%" }}
             >
@@ -347,7 +369,13 @@ function Welcome({
                 <code>{getInstallCmd()}</code>
                 <button
                   className="btn-ghost welcome-copy-btn"
-                  onClick={() => navigator.clipboard.writeText(getInstallCmd())}
+                  onClick={() => {
+                    navigator.clipboard
+                      .writeText(getInstallCmd())
+                      .catch((err: unknown) => {
+                        console.error("Failed to copy install command:", err);
+                      });
+                  }}
                   title={t("welcome.copyInstallCommand")}
                 >
                   <Copy size={14} />

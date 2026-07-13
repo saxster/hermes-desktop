@@ -51,7 +51,9 @@ describe("useChatSignals — approval countdown + auto-deny", () => {
     act(() => approvalCb?.({ id: "a1", command: "rm -rf /tmp/x" }));
     expect(result.current.approvals.queue).toHaveLength(1);
 
-    act(() => vi.advanceTimersByTime(3000));
+    await act(() => {
+      vi.advanceTimersByTime(3000);
+    });
 
     expect(respondApproval).toHaveBeenCalledWith("a1", "deny", "default");
     expect(result.current.approvals.queue).toHaveLength(0);
@@ -65,7 +67,9 @@ describe("useChatSignals — approval countdown + auto-deny", () => {
       await Promise.resolve();
     });
     act(() => approvalCb?.({ id: "a1", command: "rm -rf /tmp/x" }));
-    act(() => vi.advanceTimersByTime(120000));
+    await act(() => {
+      vi.advanceTimersByTime(120000);
+    });
     expect(respondApproval).not.toHaveBeenCalled();
     expect(result.current.approvals.queue).toHaveLength(1);
   });

@@ -2,6 +2,11 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import type { HermesUpstreamWatchOptions } from "../src/main/hermes-upstream-watch";
+
+type EngineUpdateSummarizer = NonNullable<
+  HermesUpstreamWatchOptions["summarizeAvailableUpdate"]
+>;
 
 const TEST_DIR = join(
   tmpdir(),
@@ -138,14 +143,14 @@ describe("Hermes upstream watch", () => {
     expect(state.latestReportPath).toBe(
       join(TEST_DIR, "profiles", "work", "upstream-watch", "2026-06-20.md"),
     );
-    expect(existsSync(state.latestReportPath)).toBe(true);
+    expect(existsSync(state.latestReportPath!)).toBe(true);
     expect(
       existsSync(
         join(process.cwd(), "docs", "upstream-watch", "2026-06-20.md"),
       ),
     ).toBe(false);
 
-    const report = readFileSync(state.latestReportPath, "utf-8");
+    const report = readFileSync(state.latestReportPath!, "utf-8");
     expect(report).toContain("# Hermes Agent Upstream Watch - 2026-06-20");
     expect(report).toContain("desktop-parity");
     expect(report).toContain("cron-automation");
@@ -254,7 +259,7 @@ describe("Hermes upstream watch", () => {
       }
       throw new Error(`unexpected request: ${url}`);
     });
-    const summarizeAvailableUpdate = vi.fn(async () => [
+    const summarizeAvailableUpdate = vi.fn<EngineUpdateSummarizer>(async () => [
       {
         title: "Gateway update available",
         body: "A pending Hermes Agent update changes gateway capability reporting.",
@@ -343,7 +348,7 @@ describe("Hermes upstream watch", () => {
       }
       throw new Error(`unexpected request: ${url}`);
     });
-    const summarizeAvailableUpdate = vi.fn(async () => [
+    const summarizeAvailableUpdate = vi.fn<EngineUpdateSummarizer>(async () => [
       {
         title: "Engine update available",
         body: "A broad Hermes Agent update is available for review.",
@@ -456,7 +461,7 @@ describe("Hermes upstream watch", () => {
       }
       return jsonResponse([]);
     });
-    const summarizeAvailableUpdate = vi.fn(async () => [
+    const summarizeAvailableUpdate = vi.fn<EngineUpdateSummarizer>(async () => [
       { title: "Should not render", body: "No anchor means no update range." },
     ]);
     const { runHermesUpstreamWatch } = await loadWatch();

@@ -162,12 +162,12 @@ export function LearningSurface({
   }, [profile]);
 
   useEffect(() => {
-    void loadRecipes();
-    void loadRecipeRuns();
-    void loadLocalExperts();
-    void loadProposals();
-    void loadSkills();
-    void loadCurator();
+    runDetached("load assistants", loadRecipes);
+    runDetached("load assistant runs", loadRecipeRuns);
+    runDetached("load local experts", loadLocalExperts);
+    runDetached("load learning proposals", loadProposals);
+    runDetached("load skills", loadSkills);
+    runDetached("load curator status", loadCurator);
   }, [
     loadRecipes,
     loadRecipeRuns,
@@ -178,8 +178,19 @@ export function LearningSurface({
   ]);
 
   useEffect(() => {
-    if (tab === "experts") void loadLocalExpertDetail(selectedExpertId);
+    if (tab === "experts") {
+      runDetached("load local expert details", () =>
+        loadLocalExpertDetail(selectedExpertId),
+      );
+    }
   }, [loadLocalExpertDetail, selectedExpertId, tab]);
+
+  function runDetached(label: string, action: () => Promise<void>): void {
+    action().catch((err: unknown) => {
+      const detail = err instanceof Error ? err.message : "Action failed.";
+      setNotice(`Could not ${label}: ${detail}`);
+    });
+  }
 
   async function run<T>(
     label: string,
@@ -398,7 +409,9 @@ export function LearningSurface({
   function selectExpert(packId: string): void {
     setSelectedExpertId(packId);
     setExpertCheckRun(null);
-    void loadLocalExpertDetail(packId);
+    runDetached("load local expert details", () =>
+      loadLocalExpertDetail(packId),
+    );
   }
 
   async function pickExpertImportPack(): Promise<void> {
@@ -657,11 +670,19 @@ export function LearningSurface({
           canSaveRecipeResult={Boolean(lastRecipeRunId)}
           selectRecipeTemplate={selectRecipeTemplate}
           toggleRecipeAction={toggleRecipeAction}
-          createRecipe={createRecipe}
-          runRecipe={runRecipe}
-          saveRecipeResult={saveRecipeResult}
-          toggleRecipe={toggleRecipe}
-          deleteRecipe={deleteRecipe}
+          createRecipe={() => runDetached("create assistant", createRecipe)}
+          runRecipe={(recipe) =>
+            runDetached("run assistant", () => runRecipe(recipe))
+          }
+          saveRecipeResult={() =>
+            runDetached("save assistant result", saveRecipeResult)
+          }
+          toggleRecipe={(recipe) =>
+            runDetached("update assistant", () => toggleRecipe(recipe))
+          }
+          deleteRecipe={(recipe) =>
+            runDetached("delete assistant", () => deleteRecipe(recipe))
+          }
           busy={busy}
         />
       )}
@@ -671,17 +692,37 @@ export function LearningSurface({
           selectedPackId={selectedExpertId}
           selectExpert={selectExpert}
           detail={localExpertDetail}
-          installExpert={installExpert}
-          uninstallExpert={uninstallExpert}
+          installExpert={(packId) =>
+            runDetached("install local expert", () => installExpert(packId))
+          }
+          uninstallExpert={(packId) =>
+            runDetached("remove local expert", () => uninstallExpert(packId))
+          }
           importPath={expertImportPath}
-          pickImportPack={pickExpertImportPack}
-          previewImport={previewExpertImport}
-          importPack={importExpertPack}
+          pickImportPack={() =>
+            runDetached("choose an expert pack", pickExpertImportPack)
+          }
+          previewImport={() =>
+            runDetached("preview expert import", previewExpertImport)
+          }
+          importPack={() => runDetached("import expert pack", importExpertPack)}
           exportPath={expertExportPath}
-          pickExportPath={pickExpertExportPath}
-          exportPack={exportExpertPack}
-          enableChecks={enableExpertChecks}
-          runChecks={runExpertChecks}
+          pickExportPath={(packId) =>
+            runDetached("choose an expert export path", () =>
+              pickExpertExportPath(packId),
+            )
+          }
+          exportPack={(packId) =>
+            runDetached("export expert pack", () => exportExpertPack(packId))
+          }
+          enableChecks={(packId) =>
+            runDetached("enable expert checks", () =>
+              enableExpertChecks(packId),
+            )
+          }
+          runChecks={(packId) =>
+            runDetached("run expert checks", () => runExpertChecks(packId))
+          }
           checkRun={expertCheckRun}
           busy={busy}
         />
@@ -691,11 +732,17 @@ export function LearningSurface({
           pending={pendingMemories}
           memoryDraft={memoryDraft}
           setMemoryDraft={setMemoryDraft}
-          proposeMemory={proposeMemory}
-          accept={accept}
-          dismiss={dismiss}
+          proposeMemory={() => runDetached("propose memory", proposeMemory)}
+          accept={(id) =>
+            runDetached("accept learning proposal", () => accept(id))
+          }
+          dismiss={(id) =>
+            runDetached("dismiss learning proposal", () => dismiss(id))
+          }
           profile={profile}
-          refresh={loadProposals}
+          refresh={() =>
+            runDetached("refresh learning proposals", loadProposals)
+          }
           busy={busy}
         />
       )}
@@ -715,14 +762,28 @@ export function LearningSurface({
           setSkillBody={setSkillBody}
           repoPath={repoPath}
           setRepoPath={setRepoPath}
-          accept={accept}
-          dismiss={dismiss}
-          viewSkill={viewSkill}
-          toggleSkill={toggleSkill}
-          createSkill={createSkill}
-          generateDraft={generateDraft}
-          importSkill={importSkill}
-          uninstallSkill={uninstallSkill}
+          accept={(id) =>
+            runDetached("accept learning proposal", () => accept(id))
+          }
+          dismiss={(id) =>
+            runDetached("dismiss learning proposal", () => dismiss(id))
+          }
+          viewSkill={(skill) =>
+            runDetached("open skill", () => viewSkill(skill))
+          }
+          toggleSkill={(skill, enabled) =>
+            runDetached("update skill", () => toggleSkill(skill, enabled))
+          }
+          createSkill={() => runDetached("create skill", createSkill)}
+          generateDraft={() =>
+            runDetached("generate skill draft", generateDraft)
+          }
+          importSkill={(skill) =>
+            runDetached("import skill", () => importSkill(skill))
+          }
+          uninstallSkill={(skill) =>
+            runDetached("uninstall skill", () => uninstallSkill(skill))
+          }
           busy={busy}
         />
       )}
@@ -734,33 +795,45 @@ export function LearningSurface({
           setManualSkill={setManualSkill}
           busy={busy}
           runNow={() =>
-            curatorAction("run-curator", () =>
-              window.hermesAPI.runCuratorNow(profile),
+            runDetached("run curator", () =>
+              curatorAction("run-curator", () =>
+                window.hermesAPI.runCuratorNow(profile),
+              ),
             )
           }
           pause={() =>
-            curatorAction("pause-curator", () =>
-              window.hermesAPI.pauseCurator(profile),
+            runDetached("pause curator", () =>
+              curatorAction("pause-curator", () =>
+                window.hermesAPI.pauseCurator(profile),
+              ),
             )
           }
           resume={() =>
-            curatorAction("resume-curator", () =>
-              window.hermesAPI.resumeCurator(profile),
+            runDetached("resume curator", () =>
+              curatorAction("resume-curator", () =>
+                window.hermesAPI.resumeCurator(profile),
+              ),
             )
           }
           restore={(name) =>
-            curatorAction(`restore-${name}`, () =>
-              window.hermesAPI.restoreArchivedSkill(name, profile),
+            runDetached(`restore ${name}`, () =>
+              curatorAction(`restore-${name}`, () =>
+                window.hermesAPI.restoreArchivedSkill(name, profile),
+              ),
             )
           }
           pin={(name) =>
-            curatorAction(`pin-${name}`, () =>
-              window.hermesAPI.pinSkill(name, profile),
+            runDetached(`pin ${name}`, () =>
+              curatorAction(`pin-${name}`, () =>
+                window.hermesAPI.pinSkill(name, profile),
+              ),
             )
           }
           unpin={(name) =>
-            curatorAction(`unpin-${name}`, () =>
-              window.hermesAPI.unpinSkill(name, profile),
+            runDetached(`unpin ${name}`, () =>
+              curatorAction(`unpin-${name}`, () =>
+                window.hermesAPI.unpinSkill(name, profile),
+              ),
             )
           }
         />

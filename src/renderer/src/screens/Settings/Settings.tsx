@@ -226,7 +226,11 @@ function Settings({
   }, [profile]);
 
   useEffect(() => {
-    void Promise.resolve().then(loadConfig);
+    Promise.resolve()
+      .then(loadConfig)
+      .catch((err: unknown) => {
+        console.error("Failed to load settings:", err);
+      });
   }, [loadConfig]);
 
   useEffect(() => {
@@ -561,7 +565,15 @@ function Settings({
             {parsedVersion?.updateInfo ? (
               <button
                 className="btn btn-primary "
-                onClick={handleUpdateHermes}
+                onClick={() => {
+                  handleUpdateHermes().catch((err: unknown) => {
+                    setUpdating(false);
+                    setUpdateResult(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                    setUpdateResultType("error");
+                  });
+                }}
                 disabled={updating}
               >
                 {updating ? t("settings.updating") : t("settings.updateEngine")}
@@ -573,7 +585,14 @@ function Settings({
             )}
             <button
               className="btn btn-secondary"
-              onClick={handleDoctor}
+              onClick={() => {
+                handleDoctor().catch((err: unknown) => {
+                  setDoctorRunning(false);
+                  setDoctorOutput(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }}
               disabled={doctorRunning}
             >
               {doctorRunning
@@ -582,12 +601,18 @@ function Settings({
             </button>
             <button
               className="btn btn-secondary"
-              onClick={async () => {
+              onClick={() => {
                 setDumpRunning(true);
                 setDumpOutput(null);
-                const output = await window.hermesAPI.runHermesDump();
-                setDumpOutput(output);
-                setDumpRunning(false);
+                window.hermesAPI
+                  .runHermesDump()
+                  .then(setDumpOutput)
+                  .catch((err: unknown) => {
+                    setDumpOutput(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  })
+                  .finally(() => setDumpRunning(false));
               }}
               disabled={dumpRunning}
             >
@@ -775,20 +800,18 @@ function Settings({
           >
             <button
               className="btn btn-secondary"
-              onClick={async () => {
+              onClick={() => {
                 setSecurityRunning(true);
                 setSecurityOutput(null);
-                try {
-                  const output =
-                    await window.hermesAPI.runSecurityAudit(profile);
-                  setSecurityOutput(output);
-                } catch (err) {
-                  setSecurityOutput(
-                    "Error running security audit: " + (err as Error).message,
-                  );
-                } finally {
-                  setSecurityRunning(false);
-                }
+                window.hermesAPI
+                  .runSecurityAudit(profile)
+                  .then(setSecurityOutput)
+                  .catch((err: unknown) => {
+                    setSecurityOutput(
+                      `Error running security audit: ${err instanceof Error ? err.message : String(err)}`,
+                    );
+                  })
+                  .finally(() => setSecurityRunning(false));
               }}
               disabled={securityRunning}
             >
@@ -865,7 +888,13 @@ function Settings({
               className={`settings-theme-option ${connMode === "local" ? "active" : ""}`}
               onClick={() => {
                 setConnMode("local");
-                if (connLoaded.current) handleSwitchToLocal();
+                if (connLoaded.current) {
+                  handleSwitchToLocal().catch((err: unknown) => {
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }
               }}
             >
               {t("settings.modeLocal")}
@@ -906,15 +935,23 @@ function Settings({
             <button
               className="btn btn-primary"
               disabled={generatingKey}
-              onClick={async () => {
+              onClick={() => {
                 setGeneratingKey(true);
-                await window.hermesAPI.generateApiServerKey(profile);
-                setApiServerKeyMissing(false);
-                setGeneratingKey(false);
-                setConnStatus(
-                  "API key generated — connection service restarting…",
-                );
-                setTimeout(() => setConnStatus(null), 4000);
+                window.hermesAPI
+                  .generateApiServerKey(profile)
+                  .then(() => {
+                    setApiServerKeyMissing(false);
+                    setConnStatus(
+                      "API key generated — connection service restarting…",
+                    );
+                    setTimeout(() => setConnStatus(null), 4000);
+                  })
+                  .catch((err: unknown) => {
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  })
+                  .finally(() => setGeneratingKey(false));
               }}
             >
               {generatingKey ? "Generating…" : "Generate & save a key for me"}
@@ -945,7 +982,13 @@ function Settings({
                 value={connRemoteUrl}
                 onChange={(e) => setConnRemoteUrl(e.target.value)}
                 placeholder="http://192.168.1.100:8642"
-                onBlur={handleSaveConnection}
+                onBlur={() => {
+                  handleSaveConnection().catch((err: unknown) => {
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
               />
               <div className="settings-field-hint">
                 {t("settings.remoteUrlHint")}
@@ -966,7 +1009,13 @@ function Settings({
                   }
                 }}
                 placeholder={t("settings.remoteApiKey")}
-                onBlur={handleSaveConnection}
+                onBlur={() => {
+                  handleSaveConnection().catch((err: unknown) => {
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
               />
               <div className="settings-field-hint">
                 {t("settings.remoteApiKeyHint")}
@@ -975,7 +1024,14 @@ function Settings({
             <div className="settings-hermes-actions">
               <button
                 className="btn btn-secondary"
-                onClick={handleTestConnection}
+                onClick={() => {
+                  handleTestConnection().catch((err: unknown) => {
+                    setConnTesting(false);
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
                 disabled={connTesting}
               >
                 {connTesting
@@ -984,7 +1040,13 @@ function Settings({
               </button>
               <button
                 className="btn btn-primary"
-                onClick={handleSaveConnection}
+                onClick={() => {
+                  handleSaveConnection().catch((err: unknown) => {
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
               >
                 {t("settings.save")}
               </button>
@@ -1069,14 +1131,27 @@ function Settings({
             <div className="settings-hermes-actions">
               <button
                 className="btn btn-secondary"
-                onClick={handleTestConnection}
+                onClick={() => {
+                  handleTestConnection().catch((err: unknown) => {
+                    setConnTesting(false);
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
                 disabled={connTesting}
               >
                 {connTesting ? "Testing SSH…" : "Test SSH Connection"}
               </button>
               <button
                 className="btn btn-primary"
-                onClick={handleSaveConnection}
+                onClick={() => {
+                  handleSaveConnection().catch((err: unknown) => {
+                    setConnStatus(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  });
+                }}
               >
                 {t("settings.save")}
               </button>
@@ -1245,10 +1320,18 @@ function Settings({
               <input
                 type="checkbox"
                 checked={autoApprove}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const val = e.target.checked;
                   setAutoApproveState(val);
-                  await window.hermesAPI.setAutoApprove(val, profile);
+                  window.hermesAPI
+                    .setAutoApprove(val, profile)
+                    .catch((err: unknown) => {
+                      setAutoApproveState(!val);
+                      console.error(
+                        "Failed to save auto-approve setting:",
+                        err,
+                      );
+                    });
                 }}
               />
               <span className="tools-toggle-track" />
@@ -1272,10 +1355,15 @@ function Settings({
               <input
                 type="checkbox"
                 checked={completionSound}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const val = e.target.checked;
                   setCompletionSoundState(val);
-                  await window.hermesAPI.setCompletionSound(val);
+                  window.hermesAPI
+                    .setCompletionSound(val)
+                    .catch((err: unknown) => {
+                      setCompletionSoundState(!val);
+                      console.error("Failed to save completion sound:", err);
+                    });
                 }}
               />
               <span className="tools-toggle-track" />
@@ -1365,16 +1453,23 @@ function Settings({
               <input
                 type="checkbox"
                 checked={forceIpv4}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const val = e.target.checked;
                   setForceIpv4(val);
-                  await window.hermesAPI.setConfig(
-                    "network.force_ipv4",
-                    val ? "true" : "false",
-                    profile,
-                  );
-                  setNetworkSaved(true);
-                  setTimeout(() => setNetworkSaved(false), 2000);
+                  window.hermesAPI
+                    .setConfig(
+                      "network.force_ipv4",
+                      val ? "true" : "false",
+                      profile,
+                    )
+                    .then(() => {
+                      setNetworkSaved(true);
+                      setTimeout(() => setNetworkSaved(false), 2000);
+                    })
+                    .catch((err: unknown) => {
+                      setForceIpv4(!val);
+                      console.error("Failed to save IPv4 setting:", err);
+                    });
                 }}
               />
               <span className="tools-toggle-track" />
@@ -1393,14 +1488,16 @@ function Settings({
             type="text"
             value={httpProxy}
             onChange={(e) => setHttpProxy(e.target.value)}
-            onBlur={async () => {
-              await window.hermesAPI.setConfig(
-                "network.proxy",
-                httpProxy.trim(),
-                profile,
-              );
-              setNetworkSaved(true);
-              setTimeout(() => setNetworkSaved(false), 2000);
+            onBlur={() => {
+              window.hermesAPI
+                .setConfig("network.proxy", httpProxy.trim(), profile)
+                .then(() => {
+                  setNetworkSaved(true);
+                  setTimeout(() => setNetworkSaved(false), 2000);
+                })
+                .catch((err: unknown) => {
+                  console.error("Failed to save proxy setting:", err);
+                });
             }}
             placeholder={t("settings.proxyPlaceholder")}
           />
@@ -1433,7 +1530,14 @@ function Settings({
           <div className="settings-hermes-actions">
             <button
               className="btn btn-secondary"
-              onClick={handleBackup}
+              onClick={() => {
+                handleBackup().catch((err: unknown) => {
+                  setBackingUp(false);
+                  setBackupResult(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }}
               disabled={backingUp}
             >
               <Download size={14} style={{ marginRight: 6 }} />
@@ -1441,7 +1545,14 @@ function Settings({
             </button>
             <button
               className="btn btn-secondary"
-              onClick={handleImport}
+              onClick={() => {
+                handleImport().catch((err: unknown) => {
+                  setImporting(false);
+                  setImportResult(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }}
               disabled={importing}
             >
               <Upload size={14} style={{ marginRight: 6 }} />
@@ -1474,7 +1585,13 @@ function Settings({
             onClick={() => {
               const next = !logsExpanded;
               setLogsExpanded(next);
-              if (next) loadLogs();
+              if (next) {
+                loadLogs().catch((err: unknown) => {
+                  setLogContent(
+                    `Failed to load logs: ${err instanceof Error ? err.message : String(err)}`,
+                  );
+                });
+              }
             }}
           >
             <FileText
@@ -1493,16 +1610,32 @@ function Settings({
                   className={`btn btn-sm ${logFile === f ? "btn-primary" : "btn-secondary"}`}
                   onClick={() => {
                     setLogFile(f);
-                    window.hermesAPI.readLogs(f, 300).then((r) => {
-                      setLogContent(r.content);
-                      setLogPath(r.path);
-                    });
+                    window.hermesAPI
+                      .readLogs(f, 300)
+                      .then((r) => {
+                        setLogContent(r.content);
+                        setLogPath(r.path);
+                      })
+                      .catch((err: unknown) => {
+                        setLogContent(
+                          `Failed to load logs: ${err instanceof Error ? err.message : String(err)}`,
+                        );
+                      });
                   }}
                 >
                   {f.replace(".log", "")}
                 </button>
               ))}
-              <button className="btn btn-sm btn-secondary" onClick={loadLogs}>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={() => {
+                  loadLogs().catch((err: unknown) => {
+                    setLogContent(
+                      `Failed to load logs: ${err instanceof Error ? err.message : String(err)}`,
+                    );
+                  });
+                }}
+              >
                 {t("settings.refresh")}
               </button>
             </div>

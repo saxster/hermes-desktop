@@ -43,7 +43,15 @@ describe("dbItemsToChatMessages", () => {
   });
 
   it("preserves attachments on user, assistant, and tool_result", () => {
-    const att = [{ id: "a1", kind: "image" as const, name: "x.png", size: 1 }];
+    const att = [
+      {
+        id: "a1",
+        kind: "image" as const,
+        name: "x.png",
+        mime: "image/png",
+        size: 1,
+      },
+    ];
     const items: DbHistoryItem[] = [
       { kind: "user", id: 1, content: "see this", attachments: att },
       { kind: "assistant", id: 2, content: "Got it.", attachments: att },

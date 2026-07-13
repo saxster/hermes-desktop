@@ -66,7 +66,9 @@ function ResearchReachSummary({
 
   useEffect(() => {
     if (!active || loaded) return;
-    void refresh();
+    refresh().catch((err: unknown) => {
+      console.error("Unexpected Research Reach refresh failure:", err);
+    });
   }, [active, loaded, refresh]);
 
   const summary = useMemo(

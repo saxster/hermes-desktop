@@ -133,7 +133,9 @@ function Chat({
     (async (): Promise<void> => {
       const flag = await window.hermesAPI.isRemoteMode();
       if (!cancelled) setRemoteMode(flag);
-    })();
+    })().catch(() => {
+      if (!cancelled) setRemoteMode(false);
+    });
     return (): void => {
       cancelled = true;
     };
@@ -248,7 +250,10 @@ function Chat({
         // Fail open on IPC error — never block Send on validation failure
         if (!cancelled) setReadiness({ ok: true });
       }
-    })();
+    })().catch((err: unknown) => {
+      console.error("Unexpected chat readiness failure:", err);
+      if (!cancelled) setReadiness({ ok: true });
+    });
     return (): void => {
       cancelled = true;
     };
@@ -483,7 +488,9 @@ function Chat({
         setQueuedCount(queueRef.current.length);
         return;
       }
-      void handleSendRef.current(text, attachments);
+      handleSendRef.current(text, attachments).catch((err: unknown) => {
+        console.error("Failed to send chat message:", err);
+      });
     },
     [isLoading],
   );
@@ -555,7 +562,9 @@ function Chat({
       setDragActive(false);
       const files = Array.from(e.dataTransfer.files);
       if (files.length === 0) return;
-      void chatInputRef.current?.addFiles(files);
+      chatInputRef.current?.addFiles(files).catch((err: unknown) => {
+        console.error("Failed to add dropped files:", err);
+      });
     },
     [eventHasFiles],
   );
@@ -610,7 +619,7 @@ function Chat({
   );
 
   const handleSteelmanCritique = useCallback(
-    async (
+    (
       responses: Array<{
         seatName?: string;
         model: string;
@@ -636,7 +645,9 @@ function Chat({
         setSelectedModels([selectedModels[0]]);
       }
 
-      void actions.handleSend(promptText);
+      actions.handleSend(promptText).catch((err: unknown) => {
+        console.error("Failed to request council critique:", err);
+      });
     },
     [actions, councilConfig, messages, selectedModels],
   );
@@ -661,21 +672,33 @@ function Chat({
         devMode={devMode}
         previewAvailable={!!previewItem}
         previewVisible={previewVisible}
-        onPickFolder={handlePickFolder}
+        onPickFolder={() => {
+          handlePickFolder().catch((err: unknown) => {
+            console.error("Failed to choose context folder:", err);
+          });
+        }}
         onClearFolder={handleClearFolder}
-        onToggleFast={toggleFastMode}
+        onToggleFast={() => {
+          toggleFastMode().catch((err: unknown) => {
+            console.error("Failed to toggle fast mode:", err);
+          });
+        }}
         onToggleWorktree={() => setWorktreeVisible((v) => !v)}
         onTogglePreview={() => setPreviewVisible((v) => !v)}
         onNewChat={onNewChat}
         onClear={handleClear}
         model={modelConfig.currentModel}
         onCompress={() => {
-          void actions.handleSend("/compress", []);
+          actions.handleSend("/compress", []).catch((err: unknown) => {
+            console.error("Failed to compress chat context:", err);
+          });
         }}
         onCheckpoints={
           devMode
             ? () => {
-                void actions.handleSend(listCommand(), []);
+                actions.handleSend(listCommand(), []).catch((err: unknown) => {
+                  console.error("Failed to list checkpoints:", err);
+                });
               }
             : undefined
         }
@@ -696,7 +719,11 @@ function Chat({
               scrollRef={containerRef}
               onApprove={actions.handleApprove}
               onDeny={actions.handleDeny}
-              onAdoptResponse={handleAdoptResponse}
+              onAdoptResponse={(...args) => {
+                handleAdoptResponse(...args).catch((err: unknown) => {
+                  console.error("Failed to adopt council response:", err);
+                });
+              }}
               onSteelmanCritique={handleSteelmanCritique}
               onSaveCouncilArtifact={onSaveCouncilArtifact}
             />
@@ -737,7 +764,11 @@ function Chat({
       <div className="chat-input-area">
         <ActiveSkillChips
           skills={skills.active}
-          onUnload={skills.unloadByName}
+          onUnload={(name) => {
+            skills.unloadByName(name).catch((err: unknown) => {
+              console.error("Failed to unload chat skill:", err);
+            });
+          }}
         />
         <ChatInput
           ref={chatInputRef}
@@ -749,7 +780,11 @@ function Chat({
           readiness={readiness}
           skillCommands={skillCommands}
           onSubmit={handleSubmitOrQueue}
-          onQuickAsk={actions.handleQuickAsk}
+          onQuickAsk={(text, attachments) => {
+            actions.handleQuickAsk(text, attachments).catch((err: unknown) => {
+              console.error("Failed to send quick question:", err);
+            });
+          }}
           onAbort={actions.handleAbort}
         />
         <ModelPicker
@@ -758,8 +793,18 @@ function Chat({
           currentBaseUrl={modelConfig.currentBaseUrl}
           modelGroups={modelConfig.modelGroups}
           displayModel={modelConfig.displayModel}
-          onOpen={modelConfig.reload}
-          onSelectModel={handleSelectModel}
+          onOpen={() => {
+            modelConfig.reload().catch((err: unknown) => {
+              console.error("Failed to reload models:", err);
+            });
+          }}
+          onSelectModel={(provider, model, baseUrl) => {
+            handleSelectModel(provider, model, baseUrl).catch(
+              (err: unknown) => {
+                console.error("Failed to select model:", err);
+              },
+            );
+          }}
           selectedModels={selectedModels}
           onToggleCouncilModel={handleToggleCouncilModel}
         />

@@ -12,6 +12,7 @@ import { promises as fs, watch, type FSWatcher } from "fs";
 import { join } from "path";
 import { Notification, type BrowserWindow } from "electron";
 import { profileHome, getActiveProfileNameSync } from "./utils";
+import { formatLogError, log } from "./log";
 
 import type { EquityAlert } from "../shared/equity";
 export type { EquityAlert };
@@ -120,6 +121,15 @@ async function checkForNew(
   }
 }
 
+function checkForNewSafely(getWindow: () => BrowserWindow | null): void {
+  checkForNew(getWindow).catch((error) => {
+    log.error("equity-alerts", {
+      msg: "failed to check for new alerts",
+      error: formatLogError(error),
+    });
+  });
+}
+
 /**
  * Begin watching the active profile's alert log. Pre-existing alerts are NOT
  * re-notified — only lines appended after start fire. Idempotent.
@@ -135,14 +145,14 @@ export async function startEquityAlertWatcher(
   try {
     watcher = watch(dir, (_evt, filename) => {
       if (!filename || String(filename) === ALERTS_FILE) {
-        void checkForNew(getWindow);
+        checkForNewSafely(getWindow);
       }
     });
   } catch {
     watcher = null; // dir may not exist yet; the poll below covers it
   }
   // Safety poll (cron writes are infrequent; this also covers a missing dir).
-  pollTimer = setInterval(() => void checkForNew(getWindow), 15000);
+  pollTimer = setInterval(() => checkForNewSafely(getWindow), 15000);
 }
 
 export function stopEquityAlertWatcher(): void {

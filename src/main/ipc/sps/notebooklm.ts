@@ -37,7 +37,9 @@ export function registerSpsNotebookLmIpc(): void {
   );
 }
 
-function ensureNotebookLmMcpRegistered(profile?: string): NotebookLmMcpStatus {
+async function ensureNotebookLmMcpRegistered(
+  profile?: string,
+): Promise<NotebookLmMcpStatus> {
   const name = "notebooklm-mcp";
   const current = listMcpServerEntries(profile).find((s) => s.name === name);
   if (current) {
@@ -56,7 +58,7 @@ function ensureNotebookLmMcpRegistered(profile?: string): NotebookLmMcpStatus {
         },
         profile,
       );
-      if (wasRunning) void restartGateway(profile);
+      if (wasRunning) await restartGateway(profile);
       return {
         registered: true,
         alreadyPresent: true,
@@ -74,7 +76,7 @@ function ensureNotebookLmMcpRegistered(profile?: string): NotebookLmMcpStatus {
     }
     if (!current.enabled) {
       setMcpServerEnabled(name, true, profile);
-      if (wasRunning) void restartGateway(profile);
+      if (wasRunning) await restartGateway(profile);
     }
     return {
       registered: true,
@@ -112,7 +114,7 @@ function ensureNotebookLmMcpRegistered(profile?: string): NotebookLmMcpStatus {
     { command: entry.command, args: entry.args, env: {}, enabled: true },
     profile,
   );
-  if (wasRunning) void restartGateway(profile);
+  if (wasRunning) await restartGateway(profile);
   return {
     registered: true,
     alreadyPresent: false,

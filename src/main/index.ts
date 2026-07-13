@@ -190,11 +190,21 @@ function createCaptureWindow(): void {
 
   const devUrl = is.dev ? process.env["ELECTRON_RENDERER_URL"] : undefined;
   if (devUrl) {
-    captureWindow.loadURL(`${devUrl}?window=capture`);
+    captureWindow.loadURL(`${devUrl}?window=capture`).catch((err) => {
+      log.error("renderer", {
+        msg: "failed to load capture window",
+        error: formatLogError(err),
+      });
+    });
   } else {
-    captureWindow.loadURL(
-      `${pathToFileURL(rendererHtmlPath).toString()}?window=capture`,
-    );
+    captureWindow
+      .loadURL(`${pathToFileURL(rendererHtmlPath).toString()}?window=capture`)
+      .catch((err) => {
+        log.error("renderer", {
+          msg: "failed to load capture window",
+          error: formatLogError(err),
+        });
+      });
   }
 
   captureWindow.on("blur", () => {
@@ -554,9 +564,19 @@ function createWindow(): void {
   });
 
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
+    mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]).catch((err) => {
+      log.error("renderer", {
+        msg: "failed to load main window",
+        error: formatLogError(err),
+      });
+    });
   } else {
-    mainWindow.loadFile(rendererHtmlPath);
+    mainWindow.loadFile(rendererHtmlPath).catch((err) => {
+      log.error("renderer", {
+        msg: "failed to load main window",
+        error: formatLogError(err),
+      });
+    });
   }
 }
 
@@ -845,7 +865,7 @@ if (!gotSingleInstanceLock) {
   });
 }
 
-app.whenReady().then(() => {
+function handleAppReady(): void {
   // A second instance is already quitting (above) — do nothing here.
   if (!gotSingleInstanceLock) return;
   app.name = "Hermes";
@@ -912,7 +932,12 @@ app.whenReady().then(() => {
   createWindow();
   // Process-owned background services start once, independent of window
   // recreation on macOS. Their stop functions are paired in before-quit.
-  void startEquityAlertWatcher(() => mainWindow);
+  startEquityAlertWatcher(() => mainWindow).catch((err) => {
+    log.error("equity-alerts", {
+      msg: "failed to start alert watcher",
+      error: formatLogError(err),
+    });
+  });
   startScheduledResearch(() => mainWindow);
   startAssistantRecipeScheduler(() => mainWindow);
   createTray();
@@ -925,7 +950,7 @@ app.whenReady().then(() => {
     if (getConnectionConfig().mode === "local") {
       const supervision = recordGatewaySupervisionHealth(status);
       if (status === "down" && supervision.outageStartedAt) {
-        void deliverOwnerEvent(
+        deliverOwnerEvent(
           {
             id: `gateway-outage:${supervision.outageStartedAt}`,
             kind: "gateway-outage",
@@ -933,7 +958,12 @@ app.whenReady().then(() => {
             body: "Automatic recovery was exhausted. Open Gateway settings to inspect logs and retry.",
           },
           getActiveProfileNameSync(),
-        );
+        ).catch((err) => {
+          log.error("owner-delivery", {
+            msg: "failed to deliver gateway outage event",
+            error: formatLogError(err),
+          });
+        });
       }
     }
   });
@@ -996,7 +1026,18 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-});
+}
+
+app
+  .whenReady()
+  .then(handleAppReady)
+  .catch((err) => {
+    log.error("main", {
+      msg: "application startup failed",
+      error: formatLogError(err),
+    });
+    app.quit();
+  });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -1013,18 +1054,33 @@ app.on("before-quit", () => {
   globalShortcut.unregisterAll();
   stopScheduler();
   stopCapabilityRiskScheduler();
-  stopControlServer();
+  stopControlServer().catch((err) => {
+    log.error("control-server", {
+      msg: "failed to stop control server",
+      error: formatLogError(err),
+    });
+  });
   stopHealthPolling();
   stopEquityAlertWatcher();
   stopScheduledResearch();
   stopAssistantRecipeScheduler();
   abortAllChats();
-  void closeObsidianWatcher();
+  closeObsidianWatcher().catch((err) => {
+    log.error("obsidian", {
+      msg: "failed to close watcher",
+      error: formatLogError(err),
+    });
+  });
   // Leave profile gateways running on quit (see window-all-closed) so bots
   // and other platforms stay online headless.
   stopSshTunnel();
   semanticManager.stop();
-  void closeAllNoteIndexes();
+  closeAllNoteIndexes().catch((err) => {
+    log.error("note-index", {
+      msg: "failed to close indexes",
+      error: formatLogError(err),
+    });
+  });
   stopExternalContextScans();
   closeExternalContextDb();
   closeSharedDb();

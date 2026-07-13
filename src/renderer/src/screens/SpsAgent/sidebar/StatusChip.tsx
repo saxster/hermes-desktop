@@ -108,7 +108,9 @@ export function StatusChip(): React.JSX.Element | null {
         /* offline / no gateway — leave the last good value */
       }
     };
-    void load();
+    load().catch((error: unknown) => {
+      console.error("[Status] Failed to load connection status:", error);
+    });
     const unsubscribe = window.hermesAPI.onGatewayHealthChanged?.((change) => {
       setStatus((prev) =>
         prev
@@ -116,7 +118,11 @@ export function StatusChip(): React.JSX.Element | null {
           : prev,
       );
     });
-    const timer = setInterval(() => void load(), 30_000);
+    const timer = setInterval(() => {
+      load().catch((error: unknown) => {
+        console.error("[Status] Failed to refresh connection status:", error);
+      });
+    }, 30_000);
     return () => {
       cancelled = true;
       unsubscribe?.();
@@ -182,30 +188,37 @@ export function StatusChip(): React.JSX.Element | null {
         title="Update Hermes Agent engine now"
         aria-label="Update Hermes Agent engine now"
         disabled={updateBusy}
-        onClick={async () => {
-          const api = window.hermesAPI;
-          if (!api?.runHermesAgentUpdateCheck) return;
-          setUpdateBusy(true);
-          try {
-            const result = await api.runHermesAgentUpdateCheck(status.profile, {
-              autoApply: true,
-            });
-            setStatus((prev) =>
-              prev ? { ...prev, hint: result.message || prev.hint } : prev,
-            );
-          } catch (err) {
-            setStatus((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    health: "warn",
-                    hint: err instanceof Error ? err.message : String(err),
-                  }
-                : prev,
-            );
-          } finally {
+        onClick={() => {
+          const update = async (): Promise<void> => {
+            const api = window.hermesAPI;
+            if (!api?.runHermesAgentUpdateCheck) return;
+            setUpdateBusy(true);
+            try {
+              const result = await api.runHermesAgentUpdateCheck(
+                status.profile,
+                { autoApply: true },
+              );
+              setStatus((prev) =>
+                prev ? { ...prev, hint: result.message || prev.hint } : prev,
+              );
+            } catch (err) {
+              setStatus((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      health: "warn",
+                      hint: err instanceof Error ? err.message : String(err),
+                    }
+                  : prev,
+              );
+            } finally {
+              setUpdateBusy(false);
+            }
+          };
+          update().catch((error: unknown) => {
+            console.error("[Status] Engine update failed:", error);
             setUpdateBusy(false);
-          }
+          });
         }}
         style={{
           display: "inline-flex",

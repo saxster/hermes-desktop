@@ -186,4 +186,10 @@ async function main(): Promise<void> {
   await server.connect(transport);
 }
 
-void main();
+main().catch((error) => {
+  console.error(
+    "Desktop MCP server failed:",
+    error instanceof Error ? error.message : String(error),
+  );
+  process.exitCode = 1;
+});

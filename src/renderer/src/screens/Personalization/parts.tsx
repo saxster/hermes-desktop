@@ -96,7 +96,11 @@ export function EditorSection({
           {editing && (
             <button
               className="btn btn-primary btn-sm"
-              onClick={handleSave}
+              onClick={() => {
+                handleSave().catch((err: unknown) => {
+                  setError(err instanceof Error ? err.message : "Save failed");
+                });
+              }}
               disabled={over}
             >
               Save

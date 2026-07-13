@@ -21,7 +21,10 @@ export default defineConfig({
     // out; the happy path is unaffected.
     testTimeout: 15000,
     hookTimeout: 15000,
-    setupFiles: ["./src/renderer/src/test/setup.ts"],
+    setupFiles: [
+      "./tests/setup-hermes-home.ts",
+      "./src/renderer/src/test/setup.ts",
+    ],
     include: [
       "src/**/*.test.ts",
       "src/**/*.test.tsx",

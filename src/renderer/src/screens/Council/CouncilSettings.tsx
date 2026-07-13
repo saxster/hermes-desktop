@@ -112,7 +112,13 @@ export default function CouncilSettings({
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={save}
+            onClick={() => {
+              save().catch((err: unknown) => {
+                setStatus(
+                  err instanceof Error ? err.message : "Could not save",
+                );
+              });
+            }}
             disabled={saving}
           >
             <Save size={14} />

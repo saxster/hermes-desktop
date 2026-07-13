@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import * as net from "net";
 import { ASKPASS_SUBMIT_CHANNEL } from "../shared/askpass";
+import { formatLogError, log } from "./log";
 
 export interface AskpassHandle {
   env: Record<string, string>;
@@ -71,7 +72,7 @@ exit 1
 
   const server = net.createServer((conn) => {
     let buf = "";
-    conn.on("data", async (chunk) => {
+    const handleData = async (chunk: Buffer): Promise<void> => {
       buf += chunk.toString();
       if (!buf.includes("\n")) return;
       const prompt = buf.split("\n")[0];
@@ -81,6 +82,15 @@ exit 1
       } else {
         conn.end(pw + "\n");
       }
+    };
+    conn.on("data", (chunk) => {
+      handleData(chunk).catch((error) => {
+        log.error("askpass", {
+          msg: "password prompt failed",
+          error: formatLogError(error),
+        });
+        conn.destroy();
+      });
     });
     conn.on("error", () => {
       /* connection errors are non-fatal */
@@ -174,10 +184,18 @@ async function showPasswordDialog(
     );
 
     const html = buildDialogHtml(prompt);
-    win.loadURL(
-      "data:text/html;charset=UTF-8;base64," +
-        Buffer.from(html).toString("base64"),
-    );
+    win
+      .loadURL(
+        "data:text/html;charset=UTF-8;base64," +
+          Buffer.from(html).toString("base64"),
+      )
+      .catch((error) => {
+        log.error("askpass", {
+          msg: "failed to load password dialog",
+          error: formatLogError(error),
+        });
+        finish(null);
+      });
   });
 }
 

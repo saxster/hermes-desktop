@@ -229,6 +229,24 @@ export function InboxSurface({
   // Ingest review queue.
   const ingestCommitPage = useStore((s) => s.ingestCommitPage);
   const flash = useStore((s) => s.flash);
+
+  const reportInboxFailure = (label: string, failure: unknown): void => {
+    console.error(`${label} failed:`, failure);
+    setError(failure instanceof Error ? failure.message : `${label} failed.`);
+  };
+
+  const runInboxAction = (
+    label: string,
+    action: () => Promise<unknown> | undefined,
+  ): void => {
+    try {
+      action()?.catch((failure: unknown) => {
+        reportInboxFailure(label, failure);
+      });
+    } catch (failure) {
+      reportInboxFailure(label, failure);
+    }
+  };
   const setSurface = useStore((s) => s.setSurface);
   const importPdf = useStore((s) => s.importPdf);
   const saveStudyToWiki = useStore((s) => s.saveStudyToWiki);
@@ -305,7 +323,9 @@ export function InboxSurface({
         );
       }
     }
-    loadSettings();
+    loadSettings().catch((failure: unknown) => {
+      reportInboxFailure("Curator settings load", failure);
+    });
   }, [profile]);
 
   const loadEmailMonitor = useCallback(async (): Promise<void> => {
@@ -330,7 +350,9 @@ export function InboxSurface({
 
   useEffect(() => {
     if (activeTab !== "sources") return;
-    void loadEmailMonitor();
+    loadEmailMonitor().catch((failure: unknown) => {
+      reportInboxFailure("Email monitor load", failure);
+    });
   }, [activeTab, loadEmailMonitor]);
 
   useEffect(() => {
@@ -1062,7 +1084,11 @@ export function InboxSurface({
                   type="button"
                   className="btn btn-ghost btn-sm"
                   disabled={Boolean(rowBusy[id])}
-                  onClick={() => void sendCaptureFeedback(row, action)}
+                  onClick={() => {
+                    runInboxAction("Capture feedback", () =>
+                      sendCaptureFeedback(row, action),
+                    );
+                  }}
                 >
                   {title}
                 </button>
@@ -1077,21 +1103,25 @@ export function InboxSurface({
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  onClick={() =>
-                    void saveStudyToWiki(
-                      String(row.props.title ?? "Visual capture"),
-                      teachResults[id],
-                    )
-                  }
+                  onClick={() => {
+                    runInboxAction("Study page save", () =>
+                      saveStudyToWiki(
+                        String(row.props.title ?? "Visual capture"),
+                        teachResults[id],
+                      ),
+                    );
+                  }}
                 >
                   Save as study page
                 </button>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() =>
-                    void navigator.clipboard?.writeText?.(teachResults[id])
-                  }
+                  onClick={() => {
+                    runInboxAction("Clipboard copy", () =>
+                      navigator.clipboard?.writeText?.(teachResults[id]),
+                    );
+                  }}
                 >
                   Copy
                 </button>
@@ -1118,7 +1148,11 @@ export function InboxSurface({
               title="Extract text"
               className="btn btn-ghost btn-sm inbox-card-action-btn"
               disabled={Boolean(rowBusy[id])}
-              onClick={() => void extractVisualText(row)}
+              onClick={() => {
+                runInboxAction("Visual text extraction", () =>
+                  extractVisualText(row),
+                );
+              }}
             >
               Extract text
             </button>
@@ -1126,7 +1160,11 @@ export function InboxSurface({
               title="Teach this"
               className="btn btn-ghost btn-sm inbox-card-action-btn"
               disabled={Boolean(rowBusy[id])}
-              onClick={() => void teachVisualCapture(row)}
+              onClick={() => {
+                runInboxAction("Visual capture teaching", () =>
+                  teachVisualCapture(row),
+                );
+              }}
             >
               Teach this
             </button>
@@ -1146,14 +1184,22 @@ export function InboxSurface({
         <button
           title="Mark processed"
           className="btn btn-ghost btn-sm inbox-card-action-btn"
-          onClick={() => setStatus(row, "processed")}
+          onClick={() => {
+            runInboxAction("Capture status update", () =>
+              setStatus(row, "processed"),
+            );
+          }}
         >
           <Icon name="check" size={15} />
         </button>
         <button
           title="Discard"
           className="btn btn-ghost btn-sm inbox-card-action-btn"
-          onClick={() => setStatus(row, "discarded")}
+          onClick={() => {
+            runInboxAction("Capture discard", () =>
+              setStatus(row, "discarded"),
+            );
+          }}
         >
           <Icon name="trash" size={15} />
         </button>
@@ -1180,7 +1226,12 @@ export function InboxSurface({
             type="button"
             className="btn btn-secondary btn-sm"
             disabled={!emailDirty || Boolean(emailBusy)}
-            onClick={() => void saveEmailConfig()}
+            onClick={() => {
+              runInboxAction(
+                "Email monitor configuration save",
+                saveEmailConfig,
+              );
+            }}
           >
             {emailBusy === "save" ? "Saving..." : "Save changes"}
           </button>
@@ -1188,7 +1239,9 @@ export function InboxSurface({
             type="button"
             className="btn btn-primary btn-sm"
             disabled={emailBusy === "run"}
-            onClick={() => void runEmailMonitor()}
+            onClick={() => {
+              runInboxAction("Email monitor run", runEmailMonitor);
+            }}
           >
             {emailBusy === "run" ? "Checking..." : "Check now"}
           </button>
@@ -1338,12 +1391,14 @@ export function InboxSurface({
                             type="button"
                             className="btn btn-secondary btn-sm"
                             disabled={Boolean(emailBusy)}
-                            onClick={() =>
-                              void applyEmailFeedback(
-                                account.id,
-                                "always-capture-sender",
-                              )
-                            }
+                            onClick={() => {
+                              runInboxAction("Email feedback", () =>
+                                applyEmailFeedback(
+                                  account.id,
+                                  "always-capture-sender",
+                                ),
+                              );
+                            }}
                           >
                             Always capture sender
                           </button>
@@ -1351,12 +1406,11 @@ export function InboxSurface({
                             type="button"
                             className="btn btn-ghost btn-sm"
                             disabled={Boolean(emailBusy)}
-                            onClick={() =>
-                              void applyEmailFeedback(
-                                account.id,
-                                "ignore-sender",
-                              )
-                            }
+                            onClick={() => {
+                              runInboxAction("Email feedback", () =>
+                                applyEmailFeedback(account.id, "ignore-sender"),
+                              );
+                            }}
                           >
                             Ignore sender
                           </button>
@@ -1364,12 +1418,14 @@ export function InboxSurface({
                             type="button"
                             className="btn btn-ghost btn-sm"
                             disabled={Boolean(emailBusy)}
-                            onClick={() =>
-                              void applyEmailFeedback(
-                                account.id,
-                                "raise-priority",
-                              )
-                            }
+                            onClick={() => {
+                              runInboxAction("Email feedback", () =>
+                                applyEmailFeedback(
+                                  account.id,
+                                  "raise-priority",
+                                ),
+                              );
+                            }}
                           >
                             Raise priority
                           </button>
@@ -1502,8 +1558,9 @@ export function InboxSurface({
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-                    captureNote();
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    runInboxAction("Note capture", captureNote);
+                  }
                 }}
                 rows={4}
               />
@@ -1514,7 +1571,9 @@ export function InboxSurface({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") captureWeb();
+                  if (e.key === "Enter") {
+                    runInboxAction("Web capture", captureWeb);
+                  }
                 }}
               />
             ) : mode === "image" ? (
@@ -1532,7 +1591,9 @@ export function InboxSurface({
                     type="button"
                     className="btn btn-secondary btn-sm"
                     disabled={Boolean(visualBusy)}
-                    onClick={() => void captureScreen()}
+                    onClick={() => {
+                      runInboxAction("Screen capture", captureScreen);
+                    }}
                     title="Capture a screen snippet"
                   >
                     Capture screen
@@ -1541,7 +1602,12 @@ export function InboxSurface({
                     type="button"
                     className="btn btn-secondary btn-sm"
                     disabled={Boolean(visualBusy)}
-                    onClick={() => void importClipboardScreenshot()}
+                    onClick={() => {
+                      runInboxAction(
+                        "Clipboard screenshot import",
+                        importClipboardScreenshot,
+                      );
+                    }}
                     title="Import an image from the clipboard"
                   >
                     Import from clipboard
@@ -1550,7 +1616,9 @@ export function InboxSurface({
                     type="button"
                     className="btn btn-primary btn-sm"
                     disabled={Boolean(visualBusy)}
-                    onClick={() => void chooseImageFile()}
+                    onClick={() => {
+                      runInboxAction("Image file selection", chooseImageFile);
+                    }}
                     title="Choose a local image file"
                   >
                     Choose image file
@@ -1574,7 +1642,11 @@ export function InboxSurface({
                           type="button"
                           className="btn btn-ghost btn-sm inbox-recent-item"
                           disabled={Boolean(visualBusy)}
-                          onClick={() => void importRecentScreenshot(shot.id)}
+                          onClick={() => {
+                            runInboxAction("Recent screenshot import", () =>
+                              importRecentScreenshot(shot.id),
+                            );
+                          }}
                           title={`Import ${shot.originalName}`}
                         >
                           {shot.previewDataUrl && (
@@ -1601,12 +1673,8 @@ export function InboxSurface({
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={async () => {
-                    try {
-                      await importPdf();
-                    } catch (err) {
-                      console.error(err);
-                    }
+                  onClick={() => {
+                    runInboxAction("PDF import", importPdf);
                   }}
                 >
                   Choose PDF file
@@ -1621,7 +1689,12 @@ export function InboxSurface({
                 <button
                   className="btn btn-primary"
                   disabled={busy || !canCapture}
-                  onClick={mode === "note" ? captureNote : captureWeb}
+                  onClick={() => {
+                    runInboxAction(
+                      mode === "note" ? "Note capture" : "Web capture",
+                      mode === "note" ? captureNote : captureWeb,
+                    );
+                  }}
                 >
                   {busy ? "Capturing…" : "Capture"}
                 </button>
@@ -1636,7 +1709,9 @@ export function InboxSurface({
             <button
               className="btn btn-primary btn-sm"
               disabled={ingesting || visible.length === 0}
-              onClick={() => void processInbox()}
+              onClick={() => {
+                runInboxAction("Inbox processing", processInbox);
+              }}
               title="Ask My Assistant to turn these captures into wiki pages"
             >
               {ingesting ? "Processing…" : "Process inbox"}
@@ -1765,7 +1840,9 @@ export function InboxSurface({
                 <button
                   className="btn btn-primary btn-sm"
                   disabled={ingesting}
-                  onClick={() => void applyChangeset()}
+                  onClick={() => {
+                    runInboxAction("Inbox changeset apply", applyChangeset);
+                  }}
                 >
                   {ingesting ? "Applying…" : "Apply"}
                 </button>
@@ -2005,7 +2082,9 @@ export function InboxSurface({
             <button
               className="btn btn-primary"
               disabled={savingSettings}
-              onClick={() => void saveSettings()}
+              onClick={() => {
+                runInboxAction("Curator settings save", saveSettings);
+              }}
             >
               {savingSettings ? "Saving..." : "Save Settings"}
             </button>
@@ -2018,7 +2097,9 @@ export function InboxSurface({
           Edit wiki schema
         </button>
         <button
-          onClick={() => void installSkill()}
+          onClick={() => {
+            runInboxAction("Vault curator skill install", installSkill);
+          }}
           className="inbox-footer-btn"
         >
           Install assistant vault skill

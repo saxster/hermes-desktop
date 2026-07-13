@@ -71,8 +71,8 @@ import {
   groundingTerms,
   parseQueryVariants,
   fuseRankings,
-  type GroundingSource,
 } from "../src/main/hermes";
+import type { GroundingSource } from "../src/main/hermes/grounding";
 
 describe("groundingTerms (pure)", () => {
   it("drops stopwords and 1-2 char tokens, lowercases, dedupes", () => {

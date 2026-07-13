@@ -50,7 +50,9 @@ export function MediaDropZone({
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        void take(e.dataTransfer.files?.[0]);
+        take(e.dataTransfer.files?.[0]).catch((error: unknown) => {
+          console.error("Dropped media upload failed:", error);
+        });
       }}
       style={{
         border: "1px dashed var(--hair-strong)",
@@ -69,7 +71,11 @@ export function MediaDropZone({
         type="file"
         accept={accept}
         hidden
-        onChange={(e) => void take(e.target.files?.[0])}
+        onChange={(e) => {
+          take(e.target.files?.[0]).catch((error: unknown) => {
+            console.error("Selected media upload failed:", error);
+          });
+        }}
       />
     </div>
   );

@@ -442,6 +442,15 @@ export function sendMessageViaApi(
     }
   }
 
+  function handleExecutionFailure(error: unknown): void {
+    log.error("hermes", {
+      msg: "chat request execution failed",
+      error: formatLogError(error),
+    });
+    const message = error instanceof Error ? error.message : String(error);
+    finish(`API request failed: ${message}`);
+  }
+
   const messages: Array<{ role: string; content: ChatContent }> = [];
   if (history && history.length > 0) {
     for (const msg of history) {
@@ -838,7 +847,7 @@ export function sendMessageViaApi(
         isRemoteMode() &&
         !hasContent
       ) {
-        void retryWithoutV1MethodNotAllowed();
+        retryWithoutV1MethodNotAllowed().catch(handleExecutionFailure);
         return;
       }
 
@@ -858,7 +867,9 @@ export function sendMessageViaApi(
           log.info("hermes", {
             msg: "memory overflow detected; compacting budget",
           });
-          executeRequest(retryBudget - 1, 20000, selectedTransport);
+          executeRequest(retryBudget - 1, 20000, selectedTransport).catch(
+            handleExecutionFailure,
+          );
           return;
         }
 
@@ -887,7 +898,7 @@ export function sendMessageViaApi(
               retryBudget - 1,
               customBudgetChars,
               selectedTransport,
-            );
+            ).catch(handleExecutionFailure);
             return;
           }
         }
@@ -907,7 +918,11 @@ export function sendMessageViaApi(
           retryBudget,
         });
         setTimeout(() => {
-          executeRequest(retryBudget - 1, customBudgetChars, selectedTransport);
+          executeRequest(
+            retryBudget - 1,
+            customBudgetChars,
+            selectedTransport,
+          ).catch(handleExecutionFailure);
         }, boundedDelay);
         return;
       }
@@ -1062,7 +1077,7 @@ export function sendMessageViaApi(
   }
 
   // Start executing request with 3 retries allowed
-  executeRequest(3);
+  executeRequest(3).catch(handleExecutionFailure);
 
   return {
     abort: () => {

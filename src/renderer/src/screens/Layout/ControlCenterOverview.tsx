@@ -119,7 +119,7 @@ function ControlCenterOverview({
     }
 
     setAiStatus(LOADING_AI_STATUS);
-    void (async () => {
+    (async () => {
       try {
         const [, modelConfig, readiness] = await Promise.all([
           window.hermesAPI.getConnectionConfig(),
@@ -139,7 +139,10 @@ function ControlCenterOverview({
       } catch {
         if (!cancelled) setAiStatus(LOADING_AI_STATUS);
       }
-    })();
+    })().catch((err: unknown) => {
+      console.error("Unexpected control-center readiness failure:", err);
+      if (!cancelled) setAiStatus(LOADING_AI_STATUS);
+    });
 
     return () => {
       cancelled = true;

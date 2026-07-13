@@ -44,15 +44,19 @@ export function SpsAgent() {
     applyTweaks(useStore.getState().t);
     // Resume any OCR jobs persisted from a previous session once the workspace
     // is loaded (so OCR'd pages land in the real tree). No-op when idle.
-    void hydrateWorkspace().then(() => {
-      if (cancelled || useStore.getState().workspaceLoadIssue) return;
-      stopStoreLifecycle = startSpsStoreLifecycle();
-      useStore.getState().ocrResume();
-    });
+    hydrateWorkspace()
+      .then(() => {
+        if (cancelled || useStore.getState().workspaceLoadIssue) return;
+        stopStoreLifecycle = startSpsStoreLifecycle();
+        useStore.getState().ocrResume();
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to hydrate the SPS workspace:", error);
+      });
     // Apply the active skin onto the SPS scope (idea A6 — fixes the regression
     // where skins targeted document root with Hermes var names). No-op in the
     // standalone web app where window.hermesAPI is absent.
-    void (async () => {
+    (async () => {
       try {
         const skins = await window.hermesAPI.listSkins();
         const active = skins.find((s) => s.id === getActiveSkinId());
@@ -60,7 +64,9 @@ export function SpsAgent() {
       } catch {
         /* no bridge / no skins — leave tweaks-only theming */
       }
-    })();
+    })().catch((error: unknown) => {
+      console.error("Failed to apply the active SPS skin:", error);
+    });
     return () => {
       cancelled = true;
       useStore.getState().ocrStopScheduler();

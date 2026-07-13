@@ -747,7 +747,16 @@ export function ResearchModal({
                 </small>
                 <button
                   className="cover-btn res-flex-shrink-0"
-                  onClick={() => void enableWeb()}
+                  onClick={() => {
+                    enableWeb().catch((error) =>
+                      flash(
+                        error instanceof Error
+                          ? error.message
+                          : "Couldn't enable web research.",
+                        { tone: "warn" },
+                      ),
+                    );
+                  }}
                   disabled={enabling}
                 >
                   {enabling ? "Enabling…" : "Enable web research"}
@@ -762,14 +771,32 @@ export function ResearchModal({
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void doResearch();
+                  if (e.key === "Enter") {
+                    doResearch().catch((error) =>
+                      flash(
+                        error instanceof Error
+                          ? error.message
+                          : "Research failed unexpectedly.",
+                        { tone: "warn" },
+                      ),
+                    );
+                  }
                 }}
                 placeholder="Research any topic — markets, legal, code, Google, socials..."
                 disabled={researchBusy}
               />
               <button
                 className="cover-btn"
-                onClick={() => void doResearch()}
+                onClick={() => {
+                  doResearch().catch((error) =>
+                    flash(
+                      error instanceof Error
+                        ? error.message
+                        : "Research failed unexpectedly.",
+                      { tone: "warn" },
+                    ),
+                  );
+                }}
                 disabled={researchBusy || !topic.trim() || webEnabled === false}
               >
                 {researchBusy ? "Researching…" : "Research"}
@@ -938,9 +965,19 @@ export function ResearchModal({
                 onChange={(e) => setStudyFocus(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    if (briefMode) void runCuratedBrief();
-                    else if (cardMode) void runStudyCard();
-                    else void runSourceStudy();
+                    const run = briefMode
+                      ? runCuratedBrief
+                      : cardMode
+                        ? runStudyCard
+                        : runSourceStudy;
+                    run().catch((error) =>
+                      flash(
+                        error instanceof Error
+                          ? error.message
+                          : "Study failed unexpectedly.",
+                        { tone: "warn" },
+                      ),
+                    );
                   }
                 }}
                 placeholder={
@@ -955,9 +992,19 @@ export function ResearchModal({
               <button
                 className="cover-btn"
                 onClick={() => {
-                  if (briefMode) void runCuratedBrief();
-                  else if (cardMode) void runStudyCard();
-                  else void runSourceStudy();
+                  const run = briefMode
+                    ? runCuratedBrief
+                    : cardMode
+                      ? runStudyCard
+                      : runSourceStudy;
+                  run().catch((error) =>
+                    flash(
+                      error instanceof Error
+                        ? error.message
+                        : "Study failed unexpectedly.",
+                      { tone: "warn" },
+                    ),
+                  );
                 }}
                 disabled={studyBusy || !studyFocus.trim()}
               >
@@ -1110,14 +1157,32 @@ export function ResearchModal({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void runSearch();
+                  if (e.key === "Enter") {
+                    runSearch().catch((error) =>
+                      flash(
+                        error instanceof Error
+                          ? error.message
+                          : "Paper search failed unexpectedly.",
+                        { tone: "warn" },
+                      ),
+                    );
+                  }
                 }}
                 placeholder="Search OpenAlex — topic, title, author…"
                 title="Search term"
               />
               <button
                 className="cover-btn"
-                onClick={() => void runSearch()}
+                onClick={() => {
+                  runSearch().catch((error) =>
+                    flash(
+                      error instanceof Error
+                        ? error.message
+                        : "Paper search failed unexpectedly.",
+                      { tone: "warn" },
+                    ),
+                  );
+                }}
                 disabled={loading || !q.trim()}
               >
                 {loading ? "Searching…" : "Search"}

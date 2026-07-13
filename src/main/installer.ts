@@ -37,6 +37,7 @@ export {
   HERMES_ENV_FILE,
   HERMES_CONFIG_FILE,
   HERMES_AUTH_FILE,
+  getHermesHome,
   setHermesHomeOverride,
   hermesCliArgs,
   getEnhancedPath,

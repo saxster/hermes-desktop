@@ -46,6 +46,14 @@ describe("connection config secret exposure", () => {
       mode: "remote",
       remoteUrl: "https://hermes.example",
       apiKey: "remote-secret",
+      ssh: {
+        host: "",
+        port: 22,
+        username: "",
+        keyPath: "",
+        remotePort: 8642,
+        localPort: 18642,
+      },
     });
 
     expect(getConnectionConfig().apiKey).toBe("remote-secret");
@@ -96,6 +104,14 @@ describe("connection config secret exposure", () => {
         mode: "remote",
         remoteUrl: url,
         apiKey: "remote-secret",
+        ssh: {
+          host: "",
+          port: 22,
+          username: "",
+          keyPath: "",
+          remotePort: 8642,
+          localPort: 18642,
+        },
       });
 
       await expect(testRemoteConnection(url)).resolves.toBe(true);

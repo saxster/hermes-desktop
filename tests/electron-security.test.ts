@@ -67,7 +67,7 @@ describe("Electron main process hardening", () => {
       'import { semanticManager } from "./semantic-index"',
     );
     const stopPos = mainSrc.indexOf("semanticManager.stop()");
-    const closeIndexesPos = mainSrc.indexOf("void closeAllNoteIndexes()");
+    const closeIndexesPos = mainSrc.indexOf("closeAllNoteIndexes().catch");
     expect(stopPos).toBeGreaterThan(-1);
     expect(closeIndexesPos).toBeGreaterThan(-1);
     expect(stopPos).toBeLessThan(closeIndexesPos);

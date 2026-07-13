@@ -56,6 +56,7 @@ export function QueryDatabase({ block, update }: Props) {
   const [formOpen, setFormOpen] = useState(false);
 
   const setOpenTask = useStore((s) => s.setOpenTask);
+  const flash = useStore((s) => s.flash);
 
   const tasks: Task[] = rows.map(vaultRowToTask);
   const rowByPath = new Map(rows.map((r) => [r.path, r] as const));
@@ -104,16 +105,29 @@ export function QueryDatabase({ block, update }: Props) {
     }
   };
 
-  const setField = (id: string, field: keyof Task, val: string): void =>
-    void writeRow(id, { [field]: val });
-  const setCustom = (id: string, colId: string, val: string): void =>
-    void writeRow(id, { [colId]: val });
+  const reportActionError = (action: string, error: unknown): void => {
+    console.error(`[Query Database] ${action} failed:`, error);
+    flash(`${action} failed`, { tone: "warn" });
+  };
+
+  const setField = (id: string, field: keyof Task, val: string): void => {
+    writeRow(id, { [field]: val }).catch((error: unknown) => {
+      reportActionError("Database row update", error);
+    });
+  };
+  const setCustom = (id: string, colId: string, val: string): void => {
+    writeRow(id, { [colId]: val }).catch((error: unknown) => {
+      reportActionError("Database custom field update", error);
+    });
+  };
   const cycleStatus = (id: string): void => {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
     const next =
       statuses[(statuses.indexOf(task.status) + 1) % statuses.length];
-    void writeRow(id, { status: next });
+    writeRow(id, { status: next }).catch((error: unknown) => {
+      reportActionError("Database status update", error);
+    });
   };
 
   const createRow = async (props: RowProps, body = ""): Promise<void> => {
@@ -154,7 +168,9 @@ export function QueryDatabase({ block, update }: Props) {
     } else {
       props.title = "New row";
     }
-    void createRow(props, body);
+    createRow(props, body).catch((error: unknown) => {
+      reportActionError("Database row creation", error);
+    });
   };
 
   const addFromForm = async (): Promise<void> => {
@@ -274,7 +290,9 @@ export function QueryDatabase({ block, update }: Props) {
               <div
                 className="db-template-item"
                 onClick={() => {
-                  void weeklyReset();
+                  weeklyReset().catch((error: unknown) => {
+                    reportActionError("Weekly reset", error);
+                  });
                   setMoreMenuOpen(false);
                 }}
               >
@@ -352,7 +370,11 @@ export function QueryDatabase({ block, update }: Props) {
           setCustom={setCustom}
           addRow={() => addRow()}
           addCol={addCol}
-          onDelete={(id) => void deleteRow(id)}
+          onDelete={(id) => {
+            deleteRow(id).catch((error: unknown) => {
+              reportActionError("Database row deletion", error);
+            });
+          }}
           statusFor={statusFor}
         />
       )}
@@ -396,7 +418,11 @@ export function QueryDatabase({ block, update }: Props) {
             placeholder="Row title"
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void addFromForm();
+              if (e.key === "Enter") {
+                addFromForm().catch((error: unknown) => {
+                  reportActionError("Database row creation", error);
+                });
+              }
               if (e.key === "Escape") setFormOpen(false);
             }}
             aria-label="Row title"
@@ -413,7 +439,14 @@ export function QueryDatabase({ block, update }: Props) {
               </option>
             ))}
           </select>
-          <button className="qdb-add" onClick={() => void addFromForm()}>
+          <button
+            className="qdb-add"
+            onClick={() => {
+              addFromForm().catch((error: unknown) => {
+                reportActionError("Database row creation", error);
+              });
+            }}
+          >
             Add
           </button>
           <button

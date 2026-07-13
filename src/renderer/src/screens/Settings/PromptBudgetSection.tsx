@@ -30,7 +30,9 @@ export function PromptBudgetSection({
   }, [profile]);
 
   useEffect(() => {
-    void load();
+    load().catch((err: unknown) => {
+      console.error("Unexpected prompt budget load failure:", err);
+    });
   }, [load]);
 
   const total = promptSize?.total || 0;

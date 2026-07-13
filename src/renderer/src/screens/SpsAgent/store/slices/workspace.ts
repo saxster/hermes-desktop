@@ -156,6 +156,16 @@ async function drainOcrQueue(get: StoreGet, set: StoreSet): Promise<void> {
   }
 }
 
+function drainOcrQueueSafely(get: StoreGet, set: StoreSet): void {
+  drainOcrQueue(get, set).catch((error: unknown) => {
+    console.error("[SPS OCR] Queue drain failed:", error);
+    get().flash("OCR processing stopped unexpectedly", {
+      tone: "warn",
+      ms: 8000,
+    });
+  });
+}
+
 // Overnight scheduler (P3): once started, every 30s check whether deferral is on
 // and the clock is in the configured minute; if so, drain. Only fires while the
 // app is running (open or in the tray) — no OS daemon.
@@ -168,7 +178,7 @@ function startOcrScheduler(get: StoreGet, set: StoreSet): void {
       peekOcrJob() &&
       isScheduledNow(new Date(), getOcrTime())
     ) {
-      void drainOcrQueue(get, set);
+      drainOcrQueueSafely(get, set);
     }
   }, 30000);
 }
@@ -211,7 +221,17 @@ export const createWorkspaceSlice: StateCreator<
             for (const src of dbSources(blocks)) stillUsed.add(src);
           }
           const orphaned = removed.filter((src) => !stillUsed.has(src));
-          if (orphaned.length) void deleteVaultDbFolders(orphaned);
+          if (orphaned.length) {
+            deleteVaultDbFolders(orphaned).catch((error: unknown) => {
+              console.error(
+                "[SPS workspace] Failed to delete orphaned database folders:",
+                error,
+              );
+              get().flash("Some database files could not be cleaned up", {
+                tone: "warn",
+              });
+            });
+          }
         }
       }
       return { docs: { ...s.docs, [s.page]: next } };
@@ -362,25 +382,25 @@ export const createWorkspaceSlice: StateCreator<
         (pending > 1 ? `. ${pending} documents in the OCR queue.` : "."),
       { tone: "warn", ms: 8000 },
     );
-    void drainOcrQueue(get, set);
+    drainOcrQueueSafely(get, set);
   },
 
   ocrResume: () => {
     set({ ocrPending: loadOcrQueue().length, ocrDefer: getOcrDefer() });
     startOcrScheduler(get, set);
     // Resume immediately unless the user chose to defer to the overnight window.
-    if (!get().ocrDefer) void drainOcrQueue(get, set);
+    if (!get().ocrDefer) drainOcrQueueSafely(get, set);
   },
 
   ocrStopScheduler: () => stopOcrScheduler(),
 
-  ocrRunNow: () => void drainOcrQueue(get, set),
+  ocrRunNow: () => drainOcrQueueSafely(get, set),
 
   ocrSetDefer: (on) => {
     setOcrDefer(on);
     set({ ocrDefer: on });
     // Turning deferral OFF should start draining anything that was waiting.
-    if (!on) void drainOcrQueue(get, set);
+    if (!on) drainOcrQueueSafely(get, set);
   },
 
   ensureSourcesFolder: () => {
@@ -658,10 +678,23 @@ export const createWorkspaceSlice: StateCreator<
         ),
       };
     });
-    void deleteVaultPages(ids);
-    void deleteVaultDbFolders(
+    deleteVaultPages(ids).catch((error: unknown) => {
+      console.error("[SPS workspace] Failed to delete trashed pages:", error);
+      get().flash("Some trashed page files could not be deleted", {
+        tone: "warn",
+      });
+    });
+    deleteVaultDbFolders(
       [...sources].filter((source) => !liveSources.has(source)),
-    );
+    ).catch((error: unknown) => {
+      console.error(
+        "[SPS workspace] Failed to delete trashed database folders:",
+        error,
+      );
+      get().flash("Some trashed database files could not be deleted", {
+        tone: "warn",
+      });
+    });
     get().flash("Permanently deleted");
   },
 

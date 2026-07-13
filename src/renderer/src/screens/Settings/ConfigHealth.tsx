@@ -83,7 +83,9 @@ export function ConfigHealth({
   }, [profile]);
 
   useEffect(() => {
-    void load();
+    load().catch((err: unknown) => {
+      console.error("Unexpected config-health load failure:", err);
+    });
   }, [load]);
 
   const rerun = useCallback(async (): Promise<void> => {
@@ -144,7 +146,11 @@ export function ConfigHealth({
         <button
           className="diagnose-rerun-btn"
           type="button"
-          onClick={rerun}
+          onClick={() => {
+            rerun().catch((err: unknown) => {
+              console.error("Failed to rerun config health:", err);
+            });
+          }}
           disabled={loading}
           aria-label={t("diagnose.rerun")}
         >
@@ -183,7 +189,17 @@ export function ConfigHealth({
                 <button
                   className="diagnose-fix-btn"
                   type="button"
-                  onClick={() => fix(issue)}
+                  onClick={() => {
+                    fix(issue).catch((err: unknown) => {
+                      setResults((prev) => ({
+                        ...prev,
+                        [issue.code]:
+                          err instanceof Error
+                            ? err.message
+                            : t("diagnose.fix.failure"),
+                      }));
+                    });
+                  }}
                   disabled={fixingCode !== null}
                 >
                   {fixingCode === issue.code

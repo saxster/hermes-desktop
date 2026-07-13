@@ -30,7 +30,12 @@ export function ReviewQueueSurface({
   }, [profile]);
 
   useEffect(() => {
-    void load();
+    load().catch((loadError: unknown) => {
+      console.error("[Review Queue] Failed to load proposals:", loadError);
+      setError(
+        loadError instanceof Error ? loadError.message : String(loadError),
+      );
+    });
   }, [load]);
 
   const pending = proposals.filter((proposal) => proposal.status === "pending");

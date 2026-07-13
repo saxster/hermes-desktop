@@ -23,7 +23,7 @@ export function PageMenu({ onTemplate, onDelete, onSub, onCover }: Props) {
   const copyLink = (): void => {
     const title = meta[page]?.title || "Untitled";
     const link = `[[${title}]]`;
-    void navigator.clipboard
+    navigator.clipboard
       ?.writeText(link)
       .then(() => flash("Link copied"))
       .catch(() => flash("Couldn't copy link", { tone: "warn" }));

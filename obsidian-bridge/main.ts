@@ -90,39 +90,51 @@ export default class HermesObsidianBridgePlugin extends Plugin {
   async startServer(): Promise<void> {
     if (this.server) return;
     const handlers = this.bridgeHandlers();
-    this.server = createServer(async (request, response) => {
-      try {
-        if (request.method !== "POST") {
-          json(response, 405, { error: "Method not allowed" });
-          return;
-        }
-        const url = new URL(request.url ?? "/", "http://127.0.0.1");
-        const match = url.pathname.match(/^\/function\/([^/]+)$/);
-        if (!match) {
-          json(response, 404, { error: "Not found" });
-          return;
-        }
-        if (!isAuthorizedBridgeRequest(request.headers, this.settings.token)) {
-          json(response, 401, { error: "Unauthorized" });
-          return;
-        }
-        const result = await dispatchBridgeFunction(
-          match[1],
-          await readJson(request),
-          handlers,
-        );
-        json(response, 200, result);
-      } catch (error) {
+    this.server = createServer((request, response) => {
+      this.handleRequest(request, response, handlers).catch((error) => {
         json(response, 500, {
           error: error instanceof Error ? error.message : String(error),
         });
-      }
+      });
     });
     this.server.listen(this.settings.port, "127.0.0.1", () => {
       console.log(
         `Hermes Obsidian bridge listening on 127.0.0.1:${this.settings.port}`,
       );
     });
+  }
+
+  private async handleRequest(
+    request: IncomingMessage,
+    response: ServerResponse,
+    handlers: BridgeHandlers,
+  ): Promise<void> {
+    try {
+      if (request.method !== "POST") {
+        json(response, 405, { error: "Method not allowed" });
+        return;
+      }
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      const match = url.pathname.match(/^\/function\/([^/]+)$/);
+      if (!match) {
+        json(response, 404, { error: "Not found" });
+        return;
+      }
+      if (!isAuthorizedBridgeRequest(request.headers, this.settings.token)) {
+        json(response, 401, { error: "Unauthorized" });
+        return;
+      }
+      const result = await dispatchBridgeFunction(
+        match[1],
+        await readJson(request),
+        handlers,
+      );
+      json(response, 200, result);
+    } catch (error) {
+      json(response, 500, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   bridgeHandlers(): BridgeHandlers {

@@ -178,7 +178,7 @@ export function registerSystemIpc(
         }
       });
       if (isGatewayRunning()) {
-        void restartGateway();
+        await restartGateway();
       }
       return { success: true };
     } catch (err) {

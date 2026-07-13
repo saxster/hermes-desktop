@@ -57,7 +57,7 @@ export function EquityResearch(): React.JSX.Element {
   const processedRun = useRef<string>("");
 
   useEffect(() => {
-    void window.hermesAPI
+    window.hermesAPI
       .equityListBaskets(PROFILE)
       .then((rows) => setSaved((rows as SavedBasket[]) ?? []))
       .catch(() => setSaved([]));
@@ -86,7 +86,7 @@ export function EquityResearch(): React.JSX.Element {
     processedRun.current = runStartedAt.current;
     const startedAt = runStartedAt.current;
     const slug = tickerSlug(run.ticker);
-    void (async () => {
+    (async () => {
       for (let i = 0; i < 10; i++) {
         const opened = await openRow(slug);
         if (opened?.report && (!startedAt || opened.updated >= startedAt)) {
@@ -117,7 +117,10 @@ export function EquityResearch(): React.JSX.Element {
       setNotice(
         `${run.ticker}: the run finished but produced no saved report. Check My Assistant's console, or try again.`,
       );
-    })();
+    })().catch((error: unknown) => {
+      console.error("Failed to land the completed equity run:", error);
+      setNotice(`Save failed: ${String(error)}`);
+    });
   }, [mode, run.status, run.ticker, run.report, run.transcript]);
 
   const launch = (depth: "full" | "quick"): void => {
@@ -161,9 +164,12 @@ export function EquityResearch(): React.JSX.Element {
 
   const onTags = (next: string[]): void => {
     setUserTags(next);
-    void updateUserTags(activeSlug, next).then(() =>
-      setLedgerKey((k) => k + 1),
-    );
+    updateUserTags(activeSlug, next)
+      .then(() => setLedgerKey((k) => k + 1))
+      .catch((error: unknown) => {
+        console.error("Failed to update equity report tags:", error);
+        setNotice("Could not update report tags.");
+      });
   };
 
   const saveNow = async (): Promise<void> => {

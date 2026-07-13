@@ -29,7 +29,7 @@ export function Dashboard(): React.JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    (async () => {
       try {
         const saved = await window.hermesAPI.spsReadRow?.(
           SCRATCHPAD_DB_FOLDER,
@@ -69,7 +69,9 @@ export function Dashboard(): React.JSX.Element {
         console.error("Failed to load dashboard scratchpad:", error);
         if (!cancelled) setScratchText(scratchpadDoc?.[0]?.text || "");
       }
-    })();
+    })().catch((error: unknown) => {
+      console.error("Failed to initialize dashboard scratchpad:", error);
+    });
     return () => {
       cancelled = true;
     };

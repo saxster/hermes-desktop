@@ -61,6 +61,13 @@ export default defineConfig(
   },
   {
     files: ["**/*.{ts,tsx}"],
+    ignores: ["**/*.d.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.eslint.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
     plugins: {
       "react-hooks": eslintPluginReactHooks,
       "react-refresh": eslintPluginReactRefresh,
@@ -68,6 +75,11 @@ export default defineConfig(
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
       ...eslintPluginReactRefresh.configs.vite.rules,
+      "@typescript-eslint/no-floating-promises": [
+        "error",
+        { ignoreVoid: false },
+      ],
+      "@typescript-eslint/no-misused-promises": "error",
       "react/prop-types": "off",
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/refs": "off",

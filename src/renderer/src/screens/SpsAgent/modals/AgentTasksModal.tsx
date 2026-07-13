@@ -80,7 +80,9 @@ export function AgentTasksModal() {
   }, []);
 
   useEffect(() => {
-    void load();
+    load().catch((e: unknown) =>
+      setError(e instanceof Error ? e.message : "Couldn't load tasks."),
+    );
   }, [load]);
 
   const currentBoard = useMemo(

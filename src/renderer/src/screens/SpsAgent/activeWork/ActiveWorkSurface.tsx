@@ -61,7 +61,9 @@ export function ActiveWorkSurface() {
   }
 
   useEffect(() => {
-    void refresh();
+    refresh().catch((error: unknown) => {
+      console.error("Failed to refresh active work:", error);
+    });
   }, []);
 
   useEffect(() => {

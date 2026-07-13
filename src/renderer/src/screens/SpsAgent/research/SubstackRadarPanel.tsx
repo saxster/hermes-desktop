@@ -133,7 +133,10 @@ export function SubstackRadarPanel(): React.JSX.Element {
       }
     }
 
-    loadRuns();
+    loadRuns().catch((error: unknown) => {
+      console.error("[RSS UI] Substack radar run load failed:", error);
+      if (!cancelled) setError("Could not load previous Substack radar runs.");
+    });
     return () => {
       cancelled = true;
     };
@@ -324,6 +327,13 @@ export function SubstackRadarPanel(): React.JSX.Element {
     setNotice("Saved approved sources as a Content Studio idea.");
   };
 
+  const runAction = (action: () => Promise<void>, message: string): void => {
+    action().catch((error: unknown) => {
+      console.error(`[RSS UI] ${message}:`, error);
+      setError(message);
+    });
+  };
+
   return (
     <section className="substack-radar-panel" aria-label="Substack radar">
       <div className="substack-radar-header">
@@ -337,7 +347,9 @@ export function SubstackRadarPanel(): React.JSX.Element {
         <button
           type="button"
           className="log-submit-btn save-journal-entry-btn"
-          onClick={addApprovedFeeds}
+          onClick={() =>
+            runAction(addApprovedFeeds, "Could not add approved feeds.")
+          }
           disabled={approvedCount === 0 || addingFeeds?.runId === activeRun?.id}
         >
           {addingFeeds?.runId === activeRun?.id
@@ -347,7 +359,12 @@ export function SubstackRadarPanel(): React.JSX.Element {
         <button
           type="button"
           className="log-submit-btn protocol-record-btn"
-          onClick={() => void saveApprovedAsContentIdea()}
+          onClick={() =>
+            runAction(
+              saveApprovedAsContentIdea,
+              "Could not save approved sources as a content idea.",
+            )
+          }
           disabled={approvedIdeaCandidates.length === 0}
         >
           Create idea from approved
@@ -370,7 +387,9 @@ export function SubstackRadarPanel(): React.JSX.Element {
       <button
         type="button"
         className="log-submit-btn protocol-record-btn"
-        onClick={runDiscovery}
+        onClick={() =>
+          runAction(runDiscovery, "Could not run Substack discovery.")
+        }
         disabled={isRunning || categories.length === 0}
       >
         {isRunning ? "Running..." : "Run Discovery"}
@@ -437,7 +456,10 @@ export function SubstackRadarPanel(): React.JSX.Element {
                       type="button"
                       className="log-submit-btn save-journal-entry-btn"
                       onClick={() =>
-                        setCandidateStatus(candidate.id, "approved")
+                        runAction(
+                          () => setCandidateStatus(candidate.id, "approved"),
+                          "Could not approve the candidate.",
+                        )
                       }
                       disabled={
                         statusUpdating?.runId === activeRun.id &&
@@ -450,7 +472,10 @@ export function SubstackRadarPanel(): React.JSX.Element {
                       type="button"
                       className="log-submit-btn record-audio-btn"
                       onClick={() =>
-                        setCandidateStatus(candidate.id, "rejected")
+                        runAction(
+                          () => setCandidateStatus(candidate.id, "rejected"),
+                          "Could not reject the candidate.",
+                        )
                       }
                       disabled={
                         statusUpdating?.runId === activeRun.id &&

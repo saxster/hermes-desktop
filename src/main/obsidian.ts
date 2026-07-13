@@ -398,7 +398,7 @@ export async function watchObsidian(
     ignoreInitial: true,
     ignored: (path) => path.split(sep).includes(OBSIDIAN_INTERNAL_DIR),
   });
-  watcher.on("change", async (absolutePath) => {
+  const handleChange = async (absolutePath: string): Promise<void> => {
     if (!isMarkdownFile(absolutePath)) return;
     try {
       onChange({
@@ -408,6 +408,15 @@ export async function watchObsidian(
     } catch {
       // Best-effort change notifications should not crash the main process.
     }
+  };
+  watcher.on("change", (absolutePath) => {
+    handleChange(absolutePath).catch((error) => {
+      log.warn("obsidian", {
+        msg: "change notification failed",
+        path: absolutePath,
+        error: formatLogError(error),
+      });
+    });
   });
   return watcher;
 }

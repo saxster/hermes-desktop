@@ -364,7 +364,12 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    runInstallCheck();
+    runInstallCheck().catch((err: unknown) => {
+      setInstallError(
+        `Startup check failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      setScreen("welcome");
+    });
   }, [runInstallCheck]);
 
   // Track screen views for analytics
@@ -392,7 +397,12 @@ function App(): React.JSX.Element {
     setStartupIssue(null);
     setInstallError(null);
     setScreen("loading");
-    runInstallCheck();
+    runInstallCheck().catch((err: unknown) => {
+      setInstallError(
+        `Startup check failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      setScreen("welcome");
+    });
   }, [runInstallCheck]);
 
   const handleSwitchToLocal = useCallback(async (): Promise<void> => {
@@ -404,7 +414,13 @@ function App(): React.JSX.Element {
   // Recovery action from a remote-mode block (RemoteNotice button).
   useEffect(() => {
     if (screen !== "main") return;
-    const onSwitchLocal = (): void => void handleSwitchToLocal();
+    const onSwitchLocal = (): void => {
+      handleSwitchToLocal().catch((err: unknown) => {
+        setInstallError(
+          err instanceof Error ? err.message : "Could not switch to local mode",
+        );
+      });
+    };
     window.addEventListener(SWITCH_TO_LOCAL_EVENT, onSwitchLocal);
     return () =>
       window.removeEventListener(SWITCH_TO_LOCAL_EVENT, onSwitchLocal);
@@ -458,7 +474,9 @@ function App(): React.JSX.Element {
       `Message: ${startupIssue.message}`,
     ].join("\n");
 
-    void window.hermesAPI.copyToClipboard(diagnostics);
+    window.hermesAPI.copyToClipboard(diagnostics).catch((err: unknown) => {
+      console.error("Failed to copy startup diagnostics:", err);
+    });
   }, [startupIssue]);
 
   function renderScreen(): React.JSX.Element {
@@ -542,7 +560,15 @@ function App(): React.JSX.Element {
             connectionMode={connectionMode}
             onStart={handleRetryInstall}
             onRecheck={handleRecheck}
-            onSwitchToLocal={handleSwitchToLocal}
+            onSwitchToLocal={() => {
+              handleSwitchToLocal().catch((err: unknown) => {
+                setInstallError(
+                  err instanceof Error
+                    ? err.message
+                    : "Could not switch to local mode",
+                );
+              });
+            }}
           />
         );
       case "installing":
@@ -556,7 +582,14 @@ function App(): React.JSX.Element {
       case "setup":
         return (
           <Setup
-            onComplete={handleSetupComplete}
+            onComplete={() => {
+              handleSetupComplete().catch((err: unknown) => {
+                setInstallError(
+                  err instanceof Error ? err.message : String(err),
+                );
+                setScreen("welcome");
+              });
+            }}
             verifyWarning={verifyWarning}
             onReinstall={handleVerifyReinstall}
             onDismissVerifyWarning={handleDismissVerifyWarning}
@@ -566,8 +599,20 @@ function App(): React.JSX.Element {
         return (
           <Onboarding
             connectionMode={connectionMode}
-            onFinish={finishOnboarding}
-            onConfigure={configureFromOnboarding}
+            onFinish={() => {
+              finishOnboarding().catch((err: unknown) => {
+                setInstallError(
+                  err instanceof Error ? err.message : String(err),
+                );
+              });
+            }}
+            onConfigure={(view) => {
+              configureFromOnboarding(view).catch((err: unknown) => {
+                setInstallError(
+                  err instanceof Error ? err.message : String(err),
+                );
+              });
+            }}
           />
         );
       case "main":

@@ -67,7 +67,7 @@ export function useDiscoveredModels(
     }
     const seq = ++cancelRef.current;
     setStatus("loading");
-    const handle = setTimeout(async () => {
+    const discover = async (): Promise<void> => {
       try {
         const result = await window.hermesAPI.discoverProviderModels(
           provider,
@@ -87,6 +87,11 @@ export function useDiscoveredModels(
         setCached(false);
         setFreeModels([]);
       }
+    };
+    const handle = setTimeout(() => {
+      discover().catch((err: unknown) => {
+        console.error("Unexpected model discovery failure:", err);
+      });
     }, 400);
     return (): void => {
       clearTimeout(handle);

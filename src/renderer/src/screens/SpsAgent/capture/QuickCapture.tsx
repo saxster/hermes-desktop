@@ -89,6 +89,11 @@ export function QuickCapture() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const reportCaptureFailure = (label: string, error: unknown): void => {
+    console.error(`${label} failed:`, error);
+    setCameraError(`${label} failed.`);
+  };
+
   // Focus the text area on mount
   useEffect(() => {
     textareaRef.current?.focus();
@@ -471,7 +476,11 @@ export function QuickCapture() {
 
             {/* Snippet button */}
             <button
-              onClick={handleSnippet}
+              onClick={() => {
+                handleSnippet().catch((error: unknown) => {
+                  reportCaptureFailure("Screen capture", error);
+                });
+              }}
               className="qc-btn"
               title="Capture screen snippet"
               aria-label="Capture screen snippet"
@@ -481,7 +490,11 @@ export function QuickCapture() {
             </button>
 
             <button
-              onClick={handleCamera}
+              onClick={() => {
+                handleCamera().catch((error: unknown) => {
+                  reportCaptureFailure("Camera access", error);
+                });
+              }}
               className="qc-btn"
               title="Camera"
               aria-label="Camera"
@@ -492,7 +505,11 @@ export function QuickCapture() {
 
             {/* Voice button */}
             <button
-              onClick={handleVoiceToggle}
+              onClick={() => {
+                handleVoiceToggle().catch((error: unknown) => {
+                  reportCaptureFailure("Voice recording", error);
+                });
+              }}
               className={`qc-btn ${recording ? "qc-btn-voice-recording" : ""}`}
               title={
                 recording ? "Stop voice recording" : "Start voice recording"
@@ -512,7 +529,12 @@ export function QuickCapture() {
 
           {/* Save button */}
           <button
-            onClick={handleSave}
+            onClick={() => {
+              handleSave().catch((error: unknown) => {
+                console.error("Capture save failed:", error);
+                setSaving(false);
+              });
+            }}
             disabled={(!body.trim() && !visualCapture) || saving}
             className="qc-save-btn"
             title={captureKind === "task" ? "Save task" : "Save note to inbox"}

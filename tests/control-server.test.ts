@@ -24,8 +24,16 @@ const mockReadDesktopConfig = vi.fn(() => ({}));
 const mockWriteDesktopConfig = vi.fn();
 const mockSendMessage = vi.fn();
 const mockIsGatewayRunning = vi.fn(() => false);
-const mockRunJobHeadless = vi.fn(() => Promise.resolve(true));
-const mockCalendarQuery = vi.fn(() => []);
+const mockRunJobHeadless = vi.fn(
+  (_jobId: string, _jobName: string, _profile: string) => Promise.resolve(true),
+);
+const mockCalendarQuery = vi.fn(
+  (): Array<{
+    path: string;
+    title: string;
+    props: Record<string, string>;
+  }> => [],
+);
 
 vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),

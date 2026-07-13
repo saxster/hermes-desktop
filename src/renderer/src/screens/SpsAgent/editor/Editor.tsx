@@ -61,7 +61,7 @@ export function Editor() {
     setBlocks((bs) =>
       bs.map((b) => (b.id === id ? { ...b, anchor: true } : b)),
     );
-    void navigator.clipboard
+    navigator.clipboard
       ?.writeText(`[[${page}#^${id}]]`)
       .then(() => onToast("Link to block copied"))
       .catch(() => onToast("Couldn't copy link", { tone: "warn" }));
@@ -347,7 +347,7 @@ export function Editor() {
   // Queue. Best-effort: a gateway/contact miss just toasts and moves on.
   const proposeEnrichment = (personId: string): void => {
     setMention(null);
-    void (async () => {
+    (async () => {
       try {
         const res =
           await window.hermesAPI.spsProposeContactEnrichment?.(personId);
@@ -361,7 +361,10 @@ export function Editor() {
       } catch {
         onToast("Could not suggest contact details");
       }
-    })();
+    })().catch((error: unknown) => {
+      console.error("Contact enrichment failed:", error);
+      onToast("Could not suggest contact details", { tone: "warn" });
+    });
   };
 
   const toggleTodo = (id: string) =>

@@ -124,6 +124,19 @@ export function PersonalHealthDashboard(): React.JSX.Element {
   const [newProtocolUnit, setNewProtocolUnit] = useState("mcg");
   const newProtocolHalfLife = 120; // 5 days in hrs
 
+  const reportHealthFailure = (label: string, error: unknown): void => {
+    console.error(`[Health UI] ${label}:`, error);
+  };
+
+  const runHealthAction = (
+    label: string,
+    action: () => Promise<void>,
+  ): void => {
+    action().catch((error: unknown) => {
+      reportHealthFailure(label, error);
+    });
+  };
+
   // Load profile and tables
   const loadData = async (): Promise<void> => {
     try {
@@ -156,7 +169,9 @@ export function PersonalHealthDashboard(): React.JSX.Element {
   };
 
   useEffect(() => {
-    loadData();
+    loadData().catch((error: unknown) => {
+      reportHealthFailure("Initial load failed", error);
+    });
   }, []);
 
   const handleAddBiometric = async (): Promise<void> => {
@@ -182,7 +197,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
     setQuickWeight("");
     setQuickGlucose("");
     setQuickBP("");
-    loadData();
+    await loadData();
   };
 
   const handleAddJournalText = async (): Promise<void> => {
@@ -199,7 +214,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
     });
 
     setQuickJournalText("");
-    loadData();
+    await loadData();
   };
 
   const handleDeleteJournalEntry = async (id: string): Promise<void> => {
@@ -211,21 +226,31 @@ export function PersonalHealthDashboard(): React.JSX.Element {
 
   const simulateVoiceRecording = (): void => {
     setIsRecording(true);
-    setTimeout(async () => {
-      const api = window.hermesAPI;
-      if (!api) return;
+    setTimeout(() => {
+      (async (): Promise<void> => {
+        try {
+          const api = window.hermesAPI;
+          if (!api) return;
 
-      await api.spsHealthAddJournalEntry({
-        text_raw:
-          "Completed evening deep meditation session. HRV felt high. Logged BPC-157 administration.",
-        voice_transcription:
-          "Completed evening deep meditation session. HRV felt high. Logged BPC-157 administration.",
-        mood_score: 9,
-        tags: ["voice", "meditation"],
-        timestamp: Date.now(),
+          await api.spsHealthAddJournalEntry({
+            text_raw:
+              "Completed evening deep meditation session. HRV felt high. Logged BPC-157 administration.",
+            voice_transcription:
+              "Completed evening deep meditation session. HRV felt high. Logged BPC-157 administration.",
+            mood_score: 9,
+            tags: ["voice", "meditation"],
+            timestamp: Date.now(),
+          });
+          await loadData();
+        } catch (err) {
+          console.error("[Health UI] Voice journal error:", err);
+        } finally {
+          setIsRecording(false);
+        }
+      })().catch((error: unknown) => {
+        reportHealthFailure("Voice journal failed", error);
+        setIsRecording(false);
       });
-      setIsRecording(false);
-      loadData();
     }, 2500);
   };
 
@@ -242,36 +267,48 @@ export function PersonalHealthDashboard(): React.JSX.Element {
       });
     }, 400);
 
-    setTimeout(async () => {
-      clearInterval(interval);
-      const api = window.hermesAPI;
-      if (!api) return;
+    setTimeout(() => {
+      (async (): Promise<void> => {
+        try {
+          const api = window.hermesAPI;
+          if (!api) return;
 
-      await api.spsHealthAddJournalEntry({
-        text_raw:
-          "Logged high-protein dinner: Grilled Salmon with Asparagus and Quinoa.",
-        mood_score: 8,
-        tags: ["diet", "dinner"],
-        media: [
-          {
-            id: Math.random().toString(36),
-            file_path: "sps-asset://asset/salmon-dinner.png",
-            mime_type: "image/png",
-            parsed_payload: {
-              foodName: "Grilled Salmon & Quinoa",
-              calories: 580,
-              protein: 42,
-              carbs: 35,
-              fat: 22,
-            },
-          },
-        ],
-        timestamp: Date.now(),
+          await api.spsHealthAddJournalEntry({
+            text_raw:
+              "Logged high-protein dinner: Grilled Salmon with Asparagus and Quinoa.",
+            mood_score: 8,
+            tags: ["diet", "dinner"],
+            media: [
+              {
+                id: Math.random().toString(36),
+                file_path: "sps-asset://asset/salmon-dinner.png",
+                mime_type: "image/png",
+                parsed_payload: {
+                  foodName: "Grilled Salmon & Quinoa",
+                  calories: 580,
+                  protein: 42,
+                  carbs: 35,
+                  fat: 22,
+                },
+              },
+            ],
+            timestamp: Date.now(),
+          });
+
+          await loadData();
+        } catch (err) {
+          console.error("[Health UI] Food journal error:", err);
+        } finally {
+          clearInterval(interval);
+          setIsUploadingFood(false);
+          setUploadProgress(0);
+        }
+      })().catch((error: unknown) => {
+        reportHealthFailure("Food journal failed", error);
+        clearInterval(interval);
+        setIsUploadingFood(false);
+        setUploadProgress(0);
       });
-
-      setIsUploadingFood(false);
-      setUploadProgress(0);
-      loadData();
     }, 2200);
   };
 
@@ -290,14 +327,14 @@ export function PersonalHealthDashboard(): React.JSX.Element {
     });
 
     setNewProtocolName("");
-    loadData();
+    await loadData();
   };
 
   const handleDeleteProtocol = async (id: string): Promise<void> => {
     const api = window.hermesAPI;
     if (!api) return;
     await api.spsHealthDeleteMedicationProtocol(id);
-    loadData();
+    await loadData();
   };
 
   const logAdministration = async (
@@ -318,7 +355,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
       side_effects: ["no-side-effects"],
       timestamp: Date.now(),
     });
-    loadData();
+    await loadData();
   };
 
   // Reconstitution syringe units formula
@@ -350,16 +387,24 @@ export function PersonalHealthDashboard(): React.JSX.Element {
     const api = window.hermesAPI;
     if (!api) return;
 
-    setTimeout(async () => {
-      await api.spsHealthAddMedicalDoc({
-        file_name: "LabCorp_BloodPanel_2026.pdf",
-        file_path: "/Users/amar/Desktop/LabCorp_BloodPanel_2026.pdf",
-        uploaded_at: Date.now(),
-        doc_type: "lab_report",
-        ocr_content_text:
-          "LabCorp Diagnostic report. HbA1c: 5.4%. ApoB: 82 mg/dL. Fasting Insulin: 6.8 uIU/mL. LDL Cholesterol: 88 mg/dL. HDL Cholesterol: 52 mg/dL. BP: 118/74 mmHg. Fasting Glucose: 92 mg/dL.",
+    setTimeout(() => {
+      (async (): Promise<void> => {
+        try {
+          await api.spsHealthAddMedicalDoc({
+            file_name: "LabCorp_BloodPanel_2026.pdf",
+            file_path: "/Users/amar/Desktop/LabCorp_BloodPanel_2026.pdf",
+            uploaded_at: Date.now(),
+            doc_type: "lab_report",
+            ocr_content_text:
+              "LabCorp Diagnostic report. HbA1c: 5.4%. ApoB: 82 mg/dL. Fasting Insulin: 6.8 uIU/mL. LDL Cholesterol: 88 mg/dL. HDL Cholesterol: 52 mg/dL. BP: 118/74 mmHg. Fasting Glucose: 92 mg/dL.",
+          });
+          await loadData();
+        } catch (err) {
+          console.error("[Health UI] Document OCR error:", err);
+        }
+      })().catch((error: unknown) => {
+        reportHealthFailure("Document OCR failed", error);
       });
-      loadData();
     }, 1000);
   };
 
@@ -367,7 +412,7 @@ export function PersonalHealthDashboard(): React.JSX.Element {
     const api = window.hermesAPI;
     if (!api) return;
     await api.spsHealthDeleteMedicalDoc(id);
-    loadData();
+    await loadData();
   };
 
   return (
@@ -379,7 +424,9 @@ export function PersonalHealthDashboard(): React.JSX.Element {
         <div className="flex-row-gap-12">
           <button
             className="log-submit-btn refresh-btn-style"
-            onClick={() => loadData()}
+            onClick={() => {
+              runHealthAction("Refresh failed", loadData);
+            }}
           >
             <Icon name="refresh" size={13} className="refresh-icon-style" />{" "}
             Refresh
@@ -467,7 +514,15 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     onChange={(e) => setQuickBP(e.target.value)}
                   />
                 </div>
-                <button className="log-submit-btn" onClick={handleAddBiometric}>
+                <button
+                  className="log-submit-btn"
+                  onClick={() => {
+                    runHealthAction(
+                      "Biometric save failed",
+                      handleAddBiometric,
+                    );
+                  }}
+                >
                   Save Metrics
                 </button>
               </div>
@@ -521,7 +576,12 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                   />
                   <button
                     className="log-submit-btn save-journal-entry-btn"
-                    onClick={handleAddJournalText}
+                    onClick={() => {
+                      runHealthAction(
+                        "Journal entry save failed",
+                        handleAddJournalText,
+                      );
+                    }}
                   >
                     Save Entry
                   </button>
@@ -843,7 +903,12 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     <option value="pill">pill</option>
                   </select>
                 </div>
-                <button className="log-submit-btn" onClick={handleAddProtocol}>
+                <button
+                  className="log-submit-btn"
+                  onClick={() => {
+                    runHealthAction("Protocol save failed", handleAddProtocol);
+                  }}
+                >
                   Create Protocol
                 </button>
               </div>
@@ -856,7 +921,11 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     <div key={p.id} className="glass-panel protocol-card">
                       <button
                         className="protocol-delete-btn"
-                        onClick={() => handleDeleteProtocol(p.id)}
+                        onClick={() => {
+                          runHealthAction("Protocol deletion failed", () =>
+                            handleDeleteProtocol(p.id),
+                          );
+                        }}
                         title="Delete Protocol"
                         aria-label="Delete Protocol"
                       >
@@ -898,7 +967,11 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                         </span>
                         <button
                           className="log-submit-btn protocol-record-btn"
-                          onClick={() => logAdministration(p)}
+                          onClick={() => {
+                            runHealthAction("Administration log failed", () =>
+                              logAdministration(p),
+                            );
+                          }}
                         >
                           Record Administration
                         </button>
@@ -928,7 +1001,11 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     <span className="doc-card-title-text">{doc.file_name}</span>
                     <button
                       className="doc-card-delete-btn"
-                      onClick={() => handleDeleteDoc(doc.id)}
+                      onClick={() => {
+                        runHealthAction("Document deletion failed", () =>
+                          handleDeleteDoc(doc.id),
+                        );
+                      }}
                       title="Delete Document"
                       aria-label="Delete Document"
                     >

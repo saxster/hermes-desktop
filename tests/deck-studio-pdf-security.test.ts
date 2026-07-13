@@ -4,7 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import type { DeckProject } from "../src/shared/deck-studio";
 
-const loadURLMock = vi.fn(() => Promise.resolve());
+const loadURLMock = vi.fn((_url: string) => Promise.resolve());
 const printToPDFMock = vi.fn(() => Promise.resolve(Buffer.from("%PDF-1.4")));
 const destroyMock = vi.fn();
 

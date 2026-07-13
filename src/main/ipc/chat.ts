@@ -227,7 +227,14 @@ export function registerChatIpc(
         },
         maybeAutoApprove: (req) => {
           if (getAutoApprove(profile) && canAutoApprove(req)) {
-            void respondRunApproval(req.id, "once", profile);
+            respondRunApproval(req.id, "once", profile).catch((error) => {
+              log.error("chat", {
+                msg: "auto-approval response failed",
+                runId: req.id,
+                profile,
+                error: formatLogError(error),
+              });
+            });
             appendAuditLog({
               ts: Date.now(),
               action: "auto-approve",

@@ -60,8 +60,12 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
   }, [profile]);
 
   useEffect(() => {
-    loadConfig();
-    loadPairings();
+    loadConfig().catch((err: unknown) => {
+      console.error("Failed to load gateway config:", err);
+    });
+    loadPairings().catch((err: unknown) => {
+      console.error("Unexpected pairing load failure:", err);
+    });
   }, [loadConfig, loadPairings]);
 
   useEffect(() => {
@@ -70,7 +74,7 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
       setGatewayStderrTail("");
       return;
     }
-    void window.hermesAPI
+    window.hermesAPI
       .readLogs("gateway-stderr.log", 80)
       .then((res) => {
         if (!cancelled) setGatewayStderrTail(res.content.trim());
@@ -152,10 +156,16 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
 
   // Poll gateway status (10s interval to reduce IPC overhead)
   useEffect(() => {
-    const interval = setInterval(async () => {
-      const status = await window.hermesAPI.gatewayStatus();
-      setGatewayRunning(status);
-      if (status) setGatewayError(null);
+    const interval = setInterval(() => {
+      window.hermesAPI
+        .gatewayStatus()
+        .then((status) => {
+          setGatewayRunning(status);
+          if (status) setGatewayError(null);
+        })
+        .catch((err: unknown) => {
+          console.error("Failed to poll gateway status:", err);
+        });
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -189,19 +199,29 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
         return;
       }
 
-      gatewayStatusTimeoutRef.current = setTimeout(async () => {
-        const status = await window.hermesAPI.gatewayStatus();
-        setGatewayRunning(status);
-        if (!status) {
-          setGatewayError(
-            result.logPath
-              ? `${t("gateway.startExited")} ${t("gateway.checkLog", {
-                  path: result.logPath,
-                })}`
-              : t("gateway.startExited"),
-          );
-        }
-        gatewayStatusTimeoutRef.current = null;
+      gatewayStatusTimeoutRef.current = setTimeout(() => {
+        window.hermesAPI
+          .gatewayStatus()
+          .then((status) => {
+            setGatewayRunning(status);
+            if (!status) {
+              setGatewayError(
+                result.logPath
+                  ? `${t("gateway.startExited")} ${t("gateway.checkLog", {
+                      path: result.logPath,
+                    })}`
+                  : t("gateway.startExited"),
+              );
+            }
+          })
+          .catch((err: unknown) => {
+            setGatewayError(
+              `${t("gateway.startFailed")} ${err instanceof Error ? err.message : String(err)}`,
+            );
+          })
+          .finally(() => {
+            gatewayStatusTimeoutRef.current = null;
+          });
       }, 5000);
     } catch (err) {
       const prefix = wasRunning
@@ -221,10 +241,16 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
     const newValue = !platformEnabled[platform];
     setPlatformEnabled((prev) => ({ ...prev, [platform]: newValue }));
     await window.hermesAPI.setPlatformEnabled(platform, newValue, profile);
-    platformStatusTimeoutRef.current = setTimeout(async () => {
-      const status = await window.hermesAPI.gatewayStatus();
-      setGatewayRunning(status);
-      platformStatusTimeoutRef.current = null;
+    platformStatusTimeoutRef.current = setTimeout(() => {
+      window.hermesAPI
+        .gatewayStatus()
+        .then(setGatewayRunning)
+        .catch((err: unknown) => {
+          console.error("Failed to refresh gateway status:", err);
+        })
+        .finally(() => {
+          platformStatusTimeoutRef.current = null;
+        });
     }, 3000);
   }
 
@@ -284,7 +310,13 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
             </span>
             <button
               className="btn btn-secondary btn-sm"
-              onClick={toggleGateway}
+              onClick={() => {
+                toggleGateway().catch((err: unknown) => {
+                  setGatewayError(
+                    err instanceof Error ? err.message : String(err),
+                  );
+                });
+              }}
               disabled={gatewayBusy}
             >
               {gatewayBusy
@@ -347,9 +379,19 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
             visibleKeys={visibleKeys}
             keychainKeys={keychainKeys}
             t={t}
-            onToggle={togglePlatform}
+            onToggle={(platformKey) => {
+              togglePlatform(platformKey).catch((err: unknown) => {
+                setGatewayError(
+                  err instanceof Error ? err.message : String(err),
+                );
+              });
+            }}
             onChange={handleChange}
-            onBlur={handleBlur}
+            onBlur={(key) => {
+              handleBlur(key).catch((err: unknown) => {
+                console.error(`Failed to save gateway field ${key}:`, err);
+              });
+            }}
             onToggleVisibility={toggleVisibility}
           >
             {platform.key === "whatsapp_cloud" && (
@@ -402,7 +444,14 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
                   }
                   value={env[field.key] || ""}
                   onChange={(e) => handleChange(field.key, e.target.value)}
-                  onBlur={() => handleBlur(field.key)}
+                  onBlur={() => {
+                    handleBlur(field.key).catch((err: unknown) => {
+                      console.error(
+                        `Failed to save gateway field ${field.key}:`,
+                        err,
+                      );
+                    });
+                  }}
                   placeholder={t(field.label)}
                 />
                 {field.type === "password" && (
@@ -437,7 +486,11 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
               </span>
               <button
                 className="btn btn-secondary btn-sm gateway-btn-small"
-                onClick={loadPairings}
+                onClick={() => {
+                  loadPairings().catch((err: unknown) => {
+                    console.error("Unexpected pairing refresh failure:", err);
+                  });
+                }}
                 disabled={pairingsLoading}
               >
                 Refresh List
@@ -455,7 +508,13 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
             )}
             <button
               className="btn btn-secondary btn-sm align-start"
-              onClick={handleClearPendingPairings}
+              onClick={() => {
+                handleClearPendingPairings().catch((err: unknown) => {
+                  setPairingOutput(
+                    `Error: ${err instanceof Error ? err.message : String(err)}`,
+                  );
+                });
+              }}
               disabled={pairingActioning}
             >
               Clear All Pending Requests
@@ -479,7 +538,13 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
                 />
                 <button
                   className="btn btn-primary"
-                  onClick={handleApprovePairing}
+                  onClick={() => {
+                    handleApprovePairing().catch((err: unknown) => {
+                      setPairingOutput(
+                        `Error: ${err instanceof Error ? err.message : String(err)}`,
+                      );
+                    });
+                  }}
                   disabled={pairingActioning || !pairingCode.trim()}
                 >
                   Approve
@@ -505,7 +570,13 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
                 />
                 <button
                   className="btn btn-secondary"
-                  onClick={handleRevokePairing}
+                  onClick={() => {
+                    handleRevokePairing().catch((err: unknown) => {
+                      setPairingOutput(
+                        `Error: ${err instanceof Error ? err.message : String(err)}`,
+                      );
+                    });
+                  }}
                   disabled={pairingActioning || !userIdToRevoke.trim()}
                 >
                   Revoke

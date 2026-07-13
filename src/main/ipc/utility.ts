@@ -139,15 +139,24 @@ export function registerUtilityIpc(
             if (isUrl) {
               openExternalUrl(src);
             } else {
-              shell.openPath(safeSrc).then((err) => {
-                if (err) {
+              shell
+                .openPath(safeSrc)
+                .then((err) => {
+                  if (err) {
+                    log.error("media", {
+                      msg: "open failed",
+                      path: safeSrc,
+                      error: err,
+                    });
+                  }
+                })
+                .catch((error) => {
                   log.error("media", {
                     msg: "open failed",
                     path: safeSrc,
-                    error: err,
+                    error: formatLogError(error),
                   });
-                }
-              });
+                });
             }
           },
         });
@@ -155,7 +164,13 @@ export function registerUtilityIpc(
       template.push({
         label: labels.saveAs,
         click: () => {
-          void saveMedia(safeSrc, name, win);
+          saveMedia(safeSrc, name, win).catch((error) => {
+            log.error("media", {
+              msg: "save failed",
+              name,
+              error: formatLogError(error),
+            });
+          });
         },
       });
       Menu.buildFromTemplate(template).popup({ window: win });

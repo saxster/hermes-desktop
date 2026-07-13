@@ -138,7 +138,11 @@ export function useVoiceInput(
   const toggle = useCallback(() => {
     if (busy) return;
     if (recording) stop();
-    else void start();
+    else {
+      start().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    }
   }, [busy, recording, start, stop]);
 
   // Stop capture if the component unmounts mid-recording.

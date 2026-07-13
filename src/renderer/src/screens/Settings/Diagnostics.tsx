@@ -21,7 +21,9 @@ export default function Diagnostics(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    refresh().catch((err: unknown) => {
+      console.error("Unexpected diagnostics refresh failure:", err);
+    });
   }, [refresh]);
 
   async function openLogs(): Promise<void> {
