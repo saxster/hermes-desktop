@@ -1703,7 +1703,10 @@
   min-height: 92px;
   padding: 2px;
   text-align: left;
+  border: 0;
+  background: transparent;
   color: var(--tx-1);
+  font: inherit;
   border-radius: 8px;
 }
 .sps-scope .ck-operator-link:focus-visible {
