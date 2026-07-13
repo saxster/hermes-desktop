@@ -202,7 +202,11 @@ export function registerSystemIpc(
     "set-hermes-agent-update-routine",
     (
       _event,
-      settings: Partial<{ enabled: boolean; autoApply: boolean }>,
+      settings: Partial<{
+        enabled: boolean;
+        autoApply: boolean;
+        channel: "release" | "main";
+      }>,
       profile?: string,
     ) => setHermesAgentUpdateRoutine(settings, profile),
   );

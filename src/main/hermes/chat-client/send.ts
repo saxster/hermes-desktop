@@ -6,9 +6,9 @@ import {
   isGatewayRunning,
   isRemoteMode,
   setApiServerAvailable,
-  startGatewayWithRecovery,
   startHealthPolling,
 } from "../gateway-process";
+import { startCompatibleGateway } from "../../gateway-compatibility";
 import { sendMessageViaApi } from "./api";
 import { sendMessageViaCli } from "./cli";
 import {
@@ -64,7 +64,7 @@ async function sendMessageViaApiWithLocalRecovery(
     retriedTransport = true;
     activeHandle?.abort();
     setApiServerAvailable(false);
-    const recovered = await startGatewayWithRecovery(profile);
+    const recovered = (await startCompatibleGateway(profile)).success;
     if (aborted) return;
 
     if (!recovered) {
@@ -100,7 +100,7 @@ async function sendMessageViaApiWithLocalRecovery(
     recovering = true;
     activeHandle?.abort();
     setApiServerAvailable(false);
-    const recovered = await startGatewayWithRecovery(profile);
+    const recovered = (await startCompatibleGateway(profile)).success;
     if (aborted) return;
 
     setApiServerAvailable(recovered);
@@ -202,12 +202,13 @@ export async function sendMessage(
   if (apiServerAvailable === null || apiServerAvailable === false) {
     apiServerAvailable = await isApiServerReady(profile);
     if (!apiServerAvailable) {
-      apiServerAvailable = await startGatewayWithRecovery(profile);
+      apiServerAvailable = (await startCompatibleGateway(profile)).success;
     }
     setApiServerAvailable(apiServerAvailable);
   } else if (isGatewayRunning(profile)) {
     const healthy = await isApiServerReady(profile);
-    apiServerAvailable = healthy || (await startGatewayWithRecovery(profile));
+    apiServerAvailable =
+      healthy || (await startCompatibleGateway(profile)).success;
     setApiServerAvailable(apiServerAvailable);
   }
 

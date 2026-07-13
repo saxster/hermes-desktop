@@ -44,6 +44,7 @@ describe("Hermes Agent update routine state", () => {
 
     expect(state.enabled).toBe(true);
     expect(state.autoApply).toBe(false);
+    expect(state.channel).toBe("release");
     expect(state.timezone).toBe("America/New_York");
     expect(state.schedule).toBe("0 4 * * *");
     expect(state.nextCheckAt).toBe("2026-06-20T08:00:00.000Z");
@@ -58,7 +59,10 @@ describe("Hermes Agent update routine state", () => {
     const { getHermesAgentUpdateRoutine, setHermesAgentUpdateRoutine } =
       await freshConfig(TEST_DIR);
 
-    setHermesAgentUpdateRoutine({ autoApply: true }, "work");
+    setHermesAgentUpdateRoutine(
+      { autoApply: true, channel: "main" },
+      "work",
+    );
 
     expect(
       getHermesAgentUpdateRoutine(
@@ -66,12 +70,14 @@ describe("Hermes Agent update routine state", () => {
         new Date("2026-06-20T23:00:00.000Z"),
       ).autoApply,
     ).toBe(true);
+    expect(getHermesAgentUpdateRoutine("work").channel).toBe("main");
     expect(
       getHermesAgentUpdateRoutine(
         "personal",
         new Date("2026-06-20T23:00:00.000Z"),
       ).autoApply,
     ).toBe(false);
+    expect(getHermesAgentUpdateRoutine("personal").channel).toBe("release");
   });
 
   it("persists contract-break suppression until explicit acknowledgement", async () => {

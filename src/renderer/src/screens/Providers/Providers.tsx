@@ -41,12 +41,14 @@ type AgentUpdateRoutineResult = {
   upstreamHead?: string;
   behindBy?: number;
   changelog?: string;
+  releaseTag?: string;
   contract?: EngineContractVerificationResult;
 };
 
 type AgentUpdateRoutineState = {
   enabled: boolean;
   autoApply: boolean;
+  channel: "release" | "main";
   schedule: string;
   timezone: string;
   lastCheckedAt: string | null;
@@ -517,7 +519,11 @@ function Providers({
   }
 
   async function handleAgentUpdateSetting(
-    settings: Partial<{ enabled: boolean; autoApply: boolean }>,
+    settings: Partial<{
+      enabled: boolean;
+      autoApply: boolean;
+      channel: "release" | "main";
+    }>,
   ): Promise<void> {
     const updated = await window.hermesAPI.setHermesAgentUpdateRoutine(
       settings,
@@ -1122,6 +1128,25 @@ function Providers({
               />
               <span>{t("providers.agentUpdates.autoApply")}</span>
             </label>
+            <label className="provider-update-toggle">
+              <span>{t("providers.agentUpdates.channel")}</span>
+              <select
+                aria-label={t("providers.agentUpdates.channel")}
+                value={agentUpdateRoutine?.channel ?? "release"}
+                onChange={(event) =>
+                  void handleAgentUpdateSetting({
+                    channel: event.currentTarget.value as "release" | "main",
+                  })
+                }
+              >
+                <option value="release">
+                  {t("providers.agentUpdates.releaseChannel")}
+                </option>
+                <option value="main">
+                  {t("providers.agentUpdates.mainChannel")}
+                </option>
+              </select>
+            </label>
             <button
               type="button"
               className="btn btn-secondary btn-sm provider-update-run"
@@ -1174,6 +1199,14 @@ function Providers({
                   : agentUpdateRoutine?.autoApply
                   ? t("providers.agentUpdates.autoApplyMode")
                   : t("providers.agentUpdates.notifyOnly")}
+              </strong>
+            </div>
+            <div>
+              <span>{t("providers.agentUpdates.channel")}</span>
+              <strong>
+                {agentUpdateRoutine?.channel === "main"
+                  ? t("providers.agentUpdates.mainChannel")
+                  : t("providers.agentUpdates.releaseChannel")}
               </strong>
             </div>
             <div>

@@ -75,7 +75,10 @@ async function loadUpdateCheck(
     }),
   }));
 
-  return await import("../src/main/hermes-agent-updates");
+  const updateModule = await import("../src/main/hermes-agent-updates");
+  const config = await import("../src/main/config");
+  config.setHermesAgentUpdateRoutine({ channel: "main" }, "work");
+  return updateModule;
 }
 
 afterEach(() => {
@@ -90,6 +93,45 @@ afterEach(() => {
 });
 
 describe("Hermes Agent update check safety status", () => {
+  it("checks and applies the latest named release by default", async () => {
+    const oldSha = "1".repeat(40);
+    const releaseSha = "2".repeat(40);
+    const { runHermesAgentUpdateCheck } = await loadUpdateCheck({
+      available: false,
+      localHead: oldSha,
+    });
+    const config = await import("../src/main/config");
+    config.setHermesAgentUpdateRoutine({ channel: "release" }, "work");
+    const applyRelease = vi.fn().mockResolvedValue(undefined);
+
+    const result = await runHermesAgentUpdateCheck("work", {
+      now: new Date("2026-06-20T22:35:00.000Z"),
+      autoApply: true,
+      getInstalledSha: vi.fn().mockResolvedValue(oldSha),
+      resolveRelease: vi.fn().mockResolvedValue({
+        tag: "v0.16.0",
+        name: "Hermes Agent v0.16.0",
+        sha: releaseSha,
+        url: "https://github.com/NousResearch/hermes-agent/releases/tag/v0.16.0",
+        publishedAt: "2026-06-05T12:00:00Z",
+        notes: "Named release notes",
+      }),
+      applyRelease,
+      refreshCapabilities: vi.fn().mockResolvedValue({}),
+      verifyContract: vi.fn().mockResolvedValue({
+        checkedAt: "2026-06-20T22:36:00.000Z",
+        status: "unknown",
+        findings: [],
+      }),
+    });
+
+    expect(applyRelease).toHaveBeenCalledWith(releaseSha, expect.any(Function));
+    expect(result.status).toBe("updated");
+    expect(result.releaseTag).toBe("v0.16.0");
+    expect(result.upstreamHead).toBe(releaseSha);
+    expect(result.changelog).toBe("Named release notes");
+  });
+
   it("records fetch/update-check failures as errors", async () => {
     const { runHermesAgentUpdateCheck } = await loadUpdateCheck({
       available: false,

@@ -3,13 +3,13 @@ import { safeHandle } from "./safe-handle";
 import {
   isRemoteMode,
   isGatewayRunning,
-  startGateway,
   ensureSshTunnelIfNeeded,
   getRemoteAuthHeader,
   setSshRemoteApiKey,
   sendMessage,
   respondRunApproval,
 } from "../hermes";
+import { startCompatibleGateway } from "../gateway-compatibility";
 import {
   getConnectionConfig,
   getApiServerKey,
@@ -73,7 +73,10 @@ export function abortAllChats(): void {
  */
 async function ensureChatGatewayReady(profile?: string): Promise<void> {
   if (!isRemoteMode() && !isGatewayRunning(profile)) {
-    startGateway(profile);
+    const started = await startCompatibleGateway(profile);
+    if (!started.success) {
+      throw new Error(started.error || "Hermes gateway failed to start.");
+    }
   }
 
   await ensureSshTunnelIfNeeded();

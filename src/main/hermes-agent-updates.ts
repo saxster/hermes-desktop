@@ -9,7 +9,9 @@ import {
   getInstalledEngineSha,
   HERMES_HOME,
   HERMES_REPO,
+  rollbackEngineTo,
   runHermesUpdate,
+  type HermesUpdateStatus,
 } from "./installer";
 import {
   getHermesAgentUpdateRoutine,
@@ -23,6 +25,10 @@ import { isGatewayRunning, isRemoteMode, restartGateway } from "./hermes";
 import { stripAnsi } from "./utils";
 import { refreshEngineCapabilities } from "./engine-capabilities";
 import { verifyAndRecordEngineContract } from "./engine-contract-verify";
+import {
+  resolveLatestEngineRelease,
+  type EngineReleaseTarget,
+} from "./engine-release";
 
 export interface HermesAgentUpdateCheckOptions {
   now?: Date;
@@ -32,6 +38,11 @@ export interface HermesAgentUpdateCheckOptions {
   refreshCapabilities?: typeof refreshEngineCapabilities;
   verifyContract?: typeof verifyAndRecordEngineContract;
   notifyContractBroken?: (message: string) => void;
+  resolveRelease?: typeof resolveLatestEngineRelease;
+  applyRelease?: (
+    sha: string,
+    onProgress: Parameters<typeof rollbackEngineTo>[1],
+  ) => Promise<void>;
 }
 
 async function gitStatusPorcelain(): Promise<{ ok: boolean; out: string }> {
@@ -144,8 +155,13 @@ export async function runHermesAgentUpdateCheck(
     options.verifyContract || verifyAndRecordEngineContract;
   const notifyContractBroken =
     options.notifyContractBroken || defaultNotifyContractBroken;
+  const resolveRelease = options.resolveRelease || resolveLatestEngineRelease;
+  const applyRelease =
+    options.applyRelease ||
+    ((sha, onProgress) => rollbackEngineTo(sha, onProgress));
 
   let finalResult: HermesAgentUpdateRoutineResult;
+  let releaseTarget: EngineReleaseTarget | null = null;
 
   try {
     if (isRemoteMode()) {
@@ -160,8 +176,26 @@ export async function runHermesAgentUpdateCheck(
         },
       );
     } else {
-      const update = await checkHermesUpdate();
-      const changelog = update.available ? await getChangelog() : "";
+      if (routine.channel === "release") {
+        releaseTarget = await resolveRelease();
+      }
+      let update: HermesUpdateStatus;
+      if (releaseTarget) {
+        const localHead = await getInstalledSha();
+        update = {
+          available: localHead !== releaseTarget.sha,
+          localHead: localHead || undefined,
+          upstreamHead: releaseTarget.sha,
+        };
+      } else {
+        update = await checkHermesUpdate();
+      }
+      const changelog =
+        routine.channel === "release"
+          ? releaseTarget?.notes || releaseTarget?.name || ""
+          : update.available
+            ? await getChangelog()
+            : "";
 
       if (!update.available) {
         const status = update.reason
@@ -230,7 +264,14 @@ export async function runHermesAgentUpdateCheck(
         } else {
           const preUpdateSha = await getInstalledSha();
           try {
-            await runHermesUpdate(options.onProgress || (() => {}));
+            if (routine.channel === "release" && releaseTarget) {
+              await applyRelease(
+                releaseTarget.sha,
+                options.onProgress || (() => {}),
+              );
+            } else {
+              await runHermesUpdate(options.onProgress || (() => {}));
+            }
           } catch (err) {
             finalResult = result("error", errorMessage(err), checkedAt, {
               phase: "update",
@@ -240,6 +281,7 @@ export async function runHermesAgentUpdateCheck(
               upstreamHead: update.upstreamHead,
               behindBy: update.behindBy,
               changelog,
+              releaseTag: releaseTarget?.tag,
             });
             recordHermesAgentUpdateResult(finalResult, profile);
             return finalResult;
@@ -361,6 +403,9 @@ export async function runHermesAgentUpdateCheck(
     );
   }
 
+  if (releaseTarget) {
+    finalResult = { ...finalResult, releaseTag: releaseTarget.tag };
+  }
   recordHermesAgentUpdateResult(finalResult, profile);
   return finalResult;
 }

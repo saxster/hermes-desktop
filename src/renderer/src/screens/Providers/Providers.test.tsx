@@ -58,6 +58,7 @@ describe("Providers", () => {
       getHermesAgentUpdateRoutine: vi.fn().mockResolvedValue({
         enabled: true,
         autoApply: false,
+        channel: "release",
         schedule: "0 4 * * *",
         timezone: "America/New_York",
         lastCheckedAt: "2026-06-19T08:00:00.000Z",
@@ -157,6 +158,7 @@ describe("Providers", () => {
       setHermesAgentUpdateRoutine: vi.fn().mockResolvedValue({
         enabled: true,
         autoApply: false,
+        channel: "release",
         schedule: "0 4 * * *",
         timezone: "America/New_York",
         lastCheckedAt: null,
@@ -288,6 +290,22 @@ describe("Providers", () => {
       expect(
         screen.getByText("Engine contract has breaking findings."),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("lets the owner choose the main update channel explicitly", async () => {
+    renderProviders();
+
+    const channel = await screen.findByRole("combobox", {
+      name: "Update channel",
+    });
+    fireEvent.change(channel, { target: { value: "main" } });
+
+    await waitFor(() => {
+      expect(window.hermesAPI.setHermesAgentUpdateRoutine).toHaveBeenCalledWith(
+        { channel: "main" },
+        "work",
+      );
     });
   });
 

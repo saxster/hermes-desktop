@@ -243,12 +243,14 @@ export type HermesAgentUpdateRoutineResult = {
   upstreamHead?: string;
   behindBy?: number;
   changelog?: string;
+  releaseTag?: string;
   contract?: EngineContractVerificationResult;
 };
 
 export type HermesAgentUpdateRoutineState = {
   enabled: boolean;
   autoApply: boolean;
+  channel: "release" | "main";
   schedule: string;
   timezone: string;
   lastCheckedAt: string | null;

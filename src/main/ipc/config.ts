@@ -1,6 +1,7 @@
 import { clipboard } from "electron";
 import { safeHandle } from "./safe-handle";
 import { appendActionReceipt } from "../action-receipts";
+import { startCompatibleGateway } from "../gateway-compatibility";
 import {
   readEnv,
   getKeychainKeys,
@@ -40,7 +41,6 @@ import {
   isGatewayRunning,
   restartGateway,
   startGateway,
-  startGatewayDetailed,
   stopGateway,
   testRemoteConnection,
   setSshRemoteApiKey,
@@ -531,7 +531,7 @@ export function registerConfigIpc(): void {
             "Remote mode points at an existing Hermes gateway. Start or restart the gateway on the remote host.",
         };
       }
-      return startGatewayDetailed();
+      return startCompatibleGateway();
     },
     async (ssh) => {
       await sshStartGateway(ssh);

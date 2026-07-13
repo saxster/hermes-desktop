@@ -75,7 +75,11 @@ export const engineBridge = {
       profile,
     )) as EngineBridgeApi["getHermesAgentUpdateRoutine"],
   setHermesAgentUpdateRoutine: ((
-    settings: Partial<{ enabled: boolean; autoApply: boolean }>,
+    settings: Partial<{
+      enabled: boolean;
+      autoApply: boolean;
+      channel: "release" | "main";
+    }>,
     profile?: string,
   ) =>
     ipcRenderer.invoke(

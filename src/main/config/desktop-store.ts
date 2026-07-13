@@ -214,12 +214,14 @@ export interface HermesAgentUpdateRoutineResult {
   upstreamHead?: string;
   behindBy?: number;
   changelog?: string;
+  releaseTag?: string;
   contract?: EngineContractVerificationResult;
 }
 
 export interface HermesAgentUpdateRoutineSettings {
   enabled: boolean;
   autoApply: boolean;
+  channel: "release" | "main";
 }
 
 export interface HermesAgentUpdateRoutineState extends HermesAgentUpdateRoutineSettings {
@@ -427,6 +429,7 @@ export function getHermesAgentUpdateRoutine(
   return {
     enabled: stored.enabled !== false,
     autoApply: stored.autoApply === true,
+    channel: stored.channel === "main" ? "main" : "release",
     schedule: HERMES_AGENT_UPDATE_SCHEDULE,
     timezone: localTimezone(),
     lastCheckedAt: stored.lastCheckedAt || lastResult?.checkedAt || null,
@@ -460,6 +463,9 @@ export function setHermesAgentUpdateRoutine(
       : {}),
     ...(typeof settings.autoApply === "boolean"
       ? { autoApply: settings.autoApply }
+      : {}),
+    ...(settings.channel === "release" || settings.channel === "main"
+      ? { channel: settings.channel }
       : {}),
   };
   data[HERMES_AGENT_UPDATE_KEY] = map;
