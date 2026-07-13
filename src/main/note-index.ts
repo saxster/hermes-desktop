@@ -39,6 +39,16 @@ import { parseYamlFrontmatterMarkdown } from "../shared/sps-frontmatter";
 
 const NOTE_EXTENSIONS = new Set([".md", ".markdown"]);
 
+export function shouldIgnoreNoteIndexPath(
+  root: string,
+  candidate: string,
+): boolean {
+  const pathWithinRoot = isAbsolute(candidate)
+    ? relative(root, candidate)
+    : candidate;
+  return pathWithinRoot.split(sep).some((part) => part.startsWith("."));
+}
+
 /** Predefined allowlist of frontmatter properties to index in SQLite.
  *  Prevents B-tree index bloat for dynamic/ad-hoc frontmatter keys. */
 const INDEXED_PROPERTIES = new Set([
@@ -1086,7 +1096,7 @@ export class NoteIndex {
     if (this.watcher) return;
     this.watcher = chokidar.watch(this.root, {
       ignoreInitial: true,
-      ignored: (path) => path.split(sep).some((p) => p.startsWith(".")),
+      ignored: (path) => shouldIgnoreNoteIndexPath(this.root, path),
       awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
     });
     this.watcher.on("add", (abs) => this.queueWatcherEvent(abs, "upsert"));

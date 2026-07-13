@@ -399,11 +399,38 @@ export function registerNotesIpc(
   // Markdown pages export
   safeHandle(
     "sps-export-page",
-    (_event, pageId: unknown, markdown: string, profile?: unknown) => {
+    async (_event, pageId: unknown, markdown: string, profile?: unknown) => {
       const dir = spsVaultDirFor(profile);
       const safePageId = assertIpcString(pageId, "page id");
-      assertPathInside(dir, `${safePageId}.md`, "page id");
-      return exportPageMarkdownTo(dir, safePageId, markdown, noteMirrorFailure);
+      const path = `${safePageId}.md`;
+      assertPathInside(dir, path, "page id");
+      const saved = await exportPageMarkdownTo(
+        dir,
+        safePageId,
+        markdown,
+        noteMirrorFailure,
+      );
+      if (!saved) return false;
+      const profileKey = normalizeIpcProfile(profile);
+      await bestEffortDerivedIndexRefresh(
+        async () => (await getSpsNoteIndex(profileKey)).refreshPath(path),
+        (status) =>
+          mainWindowGetter()?.webContents.send("sps-index-rebuilt", {
+            profile: profileKey,
+            status,
+          }),
+        (error) => {
+          // Markdown is authoritative and the page is already durable. A
+          // derived index failure must not turn a successful write into a
+          // false failure; the watcher or a later rebuild can recover it.
+          log.warn("notes", {
+            msg: "page saved but note-index refresh failed",
+            path,
+            error: formatLogError(error),
+          });
+        },
+      );
+      return true;
     },
   );
 

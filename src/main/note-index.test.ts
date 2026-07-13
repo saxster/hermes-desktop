@@ -6,7 +6,12 @@
 // scripts/verify-note-index.ts under ELECTRON_RUN_AS_NODE=1. Keep this file to
 // the pure functions that need no native module.
 import { describe, expect, it } from "vitest";
-import { findUnlinkedMentionTargets, parseFrontmatter } from "./note-index";
+import { join, resolve } from "node:path";
+import {
+  findUnlinkedMentionTargets,
+  parseFrontmatter,
+  shouldIgnoreNoteIndexPath,
+} from "./note-index";
 import { extractSpsLinkEdges } from "../shared/sps-wikilinks";
 
 describe("parseFrontmatter", () => {
@@ -33,6 +38,20 @@ describe("parseFrontmatter", () => {
     const { props, body } = parseFrontmatter(`---\n: : bad : :\n---\nbody`);
     expect(props).toEqual({});
     expect(body).toBe("body");
+  });
+});
+
+describe("shouldIgnoreNoteIndexPath", () => {
+  const root = resolve("test-home", ".hermes", "sps-agent", "vault");
+
+  it("does not ignore the vault because an ancestor directory is hidden", () => {
+    expect(shouldIgnoreNoteIndexPath(root, join(root, "home.md"))).toBe(false);
+  });
+
+  it("still ignores hidden entries inside the vault", () => {
+    expect(
+      shouldIgnoreNoteIndexPath(root, join(root, ".obsidian", "config")),
+    ).toBe(true);
   });
 });
 

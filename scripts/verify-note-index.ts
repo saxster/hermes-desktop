@@ -26,6 +26,22 @@ function eq(a: unknown, b: unknown, msg: string): void {
   );
 }
 
+async function waitFor(
+  predicate: () => boolean,
+  msg: string,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      assert(true, msg);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`FAIL: ${msg}`);
+}
+
 async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), "note-index-verify-"));
   await writeFile(
@@ -496,7 +512,45 @@ async function main(): Promise<void> {
     await rm(wsRoot, { recursive: true, force: true });
   }
 
-  closeAllNoteIndexes();
+  await closeAllNoteIndexes();
+
+  console.log("\nWatcher — dotted ancestors do not disable live indexing:");
+  {
+    const watcherParent = await mkdtemp(
+      join(tmpdir(), "note-index-watcher-verify-"),
+    );
+    const watcherRoot = join(watcherParent, ".hermes", "sps-agent", "vault");
+    await mkdir(watcherRoot, { recursive: true });
+    const watcherIndex = await getNoteIndexForRoot(watcherRoot);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await writeFile(
+      join(watcherRoot, "today.md"),
+      "# Today\nA heliotrope watcher probe.\n",
+    );
+    await waitFor(
+      () =>
+        watcherIndex
+          .search("heliotrope")
+          .some((hit) => hit.path === "today.md"),
+      "indexes a file created beneath a .hermes ancestor",
+    );
+
+    await mkdir(join(watcherRoot, ".obsidian"), { recursive: true });
+    await writeFile(
+      join(watcherRoot, ".obsidian", "hidden.md"),
+      "# Hidden\nA vermilion hidden probe.\n",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    assert(
+      watcherIndex.search("vermilion").length === 0,
+      "continues to ignore hidden descendants inside the vault",
+    );
+
+    await closeAllNoteIndexes();
+    await rm(watcherParent, { recursive: true, force: true });
+  }
+
+  await closeAllNoteIndexes();
   console.log("\nALL NOTE-INDEX CHECKS PASSED");
 }
 
