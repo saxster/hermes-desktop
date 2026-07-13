@@ -39,11 +39,13 @@ type NotebookState = "idle" | "checking" | "working" | "done" | "failed";
 type ResearchHistoryEntry = { pageId: string; title: string; savedAt: number };
 const RESEARCH_HISTORY_KEY = "sps-research-history-v1";
 
-function loadResearchHistory(): ResearchHistoryEntry[] {
+function researchHistoryKey(profile: string): string {
+  return `${RESEARCH_HISTORY_KEY}:${profile}`;
+}
+
+function loadResearchHistory(key: string): ResearchHistoryEntry[] {
   try {
-    const parsed: unknown = JSON.parse(
-      localStorage.getItem(RESEARCH_HISTORY_KEY) || "[]",
-    );
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) || "[]");
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (entry): entry is ResearchHistoryEntry =>
@@ -57,6 +59,19 @@ function loadResearchHistory(): ResearchHistoryEntry[] {
   } catch {
     return [];
   }
+}
+
+function loadProfileResearchHistory(profile: string): ResearchHistoryEntry[] {
+  const key = researchHistoryKey(profile);
+  if (localStorage.getItem(key) !== null) return loadResearchHistory(key);
+  return profile === "default" ? loadResearchHistory(RESEARCH_HISTORY_KEY) : [];
+}
+
+function saveResearchHistory(
+  key: string,
+  history: ResearchHistoryEntry[],
+): void {
+  localStorage.setItem(key, JSON.stringify(history));
 }
 
 interface NotebookLmMcpStatus {
@@ -127,12 +142,51 @@ export function ResearchModal({
   const openDeckStudioInput = useStore((s) => s.openDeckStudioInput);
   const selectPage = useStore((s) => s.selectPage);
   const setSurface = useStore((s) => s.setSurface);
+  const docs = useStore((s) => s.docs);
+  const meta = useStore((s) => s.meta);
   const onClose = () => setResearchOpen(false);
 
   const [mode, setMode] = useState<Mode>("research");
-  const [history, setHistory] = useState<ResearchHistoryEntry[]>(
-    loadResearchHistory,
+  const [historyProfile, setHistoryProfile] = useState("default");
+  const historyKey = researchHistoryKey(historyProfile);
+  const [history, setHistory] = useState<ResearchHistoryEntry[]>(() =>
+    loadProfileResearchHistory("default"),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const api = window.hermesAPI;
+    if (!api?.listProfiles) return;
+    void api
+      .listProfiles()
+      .then((profiles) => {
+        if (cancelled) return;
+        const active = profiles.find((profile) => profile.isActive);
+        if (active) {
+          setHistory(loadProfileResearchHistory(active.name));
+          setHistoryProfile(active.name);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const valid = history.filter(
+      (entry) => Boolean(docs[entry.pageId] && meta[entry.pageId]),
+    );
+    if (valid.length !== history.length) {
+      setHistory(valid);
+      saveResearchHistory(historyKey, valid);
+    } else if (localStorage.getItem(historyKey) === null) {
+      saveResearchHistory(historyKey, valid);
+    }
+    if (historyProfile === "default") {
+      localStorage.removeItem(RESEARCH_HISTORY_KEY);
+    }
+  }, [docs, history, historyKey, historyProfile, meta]);
 
   // ── general topic research ──
   const [topic, setTopic] = useState("");
@@ -275,12 +329,14 @@ export function ResearchModal({
       setResultPageId(res.pageId ?? null);
       undoRef.current = res.undo ?? null;
       if (res.pageId) {
-        const next = [
-          { pageId: res.pageId, title: res.summary || t, savedAt: Date.now() },
-          ...history.filter((entry) => entry.pageId !== res.pageId),
-        ].slice(0, 8);
-        setHistory(next);
-        localStorage.setItem(RESEARCH_HISTORY_KEY, JSON.stringify(next));
+        setHistory((current) => {
+          const next = [
+            { pageId: res.pageId!, title: res.summary || t, savedAt: Date.now() },
+            ...current.filter((entry) => entry.pageId !== res.pageId),
+          ].slice(0, 8);
+          saveResearchHistory(historyKey, next);
+          return next;
+        });
       }
       flash("Saved to your Knowledge Base");
     } else if (res.error === "no-sources" || res.error === "no-result") {
@@ -299,9 +355,13 @@ export function ResearchModal({
     undoRef.current?.();
     undoRef.current = null;
     if (resultPageId) {
-      const next = history.filter((entry) => entry.pageId !== resultPageId);
-      setHistory(next);
-      localStorage.setItem(RESEARCH_HISTORY_KEY, JSON.stringify(next));
+      setHistory((current) => {
+        const next = current.filter(
+          (entry) => entry.pageId !== resultPageId,
+        );
+        saveResearchHistory(historyKey, next);
+        return next;
+      });
     }
     setPhase("idle");
     setProgress("");
@@ -312,6 +372,10 @@ export function ResearchModal({
 
   const openSavedResearch = (): void => {
     if (!resultPageId) return;
+    if (!docs[resultPageId] || !meta[resultPageId]) {
+      flash("Saved research is no longer in this workspace", { tone: "warn" });
+      return;
+    }
     selectPage(resultPageId);
     setSurface("doc");
     if (!embedded) onClose();
@@ -648,6 +712,7 @@ export function ResearchModal({
                   key={entry.pageId}
                   type="button"
                   onClick={() => {
+                    if (!docs[entry.pageId] || !meta[entry.pageId]) return;
                     selectPage(entry.pageId);
                     setSurface("doc");
                   }}

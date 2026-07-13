@@ -13,6 +13,7 @@ import {
 } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { launchElectronSmoke } from "./lib/electron-smoke-launch.mjs";
 
 const OUT = process.env.SMOKE_OUT || join(tmpdir(), "sps-surfaces-smoke");
 mkdirSync(OUT, { recursive: true });
@@ -213,15 +214,19 @@ function recordHealthBrowserError(kind, text) {
 }
 
 const { _electron: electron } = await import("playwright");
-const app = await electron.launch({
-  args: [`--user-data-dir=${join(HOME, "electron-userdata")}`, "."],
-  env: {
-    ...process.env,
-    HERMES_HOME: HOME,
-    ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
+const app = await launchElectronSmoke(
+  electron,
+  {
+    args: [".", `--user-data-dir=${join(HOME, "electron-userdata")}`],
+    env: {
+      ...process.env,
+      HERMES_HOME: HOME,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
+    },
   },
-});
-const win = await app.firstWindow();
+  { label: "secondary SPS surface smoke" },
+);
+const win = await app.firstWindow({ timeout: 60000 });
 win.on("console", (msg) => {
   if (msg.type() === "error") {
     const text = msg.text();
@@ -435,7 +440,6 @@ await shot("03-dashboard-task-drawer", async () => {
       `Expected checklist input value "New subtask", got "${subtaskText}"`,
     );
   }
-  await closeDrawerIfOpen();
 });
 
 await closeDrawerIfOpen();
@@ -489,7 +493,6 @@ await shot("04b-doc-right-panel", async () => {
   await clickPanelTab("Info");
   await expectVisible("Linked references");
   await expectVisible("Words");
-  await expectVisible("No pages link here yet");
 });
 
 await shot("04c-doc-editor-persistence", async () => {

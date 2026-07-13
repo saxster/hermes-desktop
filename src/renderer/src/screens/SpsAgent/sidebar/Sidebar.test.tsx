@@ -162,9 +162,23 @@ describe("Sidebar", () => {
   it("uses the effective responsive icon mode and dismisses the profile menu", () => {
     render(<Sidebar displayMode="icons" />);
 
+    const packButtons = [
+      "Learning",
+      "Research",
+      "Graph",
+      "Health",
+      "Equity",
+      "Content",
+      "Deck",
+      "Obsidian",
+    ].map((label) => screen.getByRole("button", { name: `Enable ${label}` }));
     expect(
-      screen.getByRole("button", { name: "Enable Learning" }),
-    ).toBeTruthy();
+      new Set(
+        packButtons.map(
+          (button) => button.querySelector("svg")?.innerHTML ?? "",
+        ),
+      ).size,
+    ).toBeGreaterThan(4);
     const profileButton = screen.getByRole("button", {
       name: "Open profile menu",
     });

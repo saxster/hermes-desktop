@@ -11,6 +11,7 @@ import type { Task } from "../types";
 import { useVaultQuery } from "../hooks/useNoteIndex";
 import { vaultRowToTask } from "../tasks/vaultRowToTask";
 import { TASKS_DB_FOLDER } from "../tasks/taskStorage";
+import { dueDateKey } from "../tasks/taskUtils";
 
 type WorkTab = "today" | "next" | "scheduled" | "delegated" | "review";
 type Schedule = Awaited<ReturnType<typeof window.hermesAPI.srList>>[number];
@@ -22,11 +23,10 @@ export function localDateKey(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 export function taskNeedsAttentionToday(task: Task, today: string): boolean {
   if (["doing", "review", "blocked"].includes(task.status)) return true;
-  return Boolean(task.due && ISO_DATE.test(task.due) && task.due <= today);
+  const due = dueDateKey(task.due, Number(today.slice(0, 4)));
+  return Boolean(due && due <= today);
 }
 
 function fmtTime(ms: number): string {

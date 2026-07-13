@@ -124,6 +124,23 @@ describe("MyWorkSurface", () => {
     ).toBe(false);
   });
 
+  it("honors the human-readable due-date format advertised by Task Drawer", () => {
+    expect(
+      taskNeedsAttentionToday(
+        {
+          id: "tasks/human-date.md",
+          title: "Human date",
+          status: "todo",
+          prio: "med",
+          who: "you",
+          due: "Jul 12",
+          est: "",
+        },
+        "2026-07-13",
+      ),
+    ).toBe(true);
+  });
+
   it("uses Scheduled vocabulary on the scheduled tab", async () => {
     const api = window.hermesAPI as unknown as {
       srList: ReturnType<typeof vi.fn>;

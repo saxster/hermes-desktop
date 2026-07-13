@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { useStore } from "../store";
 import { uid } from "../lib/ids";
@@ -18,10 +18,14 @@ export function Dashboard(): React.JSX.Element {
   const setSurface = useStore((state) => state.setSurface);
   const setTemplatesOpen = useStore((state) => state.setTemplatesOpen);
   const setOpenTask = useStore((state) => state.setOpenTask);
+  const flash = useStore((state) => state.flash);
   const [scratchText, setScratchText] = useState("");
   const [recents, setRecents] = useState<string[]>([]);
   const [pinned, setPinned] = useState<string[]>([]);
   const scratchWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const scratchSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingScratchText = useRef<string | null>(null);
+  const lastQueuedScratchText = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,24 +107,59 @@ export function Dashboard(): React.JSX.Element {
     }
   }, [meta]);
 
+  const queueScratchpadWrite = useCallback(
+    (text: string): void => {
+      if (lastQueuedScratchText.current === text) return;
+      lastQueuedScratchText.current = text;
+      const markdown = rowToMarkdown(
+        { title: "Dashboard scratchpad", system: true },
+        text,
+      );
+      scratchWriteQueue.current = scratchWriteQueue.current
+        .then(async () => {
+          const saved = await window.hermesAPI.spsExportRow(
+            SCRATCHPAD_DB_FOLDER,
+            SCRATCHPAD_ROW_ID,
+            markdown,
+          );
+          if (!saved) throw new Error("Scratchpad row write failed");
+        })
+        .catch((error) => {
+          if (lastQueuedScratchText.current === text) {
+            lastQueuedScratchText.current = null;
+          }
+          console.error("Failed to save dashboard scratchpad:", error);
+          flash("Scratchpad changes were not saved. Try again.", {
+            tone: "warn",
+            ms: 8000,
+          });
+        });
+    },
+    [flash],
+  );
+
+  const flushScratchpad = useCallback((): void => {
+    if (scratchSaveTimer.current) {
+      clearTimeout(scratchSaveTimer.current);
+      scratchSaveTimer.current = null;
+    }
+    const pending = pendingScratchText.current;
+    pendingScratchText.current = null;
+    if (pending !== null) queueScratchpadWrite(pending);
+  }, [queueScratchpadWrite]);
+
+  useEffect(
+    () => () => {
+      flushScratchpad();
+    },
+    [flushScratchpad],
+  );
+
   const updateScratchpad = (text: string): void => {
     setScratchText(text);
-    const markdown = rowToMarkdown(
-      { title: "Dashboard scratchpad", system: true },
-      text,
-    );
-    scratchWriteQueue.current = scratchWriteQueue.current
-      .then(async () => {
-        const saved = await window.hermesAPI.spsExportRow(
-          SCRATCHPAD_DB_FOLDER,
-          SCRATCHPAD_ROW_ID,
-          markdown,
-        );
-        if (!saved) throw new Error("Scratchpad row write failed");
-      })
-      .catch((error) => {
-        console.error("Failed to save dashboard scratchpad:", error);
-      });
+    pendingScratchText.current = text;
+    if (scratchSaveTimer.current) clearTimeout(scratchSaveTimer.current);
+    scratchSaveTimer.current = setTimeout(flushScratchpad, 300);
   };
 
   const openPage = (id: string): void => {
@@ -202,6 +241,7 @@ export function Dashboard(): React.JSX.Element {
           aria-label="Today scratchpad"
           value={scratchText}
           onChange={(event) => updateScratchpad(event.target.value)}
+          onBlur={flushScratchpad}
           placeholder="Capture a thought…"
           rows={5}
         />

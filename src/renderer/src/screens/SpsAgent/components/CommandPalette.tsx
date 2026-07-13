@@ -16,6 +16,7 @@ import type { ContentIdea } from "../../../lib/content-studio";
 import { saveContentIdea } from "../content/contentStudioStorage";
 import { useWhatsNew } from "../updates/useWhatsNew";
 import { isEngineUpdateAffordance } from "../../../../../shared/update-affordances";
+import { useTheme } from "../../../components/ThemeProvider";
 
 interface ActionItem {
   kind: "action";
@@ -56,6 +57,7 @@ function flattenStoreTree(
 }
 
 export function CommandPalette() {
+  const { setTheme } = useTheme();
   const setPaletteOpen = useStore((s) => s.setPaletteOpen);
   const selectPage = useStore((s) => s.selectPage);
   const tree = useStore((s) => s.tree);
@@ -498,7 +500,11 @@ export function CommandPalette() {
         icon: "sun",
         label: t.dark ? "Switch to light" : "Switch to dark",
         desc: "Toggle the colour theme.",
-        run: () => setTweak("dark", !t.dark),
+        run: () => {
+          const dark = !t.dark;
+          setTheme(dark ? "dark" : "light");
+          setTweak("dark", dark);
+        },
       },
       {
         kind: "action",
@@ -582,6 +588,7 @@ export function CommandPalette() {
     t.dark,
     t.sidebar,
     openPanelTab,
+    setTheme,
     setTweak,
     setTemplatesOpen,
     setTrashOpen,

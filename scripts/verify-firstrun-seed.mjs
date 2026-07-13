@@ -11,6 +11,7 @@ import { _electron as electron } from "playwright";
 import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { launchElectronSmoke } from "./lib/electron-smoke-launch.mjs";
 
 const OUT = process.env.SMOKE_OUT || join(tmpdir(), "firstrun-seed");
 mkdirSync(OUT, { recursive: true });
@@ -39,15 +40,19 @@ const watchdog = setTimeout(() => {
   process.exit(2);
 }, 90000).unref();
 
-const app = await electron.launch({
-  args: [".", `--user-data-dir=${join(HOME, "electron-userdata")}`],
-  env: {
-    ...process.env,
-    HERMES_HOME: HOME,
-    ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
+const app = await launchElectronSmoke(
+  electron,
+  {
+    args: [".", `--user-data-dir=${join(HOME, "electron-userdata")}`],
+    env: {
+      ...process.env,
+      HERMES_HOME: HOME,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
+    },
   },
-});
-const win = await app.firstWindow();
+  { label: "first-run seed verifier" },
+);
+const win = await app.firstWindow({ timeout: 60000 });
 await win.waitForLoadState("domcontentloaded");
 await win.waitForSelector(".app", { timeout: 30000 });
 await win.waitForTimeout(2000);

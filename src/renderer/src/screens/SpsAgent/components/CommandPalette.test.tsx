@@ -33,6 +33,7 @@ const store = vi.hoisted(() => ({
   runAgent: vi.fn(),
   setTweaksOpen: vi.fn(),
 }));
+const theme = vi.hoisted(() => ({ setTheme: vi.fn() }));
 
 vi.mock("../store", () => {
   const useStore = Object.assign(
@@ -41,6 +42,14 @@ vi.mock("../store", () => {
   );
   return { useStore };
 });
+
+vi.mock("../../../components/ThemeProvider", () => ({
+  useTheme: () => ({
+    theme: "system",
+    resolved: "light",
+    setTheme: theme.setTheme,
+  }),
+}));
 
 import { CommandPalette } from "./CommandPalette";
 
@@ -102,6 +111,15 @@ describe("CommandPalette", () => {
       "Delete all workspace content and reset to a blank Home page? A backup will be attempted first.",
     );
     expect(store.resetWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("switches the global theme and the SPS theme together", async () => {
+    render(<CommandPalette />);
+
+    fireEvent.mouseDown(await screen.findByText("Switch to dark"));
+
+    expect(theme.setTheme).toHaveBeenCalledWith("dark");
+    expect(store.setTweak).toHaveBeenCalledWith("dark", true);
   });
 
   it("stays compact for commands and previews document results only", async () => {

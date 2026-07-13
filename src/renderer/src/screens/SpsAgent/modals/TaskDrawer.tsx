@@ -89,6 +89,7 @@ function serializeBody(desc: string, checklist: ChecklistItem[]): string {
 export function TaskDrawer({ task, onClose }: Props) {
   const setOpenTask = useStore((s) => s.setOpenTask);
   const updateTask = useStore((s) => s.updateTask);
+  const flash = useStore((s) => s.flash);
 
   const isFolderBacked = task.id.includes("/");
   const dbFolder = isFolderBacked ? task.id.split("/")[0] : "";
@@ -282,6 +283,10 @@ export function TaskDrawer({ task, onClose }: Props) {
         })
         .catch((error) => {
           console.error("Failed to save folder-backed task:", error);
+          flash("Task changes were not saved. Try again.", {
+            tone: "warn",
+            ms: 8000,
+          });
         });
       await writeQueueRef.current;
     } else {

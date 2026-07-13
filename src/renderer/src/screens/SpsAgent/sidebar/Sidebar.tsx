@@ -206,7 +206,11 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
   const openPalette = (): void => setPaletteOpen(true);
   const newPage = (): void => setTemplatesOpen({ parent: null });
   const openSurface = (next: Surface): void => setSurface(next);
-  const renderPackToggle = (id: PackId, label: string): React.JSX.Element => (
+  const renderPackToggle = (
+    id: PackId,
+    label: string,
+    icon: IconName,
+  ): React.JSX.Element => (
     <button
       key={`${id}-enable`}
       type="button"
@@ -215,7 +219,7 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
       title={label}
       aria-label={`${packs[id] ? "Disable" : "Enable"} ${label}`}
     >
-      <Icon name={packs[id] ? "check" : "plus"} size={17} />
+      <Icon name={packs[id] ? "check" : icon} size={17} />
       <span className="nav-label">{label}</span>
       <span className="pack-state">{packs[id] ? "On" : "Enable"}</span>
     </button>
@@ -426,14 +430,14 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
               "sparkle",
               () => openSurface("learning"),
               surface === "learning",
-            ) ?? renderPackToggle("learning", "Learning")}
+            ) ?? renderPackToggle("learning", "Learning", "sparkle")}
             {renderPackNav(
               "research",
               "Research",
               "search",
               () => openSurface("research"),
               surface === "research",
-            ) ?? renderPackToggle("research", "Research")}
+            ) ?? renderPackToggle("research", "Research", "search")}
             {packs.research && (
               <button
                 type="button"
@@ -452,35 +456,35 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
               "pageGraph",
               () => openSurface("graph"),
               surface === "graph",
-            ) ?? renderPackToggle("graph", "Graph")}
+            ) ?? renderPackToggle("graph", "Graph", "pageGraph")}
             {renderPackNav(
               "health",
               "Health",
               "heart",
               () => openSurface("personal-health"),
               surface === "personal-health",
-            ) ?? renderPackToggle("health", "Health")}
+            ) ?? renderPackToggle("health", "Health", "heart")}
             {renderPackNav(
               "equity",
               "Equity Research",
               "table",
               () => openSurface("equity"),
               surface === "equity",
-            ) ?? renderPackToggle("equity", "Equity")}
+            ) ?? renderPackToggle("equity", "Equity", "table")}
             {renderPackNav(
               "content",
               "Content Studio",
               "text",
               () => openSurface("contentStudio"),
               surface === "contentStudio",
-            ) ?? renderPackToggle("content", "Content")}
+            ) ?? renderPackToggle("content", "Content", "text")}
             {renderPackNav(
               "deck",
               "Deck Studio",
               "board",
               () => openSurface("deckStudio"),
               surface === "deckStudio",
-            ) ?? renderPackToggle("deck", "Deck")}
+            ) ?? renderPackToggle("deck", "Deck", "board")}
             {packs.obsidian ? (
               <div className="sec-group mt-4">
                 <div className="sec sec-static">
@@ -498,7 +502,7 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
                 <ObsidianExplorer />
               </div>
             ) : (
-              renderPackToggle("obsidian", "Obsidian")
+              renderPackToggle("obsidian", "Obsidian", "file")
             )}
           </div>
         )}

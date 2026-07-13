@@ -130,6 +130,20 @@ describe("QueryDatabase", () => {
 
   it("writes merged frontmatter on an inline status change (list cycle)", async () => {
     const exportRow = vi.fn().mockResolvedValue(true);
+    const readRow = vi.fn().mockResolvedValue(
+      [
+        "---",
+        'title: "Row One"',
+        'status: "todo"',
+        'region: "north"',
+        "---",
+        "",
+        "Keep this description.",
+        "",
+        "- [ ] Keep this checklist item",
+        "",
+      ].join("\n"),
+    );
     stubApi({
       spsIndexQuery: vi.fn().mockResolvedValue([
         {
@@ -139,6 +153,7 @@ describe("QueryDatabase", () => {
           mtime: 1,
         },
       ]),
+      spsReadRow: readRow,
       spsExportRow: exportRow,
     });
     render(<QueryDatabase block={blockWith("list")} />);
@@ -149,10 +164,36 @@ describe("QueryDatabase", () => {
     const [folder, rowId, markdown] = exportRow.mock.calls[0];
     expect(folder).toBe("db1");
     expect(rowId).toBe("r1");
+    expect(readRow).toHaveBeenCalledWith("db1", "r1");
     expect(markdown).toContain('status: "doing"');
     // Merge preserves title + unknown props rather than reconstructing them.
     expect(markdown).toContain('title: "Row One"');
     expect(markdown).toContain('region: "north"');
+    expect(markdown).toContain("Keep this description.");
+    expect(markdown).toContain("- [ ] Keep this checklist item");
+  });
+
+  it("refuses to recreate a vanished row with an empty body", async () => {
+    const exportRow = vi.fn().mockResolvedValue(true);
+    const readRow = vi.fn().mockResolvedValue(null);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    stubApi({
+      spsIndexQuery: vi.fn().mockResolvedValue([
+        {
+          path: "db1/r1.md",
+          title: "Row One",
+          props: { status: "todo" },
+          mtime: 1,
+        },
+      ]),
+      spsReadRow: readRow,
+      spsExportRow: exportRow,
+    });
+    render(<QueryDatabase block={blockWith("list")} />);
+    await screen.findByText("Row One");
+    fireEvent.click(document.querySelector(".lst-row .check") as Element);
+    await waitFor(() => expect(readRow).toHaveBeenCalledWith("db1", "r1"));
+    expect(exportRow).not.toHaveBeenCalled();
   });
 
   it("persists the view switch via the update callback", async () => {

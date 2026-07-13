@@ -1049,6 +1049,17 @@ export class NoteIndex {
     this.watcher.on("add", (abs) => this.queueWatcherEvent(abs, "upsert"));
     this.watcher.on("change", (abs) => this.queueWatcherEvent(abs, "upsert"));
     this.watcher.on("unlink", (abs) => this.queueWatcherEvent(abs, "unlink"));
+    this.watcher.on("error", (error) => {
+      // FSWatcher emits `error` as a special EventEmitter event; leaving it
+      // unhandled terminates the Electron main process under descriptor or
+      // permission pressure. The index is derived, so degrade to a logged stale
+      // watcher and let explicit refresh/rebuild calls continue to recover it.
+      log.warn("note-index.watcher", {
+        msg: "watcher error",
+        root: this.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   }
 
   private queueWatcherEvent(abs: string, kind: "upsert" | "unlink"): void {

@@ -2,7 +2,7 @@
 // Ported from app.jsx (selectPage, makePage, deletePage, …) and store.jsx tree ops.
 import type { StateCreator } from "zustand";
 import { blk, uid } from "../../lib/ids";
-import { resetWorkspaceRevision, saveWorkspace } from "../../lib/persistence";
+import { saveWorkspace } from "../../lib/persistence";
 import { getStorageMode } from "../../lib/storageMode";
 import {
   deleteVaultPages,
@@ -716,9 +716,21 @@ export const createWorkspaceSlice: StateCreator<
       });
       return;
     }
-    const oldIds = Object.keys(get().docs);
-    resetWorkspaceRevision();
     const fresh = buildInitialWorkspace();
+    try {
+      if (getStorageMode() === "vault") {
+        await writeVaultWorkspace(fresh);
+      } else {
+        const saved = await saveWorkspace(fresh);
+        if (!saved.ok) throw new Error(saved.error || "workspace save failed");
+      }
+    } catch {
+      get().flash("Reset refused: could not save the blank workspace", {
+        tone: "warn",
+      });
+      return;
+    }
+    const oldIds = Object.keys(get().docs);
     set({
       tree: fresh.tree,
       meta: fresh.meta,

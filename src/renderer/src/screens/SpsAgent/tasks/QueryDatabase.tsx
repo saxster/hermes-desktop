@@ -10,7 +10,11 @@ import { useState } from "react";
 import { Icon } from "../components/Icon";
 import { useVaultQuery } from "../hooks/useNoteIndex";
 import { useKanbanStatuses } from "../hooks/useKanbanStatuses";
-import { rowToMarkdown, type RowProps } from "../editor/rowMarkdown";
+import {
+  rowFromMarkdown,
+  rowToMarkdown,
+  type RowProps,
+} from "../editor/rowMarkdown";
 import { uid } from "../lib/ids";
 import { pageIdFromPath } from "../lib/pageId";
 import type { Block, DbCol, DbView, StatusKey, Task } from "../types";
@@ -75,10 +79,29 @@ export function QueryDatabase({ block, update }: Props) {
     const row = rowByPath.get(taskId);
     const api = window.hermesAPI;
     if (!row || !source || !api?.spsExportRow) return;
-    const next: RowProps = { title: row.title, ...row.props, ...patch };
-    const markdown = rowToMarkdown(next);
-    await api.spsExportRow(source, pageIdFromPath(row.path), markdown);
-    setTimeout(refetch, INDEX_LAG_MS);
+    const rowId = pageIdFromPath(row.path);
+    try {
+      const currentMarkdown = await api.spsReadRow(source, rowId);
+      if (currentMarkdown === null) {
+        throw new Error("database row no longer exists");
+      }
+      const current = rowFromMarkdown(currentMarkdown);
+      const next: RowProps = {
+        title: row.title,
+        ...row.props,
+        ...current.props,
+        ...patch,
+      };
+      const markdown = rowToMarkdown(next, current.body);
+      const saved = await api.spsExportRow(source, rowId, markdown);
+      if (!saved) throw new Error("database row write failed");
+      setTimeout(refetch, INDEX_LAG_MS);
+    } catch (error) {
+      console.error("Failed to save database row:", error);
+      useStore.getState().flash("Database row changes were not saved", {
+        tone: "warn",
+      });
+    }
   };
 
   const setField = (id: string, field: keyof Task, val: string): void =>

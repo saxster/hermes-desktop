@@ -8,6 +8,7 @@ let replaceTask: (task: Task) => void = () => {};
 const store = vi.hoisted(() => ({
   setOpenTask: vi.fn((task: Task) => replaceTask(task)),
   updateTask: vi.fn(),
+  flash: vi.fn(),
 }));
 
 vi.mock("../store", () => ({
@@ -90,5 +91,29 @@ describe("TaskDrawer folder-backed writes", () => {
     expect(finalMarkdown).toContain('title: "Renamed task"');
     expect(finalMarkdown).toContain('status: "doing"');
     expect(finalMarkdown).toContain("- [ ] New subtask");
+  });
+
+  it("warns when a folder-backed task cannot be saved", async () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        spsReadRow: vi.fn().mockResolvedValue(
+          '---\ntitle: "Initial task"\nstatus: "todo"\nprio: "med"\nwho: "you"\n---\n',
+        ),
+        spsExportRow: vi.fn().mockResolvedValue(false),
+      },
+    });
+
+    render(<Harness />);
+    const title = await screen.findByDisplayValue("Initial task");
+    fireEvent.change(title, { target: { value: "Unsaved title" } });
+    fireEvent.blur(title);
+
+    await waitFor(() =>
+      expect(store.flash).toHaveBeenCalledWith(
+        expect.stringMatching(/not saved/i),
+        expect.objectContaining({ tone: "warn" }),
+      ),
+    );
   });
 });

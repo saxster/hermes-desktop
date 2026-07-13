@@ -188,8 +188,9 @@ the named validation evidence both exist.
   Deck Studio retains navigator/canvas/inspector with inspector collapse and a
   compact export sheet that reveals exports in Finder. Health and Quick Capture
   use shared SPS/macOS hierarchy with no novelty emoji.
-- Focused migrated-surface suites pass. The full suite passes 366 files and
-  2,785 tests (3 skipped). Touched-source ESLint passes with zero errors.
+- Focused migrated-surface suites pass. After the 2026-07-13 audit remediation,
+  the full suite passes 373 files and 2,824 tests, with 1 file and 6 tests
+  skipped. Touched-source ESLint passes with zero errors.
 
 ### Final responsive and runtime phase
 
@@ -202,8 +203,30 @@ the named validation evidence both exist.
 - Secondary Electron surface smoke passes all 16 stateful workflows, including
   document persistence, DnD, Trash, scheduling, Journal, Health CRUD, and the
   offline clinical digest.
-- Compact, standard, and expanded screenshot sets in `/private/tmp/sps-smoke`
-  were visually reviewed. Compact mode uses the icon rail, closes the document
-  inspector, and presents RSS as one primary pane. Dark-mode hover surfaces and
-  toasts use theme-correct raised-surface tokens; normal tertiary text measures
-  4.77:1 (light) and 4.85:1 (black dark) against its canvas.
+- Compact, standard, and expanded screenshot sets in the platform temporary
+  `SMOKE_OUT` directory were visually reviewed. Compact mode uses the icon rail,
+  closes the document inspector, and presents RSS as one primary pane. Dark-mode
+  hover surfaces and toasts use theme-correct raised-surface tokens; normal
+  tertiary text measures 4.77:1 (light) and 4.85:1 (black dark) against its
+  canvas.
+
+### 2026-07-13 post-audit remediation
+
+- Query-database inline edits now read and merge the existing row markdown, so
+  descriptions and checklist bodies survive status, priority, owner, and date
+  changes. Workspace reset persists the blank replacement before deleting old
+  vault pages or reporting success.
+- Dashboard scratchpad writes are debounced and serialized; scratchpad and task
+  drawer failures produce visible warnings. Human due dates such as `Jun 9` and
+  `Jun 9, 2027` share the same validated calendar/sort path as ISO dates.
+- Research history is profile-scoped, migrated for the default profile, pruned
+  against live workspace pages, and prevented from opening missing pages. Theme
+  commands now update the global theme source of truth, and compact disabled
+  packs retain distinct semantic icons.
+- Note-index watcher errors are handled without terminating the main process.
+  The native verifier exercised an `EMFILE` watcher failure and continued to
+  `ALL NOTE-INDEX CHECKS PASSED`.
+- Normal Electron launch, first-run verification, the 80-capture primary smoke,
+  and the 16-workflow secondary smoke pass. The task-drawer capture is taken
+  while the drawer is open and visibly includes its description and checklist;
+  the compact Dashboard capture was reviewed with distinct rail icons.

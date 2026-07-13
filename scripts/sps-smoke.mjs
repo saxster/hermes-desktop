@@ -26,6 +26,7 @@ import {
 } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { launchElectronSmoke } from "./lib/electron-smoke-launch.mjs";
 
 const OUT = process.env.SMOKE_OUT || join(tmpdir(), "sps-smoke");
 mkdirSync(OUT, { recursive: true });
@@ -301,20 +302,24 @@ async function startFakeGateway() {
 
 const fakeGateway = await startFakeGateway();
 
-const app = await electron.launch({
-  // Isolate Electron's userData (alongside the temp HERMES_HOME) so the smoke
-  // gets its OWN single-instance lock — otherwise a developer's running app
-  // (which holds the default lock; see requestSingleInstanceLock in main) makes
-  // this second instance quit at launch ("Target page has been closed").
-  args: [".", `--user-data-dir=${join(HOME, "electron-userdata")}`],
-  env: {
-    ...process.env,
-    HERMES_HOME: HOME,
-    HERMES_RECENT_SCREENSHOT_DIR: SCREENSHOT_DIR,
-    HERMES_SMOKE_QUICK_CAPTURE: "1",
-    ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
+const app = await launchElectronSmoke(
+  electron,
+  {
+    // Isolate Electron's userData (alongside the temp HERMES_HOME) so the smoke
+    // gets its OWN single-instance lock — otherwise a developer's running app
+    // (which holds the default lock; see requestSingleInstanceLock in main) makes
+    // this second instance quit at launch ("Target page has been closed").
+    args: [".", `--user-data-dir=${join(HOME, "electron-userdata")}`],
+    env: {
+      ...process.env,
+      HERMES_HOME: HOME,
+      HERMES_RECENT_SCREENSHOT_DIR: SCREENSHOT_DIR,
+      HERMES_SMOKE_QUICK_CAPTURE: "1",
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
+    },
   },
-});
+  { label: "primary SPS smoke" },
+);
 const win = await app.firstWindow({ timeout: 60000 });
 await win.waitForLoadState("domcontentloaded");
 await win.waitForSelector(".app", { timeout: 30000 });
@@ -339,7 +344,7 @@ async function openCommand(label) {
     window.dispatchEvent(new CustomEvent("sps:search"));
   });
   await win.waitForSelector(".palette", { timeout: 8000 });
-  await win.locator(".pal-item", { hasText: label }).first().click();
+  await win.locator(".pal-item", { hasText: label }).first().click({ force: true });
 }
 
 async function openPageFromPalette(title) {
@@ -348,7 +353,7 @@ async function openPageFromPalette(title) {
   });
   await win.waitForSelector(".palette", { timeout: 8000 });
   await win.getByPlaceholder("Search or open in new tab…").fill(title);
-  await win.locator(".pal-item", { hasText: title }).first().click();
+  await win.locator(".pal-item", { hasText: title }).first().click({ force: true });
 }
 
 async function waitForInputValue(locator, predicate, label, timeoutMs = 8000) {

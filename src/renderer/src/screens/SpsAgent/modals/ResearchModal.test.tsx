@@ -14,6 +14,12 @@ const store = vi.hoisted(() => ({
   openDeckStudioInput: vi.fn(),
   selectPage: vi.fn(),
   setSurface: vi.fn(),
+  docs: {
+    "research-page": [{ id: "p1", type: "p", text: "Saved" }],
+  } as Record<string, unknown[]>,
+  meta: {
+    "research-page": { title: "Saved research" },
+  } as Record<string, { title: string }>,
 }));
 
 const api = vi.hoisted(() => ({
@@ -24,6 +30,7 @@ const api = vi.hoisted(() => ({
   spsNotebookLmStatus: vi.fn(),
   spsCuratedBrief: vi.fn(),
   spsStudyCard: vi.fn(),
+  listProfiles: vi.fn(),
 }));
 
 vi.mock("../store", () => ({
@@ -101,6 +108,9 @@ beforeEach(() => {
     restarted: false,
     message: "NotebookLM can connect through the local MCP server.",
   });
+  api.listProfiles.mockResolvedValue([
+    { name: "default", isActive: true },
+  ]);
 });
 
 describe("ResearchModal", () => {
@@ -134,13 +144,13 @@ describe("ResearchModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /^Research$/ }));
     await screen.findByText("Sourced summary for operators.");
-    expect(localStorage.getItem("sps-research-history-v1")).toContain(
+    expect(localStorage.getItem("sps-research-history-v1:default")).toContain(
       "research-page",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
 
-    expect(localStorage.getItem("sps-research-history-v1")).toBe("[]");
+    expect(localStorage.getItem("sps-research-history-v1:default")).toBe("[]");
   });
 
   it("ignores valid JSON with an invalid history shape", () => {
@@ -151,6 +161,40 @@ describe("ResearchModal", () => {
     expect(
       screen.getByText("Completed research will appear here for quick return."),
     ).toBeInTheDocument();
+  });
+
+  it("removes stale history instead of recreating a blank page", async () => {
+    localStorage.setItem(
+      "sps-research-history-v1",
+      JSON.stringify([
+        { pageId: "deleted-page", title: "Deleted research", savedAt: 1 },
+      ]),
+    );
+
+    render(<ResearchModal embedded />);
+
+    await waitFor(() =>
+      expect(screen.queryByText("Deleted research")).not.toBeInTheDocument(),
+    );
+    expect(store.selectPage).not.toHaveBeenCalledWith("deleted-page");
+  });
+
+  it("loads research history for the active profile", async () => {
+    api.listProfiles.mockResolvedValue([{ name: "work", isActive: true }]);
+    localStorage.setItem(
+      "sps-research-history-v1:work",
+      JSON.stringify([
+        {
+          pageId: "research-page",
+          title: "Work profile research",
+          savedAt: 1,
+        },
+      ]),
+    );
+
+    render(<ResearchModal embedded />);
+
+    expect(await screen.findByText("Work profile research")).toBeInTheDocument();
   });
 
   it("warns when social source coverage is not ready", async () => {

@@ -67,10 +67,3 @@ export async function saveWorkspace(ws: Workspace): Promise<SpsSaveResult> {
     };
   }
 }
-
-/** Forget the blob revision before replacing the whole workspace in memory.
- *  The replacement state is persisted by the normal lifecycle subscriber; do
- *  not issue a competing destructive `spsSave(null)` here. */
-export function resetWorkspaceRevision(): void {
-  baseRev = undefined;
-}

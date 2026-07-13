@@ -64,10 +64,17 @@ describe("workspace reset safety", () => {
     finishBackup?.({ id: "1", createdAt: 1, bytes: 10, fileCount: 2 });
     await reset;
 
+    expect(spsSave).toHaveBeenCalledTimes(2);
     expect(useStore.getState().docs.valuable).toBeUndefined();
     expect(useStore.getState().page).toBe("home");
     expect(spsSave.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ page: "valuable" }),
+    );
+    expect(spsSave.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        page: "home",
+        docs: { home: expect.any(Array) },
+      }),
     );
   });
 
@@ -88,5 +95,70 @@ describe("workspace reset safety", () => {
 
     expect(useStore.getState().docs.valuable?.[0]?.text).toBe("Keep me");
     expect(useStore.getState().toast?.text).toMatch(/Reset refused/);
+  });
+
+  it("keeps the current workspace when the blank workspace cannot be saved", async () => {
+    const spsSave = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, rev: 1, merged: false })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: "disk full",
+        rev: 1,
+        merged: false,
+      });
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        spsCreateBackup: vi.fn().mockResolvedValue({
+          id: "1",
+          createdAt: 1,
+          bytes: 10,
+          fileCount: 2,
+        }),
+        spsSave,
+      },
+    });
+
+    await useStore.getState().resetWorkspace();
+
+    expect(spsSave).toHaveBeenCalledTimes(2);
+    expect(useStore.getState().docs.valuable?.[0]?.text).toBe("Keep me");
+    expect(useStore.getState().toast?.text).toMatch(/Reset refused/);
+  });
+
+  it("persists the blank vault manifest before deleting replaced page files", async () => {
+    localStorage.setItem("sps-agent-storage-mode-v1", "vault");
+    const writeSnapshot = vi.fn().mockResolvedValue(true);
+    const deletePage = vi.fn().mockResolvedValue(true);
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        spsCreateBackup: vi.fn().mockResolvedValue({
+          id: "1",
+          createdAt: 1,
+          bytes: 10,
+          fileCount: 2,
+        }),
+        spsVaultWriteSnapshot: writeSnapshot,
+        spsDeletePage: deletePage,
+      },
+    });
+
+    await useStore.getState().resetWorkspace();
+
+    expect(writeSnapshot).toHaveBeenCalledTimes(2);
+    const freshSnapshot = writeSnapshot.mock.calls[1]?.[0] as {
+      pages: Record<string, string>;
+      manifest: string;
+    };
+    expect(Object.keys(freshSnapshot.pages)).toEqual(["home"]);
+    expect(JSON.parse(freshSnapshot.manifest).tree).toEqual([
+      { id: "home", children: [] },
+    ]);
+    expect(deletePage).toHaveBeenCalledWith("valuable");
+    expect(
+      writeSnapshot.mock.invocationCallOrder[1],
+    ).toBeLessThan(deletePage.mock.invocationCallOrder[0]);
   });
 });

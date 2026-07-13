@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -42,6 +43,7 @@ describe("Dashboard", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     delete (window as unknown as { hermesAPI?: unknown }).hermesAPI;
   });
@@ -91,5 +93,52 @@ describe("Dashboard", () => {
       status: "todo",
     });
     expect(useStore.getState().openTask?.id).toMatch(/^tasks\/task.*\.md$/);
+  });
+
+  it("coalesces rapid scratchpad edits and persists only the latest value", async () => {
+    vi.useFakeTimers();
+    render(<Dashboard />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const api = window.hermesAPI as unknown as {
+      spsExportRow: ReturnType<typeof vi.fn>;
+    };
+    const scratchpad = screen.getByLabelText("Today scratchpad");
+
+    fireEvent.change(scratchpad, { target: { value: "A" } });
+    fireEvent.change(scratchpad, { target: { value: "AB" } });
+    fireEvent.change(scratchpad, { target: { value: "ABC" } });
+
+    expect(api.spsExportRow).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(api.spsExportRow).toHaveBeenCalledTimes(1);
+    expect(api.spsExportRow).toHaveBeenCalledWith(
+      "_dashboard",
+      "scratchpad",
+      expect.stringContaining("ABC"),
+    );
+    vi.useRealTimers();
+  });
+
+  it("warns when the scratchpad cannot be saved", async () => {
+    vi.useFakeTimers();
+    vi.mocked(window.hermesAPI.spsExportRow).mockResolvedValue(false);
+    render(<Dashboard />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fireEvent.change(screen.getByLabelText("Today scratchpad"), {
+      target: { value: "Unsaved" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    expect(useStore.getState().toast?.text).toMatch(/not saved/i);
+    vi.useRealTimers();
   });
 });
