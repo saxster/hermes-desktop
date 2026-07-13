@@ -161,6 +161,7 @@ vi.mock("../src/main/installer", () => ({
   hermesCliArgs: (extra?: string[]) => ["/dev/null", ...(extra || [])],
   getEnhancedPath: () => process.env.PATH || "",
   getHermesVersion: () => Promise.resolve("1.0.0"),
+  getInstalledEngineSha: () => Promise.resolve("a".repeat(40)),
 }));
 
 vi.mock("../src/main/config", () => ({
@@ -168,6 +169,10 @@ vi.mock("../src/main/config", () => ({
   readEnv: () => ({}),
   getApiServerKey: () => "",
   getConnectionConfig: () => ({ mode: "local" as const }),
+  getEngineCapabilityState: () => ({
+    lastVerifiedSha: "a".repeat(40),
+    lastVerification: { status: "passed" as const },
+  }),
   readDesktopConfig: () => ({}),
 }));
 

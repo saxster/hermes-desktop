@@ -9,8 +9,8 @@ import { useStore } from "../src/renderer/src/screens/SpsAgent/store";
 afterEach(() => useStore.getState().setSurface("doc"));
 
 describe("SPS surface navigation (ui slice)", () => {
-  it("defaults to the doc surface", () => {
-    expect(useStore.getState().surface).toBe("doc");
+  it("defaults to the operator cockpit", () => {
+    expect(useStore.getState().surface).toBe("cockpit");
   });
 
   it("switches to insights and memory", () => {
