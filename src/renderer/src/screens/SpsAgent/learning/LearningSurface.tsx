@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import type { LearningProposal, SkillUsageEntry } from "../../../../../shared/learning";
+import type {
+  LearningProposal,
+  SkillUsageEntry,
+} from "../../../../../shared/learning";
 import {
   ASSISTANT_RECIPE_TEMPLATES,
   type AssistantRecipe,
@@ -597,17 +600,19 @@ export function LearningSurface({
           : "settings-container learning-workspace"
       }
     >
-      {!developerOnly && <header className="memory-header">
-        <div>
-          <h1 className="settings-header learning-surface-header-title">
-            Learning
-          </h1>
-          <p className="memory-subtitle">
-            Review captured material, recent learnings, and what My Assistant
-            should remember before opening builder controls.
-          </p>
-        </div>
-      </header>}
+      {!developerOnly && (
+        <header className="memory-header">
+          <div>
+            <h1 className="settings-header learning-surface-header-title">
+              Learning
+            </h1>
+            <p className="memory-subtitle">
+              Review captured material, recent learnings, and what My Assistant
+              should remember before opening builder controls.
+            </p>
+          </div>
+        </header>
+      )}
 
       <div className="settings-subnav">
         {visibleTabs.map((id) => (

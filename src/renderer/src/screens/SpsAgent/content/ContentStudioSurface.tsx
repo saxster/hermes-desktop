@@ -831,7 +831,9 @@ export function ContentStudioSurface({
               <span>{index + 1}</span>
               {step.label}
             </button>
-            {index < workflowSteps.length - 1 && <span aria-hidden="true">›</span>}
+            {index < workflowSteps.length - 1 && (
+              <span aria-hidden="true">›</span>
+            )}
           </div>
         ))}
         <button
@@ -850,149 +852,167 @@ export function ContentStudioSurface({
         />
       )}
 
-      {(activePanel === "ideas" || activePanel === "runs") && <ContentIdeaPanel
-        playbooks={CONTENT_STUDIO_PLAYBOOKS}
-        selectedPlaybookId={selectedPlaybookId}
-        onSelectPlaybook={selectPlaybook}
-        ideaTitle={ideaTitle}
-        sourceUrlsText={sourceUrlsText}
-        audience={audience}
-        angle={angle}
-        rubric={rubric}
-        overrideLowScore={overrideLowScore}
-        scoreText={`Score: ${score.total}/${score.max} - ${score.recommendation}`}
-        runMessage={runMessage}
-        variantMessage={variantMessage}
-        runMessageTone={runMessage.startsWith("Created") ? "success" : "error"}
-        variantMessageTone={
-          variantMessage.startsWith("Saved") || variantMessage.startsWith("Generated")
-            ? "success"
-            : variantMessage.includes("...")
-              ? "info"
-              : "warning"
-        }
-        lastAssistantRunId={lastAssistantRunId}
-        onIdeaTitleChange={setIdeaTitle}
-        onSourceUrlsChange={setSourceUrlsText}
-        onAudienceChange={setAudience}
-        onAngleChange={setAngle}
-        onRubricChange={updateRubric}
-        onOverrideChange={setOverrideLowScore}
-        onScoreIdea={scoreIdea}
-        onStartRun={() => void startRun()}
-        onGenerateCuratedBrief={() => void generateCuratedBrief()}
-        onGenerateVariants={() => void generateVariants()}
-        onSaveAssistantResult={() => void saveAssistantResult()}
-      />}
+      {(activePanel === "ideas" || activePanel === "runs") && (
+        <ContentIdeaPanel
+          playbooks={CONTENT_STUDIO_PLAYBOOKS}
+          selectedPlaybookId={selectedPlaybookId}
+          onSelectPlaybook={selectPlaybook}
+          ideaTitle={ideaTitle}
+          sourceUrlsText={sourceUrlsText}
+          audience={audience}
+          angle={angle}
+          rubric={rubric}
+          overrideLowScore={overrideLowScore}
+          scoreText={`Score: ${score.total}/${score.max} - ${score.recommendation}`}
+          runMessage={runMessage}
+          variantMessage={variantMessage}
+          runMessageTone={
+            runMessage.startsWith("Created") ? "success" : "error"
+          }
+          variantMessageTone={
+            variantMessage.startsWith("Saved") ||
+            variantMessage.startsWith("Generated")
+              ? "success"
+              : variantMessage.includes("...")
+                ? "info"
+                : "warning"
+          }
+          lastAssistantRunId={lastAssistantRunId}
+          onIdeaTitleChange={setIdeaTitle}
+          onSourceUrlsChange={setSourceUrlsText}
+          onAudienceChange={setAudience}
+          onAngleChange={setAngle}
+          onRubricChange={updateRubric}
+          onOverrideChange={setOverrideLowScore}
+          onScoreIdea={scoreIdea}
+          onStartRun={() => void startRun()}
+          onGenerateCuratedBrief={() => void generateCuratedBrief()}
+          onGenerateVariants={() => void generateVariants()}
+          onSaveAssistantResult={() => void saveAssistantResult()}
+        />
+      )}
 
-      {(activePanel === "ideas" || activePanel === "runs") && <section className="active-work-section">
-        <h2>Deck handoff</h2>
-        <p className="content-studio-quality">
-          Turn the current idea or active run into a source-grounded deck brief.
-        </p>
-        <div className="memory-entry-form-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={openIdeaDeck}
-            disabled={
-              !ideaTitle.trim() && !angle.trim() && !sourceUrlsText.trim()
-            }
-          >
-            Deck from idea
-          </button>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={openRunDeck}
-            disabled={!currentRun}
-          >
-            Deck from run
-          </button>
-        </div>
-      </section>}
-
-      {(activePanel === "drafts" || activePanel === "evidence") && <DraftWorkbench
-        draftText={draftText}
-        variants={draftVariants}
-        qualityMessage={qualityMessage}
-        qualityMessageTone={qualityMessage.startsWith("Draft approved") ? "success" : "warning"}
-        onDraftTextChange={setDraftText}
-        onApproveDraft={() => void runQualityGate()}
-        onApproveVariant={approveVariant}
-      >
-        <div className="you-rules-list learning-surface-list-mt">
-          <label className="memory-entry-card">
-            <input
-              type="checkbox"
-              checked={hasMaterialConnection}
-              onChange={(event) =>
-                setHasMaterialConnection(event.target.checked)
+      {(activePanel === "ideas" || activePanel === "runs") && (
+        <section className="active-work-section">
+          <h2>Deck handoff</h2>
+          <p className="content-studio-quality">
+            Turn the current idea or active run into a source-grounded deck
+            brief.
+          </p>
+          <div className="memory-entry-form-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={openIdeaDeck}
+              disabled={
+                !ideaTitle.trim() && !angle.trim() && !sourceUrlsText.trim()
               }
-            />
-            <span className="memory-entry-content">
-              Material connection exists
-            </span>
-          </label>
-          <label className="memory-entry-card">
-            <input
-              type="checkbox"
-              checked={syntheticMedia}
-              onChange={(event) => setSyntheticMedia(event.target.checked)}
-            />
-            <span className="memory-entry-content">
-              Realistic synthetic media used
-            </span>
-          </label>
-          <label className="memory-entry-card">
-            <input
-              type="checkbox"
-              checked={syntheticDisclosure}
-              onChange={(event) => setSyntheticDisclosure(event.target.checked)}
-            />
-            <span className="memory-entry-content">
-              Synthetic media disclosed
-            </span>
-          </label>
-        </div>
-        <input
-          className="inbox-input"
-          aria-label="Disclosure text"
-          value={disclosureText}
-          onChange={(event) => setDisclosureText(event.target.value)}
-          placeholder="Visible disclosure text, when needed"
-        />
-        <EvidenceLedger
-          claims={qualityClaims}
-          evidenceUrl={evidenceUrl}
-          evidenceSnippet={evidenceSnippet}
-          onEvidenceUrlChange={setEvidenceUrl}
-          onEvidenceSnippetChange={setEvidenceSnippet}
-          onAttachEvidence={() => void attachEvidence()}
-        />
-      </DraftWorkbench>}
+            >
+              Deck from idea
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={openRunDeck}
+              disabled={!currentRun}
+            >
+              Deck from run
+            </button>
+          </div>
+        </section>
+      )}
 
-      {activePanel === "publish" && <PublishQueue
-        manualPublishUrl={manualPublishUrl}
-        plannedPublishedAt={plannedPublishedAt}
-        onManualPublishUrlChange={setManualPublishUrl}
-        onPlannedPublishedAtChange={setPlannedPublishedAt}
-        onMarkPublished={() => void markPublished()}
-        onRunWeeklyReview={() => void runWeeklyReview()}
-      />}
+      {(activePanel === "drafts" || activePanel === "evidence") && (
+        <DraftWorkbench
+          draftText={draftText}
+          variants={draftVariants}
+          qualityMessage={qualityMessage}
+          qualityMessageTone={
+            qualityMessage.startsWith("Draft approved") ? "success" : "warning"
+          }
+          onDraftTextChange={setDraftText}
+          onApproveDraft={() => void runQualityGate()}
+          onApproveVariant={approveVariant}
+        >
+          <div className="you-rules-list learning-surface-list-mt">
+            <label className="memory-entry-card">
+              <input
+                type="checkbox"
+                checked={hasMaterialConnection}
+                onChange={(event) =>
+                  setHasMaterialConnection(event.target.checked)
+                }
+              />
+              <span className="memory-entry-content">
+                Material connection exists
+              </span>
+            </label>
+            <label className="memory-entry-card">
+              <input
+                type="checkbox"
+                checked={syntheticMedia}
+                onChange={(event) => setSyntheticMedia(event.target.checked)}
+              />
+              <span className="memory-entry-content">
+                Realistic synthetic media used
+              </span>
+            </label>
+            <label className="memory-entry-card">
+              <input
+                type="checkbox"
+                checked={syntheticDisclosure}
+                onChange={(event) =>
+                  setSyntheticDisclosure(event.target.checked)
+                }
+              />
+              <span className="memory-entry-content">
+                Synthetic media disclosed
+              </span>
+            </label>
+          </div>
+          <input
+            className="inbox-input"
+            aria-label="Disclosure text"
+            value={disclosureText}
+            onChange={(event) => setDisclosureText(event.target.value)}
+            placeholder="Visible disclosure text, when needed"
+          />
+          <EvidenceLedger
+            claims={qualityClaims}
+            evidenceUrl={evidenceUrl}
+            evidenceSnippet={evidenceSnippet}
+            onEvidenceUrlChange={setEvidenceUrl}
+            onEvidenceSnippetChange={setEvidenceSnippet}
+            onAttachEvidence={() => void attachEvidence()}
+          />
+        </DraftWorkbench>
+      )}
 
-      {activePanel === "analytics" && <AnalyticsLoop
-        analyticsSlug={analyticsSlug}
-        views={views}
-        bookmarks={bookmarks}
-        likes={likes}
-        comments={comments}
-        analytics={analytics}
-        onSlugChange={setAnalyticsSlug}
-        onViewsChange={setViews}
-        onBookmarksChange={setBookmarks}
-        onLikesChange={setLikes}
-        onCommentsChange={setComments}
-        onLogAnalytics={logAnalytics}
-      />}
+      {activePanel === "publish" && (
+        <PublishQueue
+          manualPublishUrl={manualPublishUrl}
+          plannedPublishedAt={plannedPublishedAt}
+          onManualPublishUrlChange={setManualPublishUrl}
+          onPlannedPublishedAtChange={setPlannedPublishedAt}
+          onMarkPublished={() => void markPublished()}
+          onRunWeeklyReview={() => void runWeeklyReview()}
+        />
+      )}
+
+      {activePanel === "analytics" && (
+        <AnalyticsLoop
+          analyticsSlug={analyticsSlug}
+          views={views}
+          bookmarks={bookmarks}
+          likes={likes}
+          comments={comments}
+          analytics={analytics}
+          onSlugChange={setAnalyticsSlug}
+          onViewsChange={setViews}
+          onBookmarksChange={setBookmarks}
+          onLikesChange={setLikes}
+          onCommentsChange={setComments}
+          onLogAnalytics={logAnalytics}
+        />
+      )}
 
       {activePanel === "review" && (
         <WeeklyReviewPanel onRunWeeklyReview={() => void runWeeklyReview()} />

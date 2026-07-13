@@ -12,7 +12,9 @@ export function PromptBudgetSection({
 }: {
   profile?: string;
 }): React.JSX.Element {
-  const [promptSize, setPromptSize] = useState<PromptSizeBreakdown | null>(null);
+  const [promptSize, setPromptSize] = useState<PromptSizeBreakdown | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
@@ -67,7 +69,8 @@ export function PromptBudgetSection({
           <div>
             <div className="prompt-budget-header">
               <span>
-                Usage: {total.toLocaleString()} / {limit.toLocaleString()} tokens
+                Usage: {total.toLocaleString()} / {limit.toLocaleString()}{" "}
+                tokens
               </span>
               <span>{percent}%</span>
             </div>
@@ -94,7 +97,7 @@ export function PromptBudgetSection({
                         {key.replace(/_/g, " ")}
                       </div>
                       <div className="prompt-budget-card-value">
-                        {value.toLocaleString()} {" "}
+                        {value.toLocaleString()}{" "}
                         <span className="prompt-budget-card-percent">
                           ({itemPercent}%)
                         </span>

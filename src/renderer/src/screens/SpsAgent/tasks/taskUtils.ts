@@ -47,9 +47,7 @@ export function parseDueParts(
     }
     return null;
   }
-  const match = /^([a-z]{3})\s+(\d{1,2})(?:,?\s+(\d{4}))?$/i.exec(
-    due.trim(),
-  );
+  const match = /^([a-z]{3})\s+(\d{1,2})(?:,?\s+(\d{4}))?$/i.exec(due.trim());
   if (!match) return null;
   const mon = MONTHS[match[1].toLowerCase()];
   const day = Number(match[2]);
@@ -69,9 +67,7 @@ export function dueDateKey(due: string, fallbackYear: number): string | null {
     month = Number(iso[2]) - 1;
     day = Number(iso[3]);
   } else {
-    const human = /^([a-z]{3})\s+(\d{1,2})(?:,?\s+(\d{4}))?$/i.exec(
-      trimmed,
-    );
+    const human = /^([a-z]{3})\s+(\d{1,2})(?:,?\s+(\d{4}))?$/i.exec(trimmed);
     if (!human) return null;
     const parsedMonth = MONTHS[human[1].toLowerCase()];
     if (parsedMonth === undefined) return null;

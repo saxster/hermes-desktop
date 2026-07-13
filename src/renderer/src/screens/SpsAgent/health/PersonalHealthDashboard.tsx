@@ -492,7 +492,8 @@ export function PersonalHealthDashboard(): React.JSX.Element {
                     onClick={simulateVoiceRecording}
                     disabled={isRecording}
                   >
-                    <Icon name="mic" size={14} /> {isRecording ? "Listening..." : "Record Audio"}
+                    <Icon name="mic" size={14} />{" "}
+                    {isRecording ? "Listening..." : "Record Audio"}
                   </button>
                   <button
                     className="log-submit-btn snap-food-btn"

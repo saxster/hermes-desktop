@@ -206,8 +206,8 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
             className="log-submit-btn refresh-btn-style"
             onClick={() => setShowSources((prev) => !prev)}
           >
-            <Icon name="plus" size={13} className="refresh-icon-style" />{" "}
-            Manage Feeds
+            <Icon name="plus" size={13} className="refresh-icon-style" /> Manage
+            Feeds
           </button>
           <button
             className="log-submit-btn refresh-btn-style"
@@ -222,7 +222,12 @@ ${art.content_raw?.replace(/<[^>]*>/g, "") || art.summary_excerpt || "No content
 
       {showSources && (
         <div className="rss-capture-scrim" role="presentation">
-          <section className="rss-capture-sheet" role="dialog" aria-modal="true" aria-label="Manage RSS feeds">
+          <section
+            className="rss-capture-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Manage RSS feeds"
+          >
             <header>
               <div>
                 <h2>Manage Feeds</h2>

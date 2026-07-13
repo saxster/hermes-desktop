@@ -15,7 +15,9 @@ import {
 } from "../shared/operator-readiness";
 import type { VaultHealthReport } from "../shared/sps-types";
 
-function vaultSummary(report: VaultHealthReport): OperatorReadinessVaultSummary {
+function vaultSummary(
+  report: VaultHealthReport,
+): OperatorReadinessVaultSummary {
   return {
     orphans: report.orphans.length,
     brokenLinks: report.brokenLinks.length,

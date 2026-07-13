@@ -130,20 +130,22 @@ describe("QueryDatabase", () => {
 
   it("writes merged frontmatter on an inline status change (list cycle)", async () => {
     const exportRow = vi.fn().mockResolvedValue(true);
-    const readRow = vi.fn().mockResolvedValue(
-      [
-        "---",
-        'title: "Row One"',
-        'status: "todo"',
-        'region: "north"',
-        "---",
-        "",
-        "Keep this description.",
-        "",
-        "- [ ] Keep this checklist item",
-        "",
-      ].join("\n"),
-    );
+    const readRow = vi
+      .fn()
+      .mockResolvedValue(
+        [
+          "---",
+          'title: "Row One"',
+          'status: "todo"',
+          'region: "north"',
+          "---",
+          "",
+          "Keep this description.",
+          "",
+          "- [ ] Keep this checklist item",
+          "",
+        ].join("\n"),
+      );
     stubApi({
       spsIndexQuery: vi.fn().mockResolvedValue([
         {

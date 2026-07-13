@@ -67,20 +67,36 @@ describe("owner delivery policy", () => {
     };
     const now = new Date(2026, 6, 13, 12, 0);
     const attempts: OwnerDeliveryAttempt[] = [
-      { eventId: EVENT.id, channel: "macos", deliveredAt: now.getTime() - 60_000 },
-      { eventId: "other", channel: "telegram", deliveredAt: now.getTime() - 60_000 },
-      { eventId: "older", channel: "email", deliveredAt: now.getTime() - 50 * 60_000 },
-      { eventId: "newer", channel: "email", deliveredAt: now.getTime() - 20 * 60_000 },
+      {
+        eventId: EVENT.id,
+        channel: "macos",
+        deliveredAt: now.getTime() - 60_000,
+      },
+      {
+        eventId: "other",
+        channel: "telegram",
+        deliveredAt: now.getTime() - 60_000,
+      },
+      {
+        eventId: "older",
+        channel: "email",
+        deliveredAt: now.getTime() - 50 * 60_000,
+      },
+      {
+        eventId: "newer",
+        channel: "email",
+        deliveredAt: now.getTime() - 20 * 60_000,
+      },
     ];
 
-    expect(ownerDeliverySkipReason("macos", EVENT, settings, attempts, now)).toBe(
-      "duplicate",
-    );
+    expect(
+      ownerDeliverySkipReason("macos", EVENT, settings, attempts, now),
+    ).toBe("duplicate");
     expect(
       ownerDeliverySkipReason("telegram", EVENT, settings, attempts, now),
     ).toBe("rate-limit");
-    expect(ownerDeliverySkipReason("email", EVENT, settings, attempts, now)).toBe(
-      "rate-limit",
-    );
+    expect(
+      ownerDeliverySkipReason("email", EVENT, settings, attempts, now),
+    ).toBe("rate-limit");
   });
 });

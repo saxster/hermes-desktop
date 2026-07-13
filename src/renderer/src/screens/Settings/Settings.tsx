@@ -223,7 +223,6 @@ function Settings({
         }
       }
     });
-
   }, [profile]);
 
   useEffect(() => {

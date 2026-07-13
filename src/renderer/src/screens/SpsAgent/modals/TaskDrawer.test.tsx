@@ -10,7 +10,9 @@ const store = vi.hoisted(() => ({
   updateTask: vi.fn(),
   flash: vi.fn(),
 }));
-const personState = vi.hoisted(() => ({ persons: [] as Array<Record<string, unknown>> }));
+const personState = vi.hoisted(() => ({
+  persons: [] as Array<Record<string, unknown>>,
+}));
 
 vi.mock("../store", () => ({
   useStore: (selector: (state: typeof store) => unknown) => selector(store),
@@ -59,9 +61,11 @@ describe("TaskDrawer folder-backed writes", () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
-        spsReadRow: vi.fn().mockResolvedValue(
-          '---\ntitle: "Initial task"\nstatus: "todo"\nprio: "med"\nwho: "you"\n---\n',
-        ),
+        spsReadRow: vi
+          .fn()
+          .mockResolvedValue(
+            '---\ntitle: "Initial task"\nstatus: "todo"\nprio: "med"\nwho: "you"\n---\n',
+          ),
         spsExportRow: vi.fn().mockResolvedValue(true),
         spsOpenContactChannel,
       },
@@ -132,9 +136,11 @@ describe("TaskDrawer folder-backed writes", () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
-        spsReadRow: vi.fn().mockResolvedValue(
-          '---\ntitle: "Initial task"\nstatus: "todo"\nprio: "med"\nwho: "you"\n---\n',
-        ),
+        spsReadRow: vi
+          .fn()
+          .mockResolvedValue(
+            '---\ntitle: "Initial task"\nstatus: "todo"\nprio: "med"\nwho: "you"\n---\n',
+          ),
         spsExportRow: vi.fn().mockResolvedValue(false),
       },
     });

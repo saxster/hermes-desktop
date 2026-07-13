@@ -157,8 +157,8 @@ describe("workspace reset safety", () => {
       { id: "home", children: [] },
     ]);
     expect(deletePage).toHaveBeenCalledWith("valuable");
-    expect(
-      writeSnapshot.mock.invocationCallOrder[1],
-    ).toBeLessThan(deletePage.mock.invocationCallOrder[0]);
+    expect(writeSnapshot.mock.invocationCallOrder[1]).toBeLessThan(
+      deletePage.mock.invocationCallOrder[0],
+    );
   });
 });

@@ -167,7 +167,9 @@ export function SkillsTab(props: {
       <section className="settings-section">
         <div className="settings-section-title">Installed skills</div>
         {[...props.installed, ...props.disabled].map((skill) => {
-          const enabled = props.installed.some((item) => item.path === skill.path);
+          const enabled = props.installed.some(
+            (item) => item.path === skill.path,
+          );
           const usage = props.usage[skill.path];
           return (
             <div key={skill.path} className="memory-entry-card">
@@ -251,7 +253,10 @@ export function SkillsTab(props: {
           value={props.repoPath}
           onChange={(event) => props.setRepoPath(event.target.value)}
         />
-        <button className="btn btn-primary btn-sm" onClick={props.generateDraft}>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={props.generateDraft}
+        >
           Generate draft
         </button>
       </section>
@@ -327,13 +332,22 @@ export function CuratorTab({
           archived.map((name) => (
             <div key={name} className="memory-entry-card">
               <span className="memory-entry-content">{name}</span>
-              <button className="btn btn-secondary btn-sm" onClick={() => restore(name)}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => restore(name)}
+              >
                 Restore {name}
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => pin(name)}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => pin(name)}
+              >
                 Pin
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => unpin(name)}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => unpin(name)}
+              >
                 Unpin
               </button>
             </div>
@@ -351,13 +365,25 @@ export function CuratorTab({
           onChange={(event) => setManualSkill(event.target.value)}
         />
         <div className="curator-tab-manual-actions">
-          <button className="btn btn-secondary btn-sm" disabled={!clean} onClick={() => restore(clean)}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={!clean}
+            onClick={() => restore(clean)}
+          >
             Restore
           </button>
-          <button className="btn btn-secondary btn-sm" disabled={!clean} onClick={() => pin(clean)}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={!clean}
+            onClick={() => pin(clean)}
+          >
             Pin
           </button>
-          <button className="btn btn-secondary btn-sm" disabled={!clean} onClick={() => unpin(clean)}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={!clean}
+            onClick={() => unpin(clean)}
+          >
             Unpin
           </button>
         </div>

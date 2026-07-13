@@ -84,7 +84,10 @@ function useIdentity(): Identity {
         const active = rows.find((r) => r.isActive) ?? rows[0];
         if (!active || cancelled) return;
         const name = active.name;
-        const pretty = name === "default" ? "SPS Agent" : name.charAt(0).toUpperCase() + name.slice(1);
+        const pretty =
+          name === "default"
+            ? "SPS Agent"
+            : name.charAt(0).toUpperCase() + name.slice(1);
         const user = name === "default" ? "Default" : pretty;
         const initial = name === "default" ? "S" : pretty.charAt(0) || "H";
         setIdentity({
@@ -399,7 +402,11 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
                   <span className="tree-toggle leaf"></span>No pages
                 </div>
               )}
-              <button type="button" className="nav-item pl-12" onClick={newPage}>
+              <button
+                type="button"
+                className="nav-item pl-12"
+                onClick={newPage}
+              >
                 <Icon name="plus" size={14} />
                 <span className="nav-label">Add page</span>
               </button>

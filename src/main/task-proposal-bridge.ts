@@ -61,12 +61,14 @@ function rejectedDir(profileRoot: string): string {
 function normalizeInput(value: unknown): TaskProposalSpoolInput | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const input = value as Partial<TaskProposalSpoolInput>;
-  const requestId = typeof input.requestId === "string" ? input.requestId.trim() : "";
+  const requestId =
+    typeof input.requestId === "string" ? input.requestId.trim() : "";
   const title = typeof input.title === "string" ? input.title.trim() : "";
   if (!requestId || requestId.length > 240 || !title || title.length > 240) {
     return null;
   }
-  const body = typeof input.body === "string" ? input.body.trim().slice(0, 10_000) : "";
+  const body =
+    typeof input.body === "string" ? input.body.trim().slice(0, 10_000) : "";
   const due =
     typeof input.due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.due)
       ? input.due
@@ -87,7 +89,8 @@ function normalizeInput(value: unknown): TaskProposalSpoolInput | null {
         ? input.requester.trim().slice(0, 240)
         : undefined,
     requestedAt:
-      typeof input.requestedAt === "number" && Number.isFinite(input.requestedAt)
+      typeof input.requestedAt === "number" &&
+      Number.isFinite(input.requestedAt)
         ? input.requestedAt
         : Date.now(),
   };
@@ -167,7 +170,9 @@ export async function drainTaskProposalSpoolIn(
   if (!existsSync(dir)) return result;
   const existing = await listVaultProposalsIn(profileRoot);
 
-  for (const name of readdirSync(dir).filter((item) => item.endsWith(".json")).slice(0, 100)) {
+  for (const name of readdirSync(dir)
+    .filter((item) => item.endsWith(".json"))
+    .slice(0, 100)) {
     const path = join(dir, name);
     let input: TaskProposalSpoolInput | null = null;
     try {

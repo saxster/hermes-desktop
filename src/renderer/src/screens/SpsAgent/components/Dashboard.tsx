@@ -221,7 +221,10 @@ export function Dashboard(): React.JSX.Element {
           <h1>{today}</h1>
         </div>
         <div className="today-actions" aria-label="Create">
-          <button type="button" onClick={() => setTemplatesOpen({ parent: null })}>
+          <button
+            type="button"
+            onClick={() => setTemplatesOpen({ parent: null })}
+          >
             <Icon name="plus" size={14} /> New page
           </button>
           <button type="button" onClick={() => void createTask()}>

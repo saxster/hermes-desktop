@@ -60,9 +60,7 @@ export type {
   EngineCapabilitySnapshot,
   EngineCapabilityState,
 } from "../shared/engine-capabilities";
-export type {
-  EngineContractFinding,
-} from "../shared/engine-contract";
+export type { EngineContractFinding } from "../shared/engine-contract";
 export type { EngineContractVerificationResult };
 export type {
   EngineAvailableUpdate,

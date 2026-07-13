@@ -2,10 +2,7 @@ import { existsSync, statSync } from "fs";
 import { resolve } from "path";
 import { stripAnsi } from "../utils";
 import { runHermesCli } from "../hermes-cli-runner";
-import {
-  HERMES_PYTHON,
-  HERMES_SCRIPT,
-} from "./paths";
+import { HERMES_PYTHON, HERMES_SCRIPT } from "./paths";
 
 export function validateImportArchivePath(
   archivePath: unknown,

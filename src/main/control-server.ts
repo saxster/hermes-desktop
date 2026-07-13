@@ -672,10 +672,7 @@ function listenOnPort(port: number, maxAttempts = 10): Promise<number> {
         enabled: connectionMode === "local",
         mode: connectionMode,
         profile: activeProfile,
-        port:
-          connectionMode === "local"
-            ? getProfilePort(activeProfile)
-            : null,
+        port: connectionMode === "local" ? getProfilePort(activeProfile) : null,
       };
       writeDesktopConfig(config);
 

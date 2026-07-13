@@ -184,6 +184,9 @@ export const MessageList = memo(function MessageList({
   const lastBubble = [...messages].reverse().find(isBubble);
   const lastMessageIsAgent = !!lastBubble && lastBubble.role === "agent";
 
+  // TanStack Virtual exposes mutable measurement functions by design, so this
+  // component must remain outside React Compiler memoization.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: groupedMessages.length,
     getScrollElement: () => scrollRef?.current ?? null,

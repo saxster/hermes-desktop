@@ -1,5 +1,8 @@
 import type { DraftVariant } from "../../../lib/content-studio";
-import { FeedbackMessage, type FeedbackTone } from "../components/FeedbackMessage";
+import {
+  FeedbackMessage,
+  type FeedbackTone,
+} from "../components/FeedbackMessage";
 
 interface Props {
   draftText: string;
@@ -56,7 +59,9 @@ export function DraftWorkbench({
         Approve final draft
       </button>
       {qualityMessage && (
-        <FeedbackMessage tone={qualityMessageTone}>{qualityMessage}</FeedbackMessage>
+        <FeedbackMessage tone={qualityMessageTone}>
+          {qualityMessage}
+        </FeedbackMessage>
       )}
     </section>
   );

@@ -485,83 +485,83 @@ function Layout({
       </aside>
 
       <Suspense fallback={<main className="content" />}>
-      <main className="content">
-        {verifyWarning && onReinstall && onDismissVerifyWarning && (
-          <VerifyWarningBanner
-            onReinstall={onReinstall}
-            onDismiss={onDismissVerifyWarning}
-          />
-        )}
-        {visitedViews.has("overview") && (
-          <div style={paneStyle("overview")}>
-            <ControlCenterOverview
-              profile={activeProfile}
-              remoteMode={remoteMode}
-              onNavigate={goTo}
-              onClose={onClose ?? (() => {})}
+        <main className="content">
+          {verifyWarning && onReinstall && onDismissVerifyWarning && (
+            <VerifyWarningBanner
+              onReinstall={onReinstall}
+              onDismiss={onDismissVerifyWarning}
             />
-          </div>
-        )}
-
-        {visitedViews.has("models") && (
-          <div style={paneStyle("models")}>
-            <Models visible={view === "models"} />
-          </div>
-        )}
-
-        {visitedViews.has("council") && (
-          <div style={paneStyle("council")}>
-            <CouncilSettings profile={activeProfile} />
-          </div>
-        )}
-
-        {visitedViews.has("aiSetup") && (
-          <div style={paneStyle("aiSetup")}>
-            {remoteMode ? (
-              <RemoteNotice feature="AI Setup" />
-            ) : (
-              <Providers
+          )}
+          {visitedViews.has("overview") && (
+            <div style={paneStyle("overview")}>
+              <ControlCenterOverview
                 profile={activeProfile}
-                visible={view === "aiSetup"}
+                remoteMode={remoteMode}
+                onNavigate={goTo}
+                onClose={onClose ?? (() => {})}
               />
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {visitedViews.has("connectedApps") && (
-          <div style={paneStyle("connectedApps")}>
-            {remoteMode ? (
-              <RemoteNotice feature="Connected Apps" />
-            ) : (
-              <Gateway profile={activeProfile} />
-            )}
-          </div>
-        )}
+          {visitedViews.has("models") && (
+            <div style={paneStyle("models")}>
+              <Models visible={view === "models"} />
+            </div>
+          )}
 
-        {visitedViews.has("preferences") && (
-          <div style={paneStyle("preferences")}>
-            <Settings profile={activeProfile} section="preferences" />
-          </div>
-        )}
+          {visitedViews.has("council") && (
+            <div style={paneStyle("council")}>
+              <CouncilSettings profile={activeProfile} />
+            </div>
+          )}
 
-        {visitedViews.has("dataPrivacy") && (
-          <div style={paneStyle("dataPrivacy")}>
-            <Settings profile={activeProfile} section="dataPrivacy" />
-          </div>
-        )}
+          {visitedViews.has("aiSetup") && (
+            <div style={paneStyle("aiSetup")}>
+              {remoteMode ? (
+                <RemoteNotice feature="AI Setup" />
+              ) : (
+                <Providers
+                  profile={activeProfile}
+                  visible={view === "aiSetup"}
+                />
+              )}
+            </div>
+          )}
 
-        {visitedViews.has("troubleshooting") && (
-          <div style={paneStyle("troubleshooting")}>
-            <Settings profile={activeProfile} section="troubleshooting" />
-          </div>
-        )}
+          {visitedViews.has("connectedApps") && (
+            <div style={paneStyle("connectedApps")}>
+              {remoteMode ? (
+                <RemoteNotice feature="Connected Apps" />
+              ) : (
+                <Gateway profile={activeProfile} />
+              )}
+            </div>
+          )}
 
-        {visitedViews.has("advanced") && (
-          <div style={paneStyle("advanced")}>
-            <Settings profile={activeProfile} section="advanced" />
-          </div>
-        )}
-      </main>
+          {visitedViews.has("preferences") && (
+            <div style={paneStyle("preferences")}>
+              <Settings profile={activeProfile} section="preferences" />
+            </div>
+          )}
+
+          {visitedViews.has("dataPrivacy") && (
+            <div style={paneStyle("dataPrivacy")}>
+              <Settings profile={activeProfile} section="dataPrivacy" />
+            </div>
+          )}
+
+          {visitedViews.has("troubleshooting") && (
+            <div style={paneStyle("troubleshooting")}>
+              <Settings profile={activeProfile} section="troubleshooting" />
+            </div>
+          )}
+
+          {visitedViews.has("advanced") && (
+            <div style={paneStyle("advanced")}>
+              <Settings profile={activeProfile} section="advanced" />
+            </div>
+          )}
+        </main>
       </Suspense>
 
       {/* Desktop app release notes modal */}

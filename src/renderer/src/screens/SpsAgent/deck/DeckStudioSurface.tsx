@@ -83,7 +83,9 @@ function SlideThumbRail({
           <span>{String(index + 1).padStart(2, "0")}</span>
           <strong>{slide.title}</strong>
           {issues.some((issue) => issue.slideId === slide.id) && (
-            <em>{issues.filter((issue) => issue.slideId === slide.id).length}</em>
+            <em>
+              {issues.filter((issue) => issue.slideId === slide.id).length}
+            </em>
           )}
         </button>
       ))}
@@ -241,7 +243,10 @@ function QaPanel({
       ) : (
         <div className="deck-qa-list">
           {issues.map((issue) => (
-            <div key={`${issue.path}-${issue.code}`} data-severity={issue.severity}>
+            <div
+              key={`${issue.path}-${issue.code}`}
+              data-severity={issue.severity}
+            >
               <strong>{issue.severity}</strong>
               <span>{issue.message}</span>
             </div>
@@ -298,7 +303,9 @@ export function DeckStudioSurface({
   );
 
   useEffect(() => {
-    const existing = tree.find((node) => meta[node.id]?.title === "Deck Studio");
+    const existing = tree.find(
+      (node) => meta[node.id]?.title === "Deck Studio",
+    );
     if (existing) {
       const existingChildTitles = childTitlesFor(existing.id, tree, meta);
       for (const title of PACK_PAGES) {
@@ -349,7 +356,10 @@ export function DeckStudioSurface({
     setProject(next);
     setIssues(qa.issues);
     setReviewedWarnings(false);
-    if (!selectedSlideId || !next.slides.some((slide) => slide.id === selectedSlideId)) {
+    if (
+      !selectedSlideId ||
+      !next.slides.some((slide) => slide.id === selectedSlideId)
+    ) {
       setSelectedSlideId(next.slides[0]?.id ?? "");
     }
   };
@@ -424,7 +434,7 @@ export function DeckStudioSurface({
     setMessage(
       result.ok && result.path
         ? `PDF exported: ${result.path}`
-        : result.error ?? "PDF export failed.",
+        : (result.error ?? "PDF export failed."),
     );
   };
 
@@ -437,13 +447,16 @@ export function DeckStudioSurface({
     setMessage(
       result.ok && result.path
         ? `PPTX exported: ${result.path}`
-        : result.error ?? "PPTX export failed.",
+        : (result.error ?? "PPTX export failed."),
     );
   };
 
   const openLastExport = async (): Promise<void> => {
     if (!lastExportPath) return;
-    const result = await window.hermesAPI.deckOpenExport(lastExportPath, profile);
+    const result = await window.hermesAPI.deckOpenExport(
+      lastExportPath,
+      profile,
+    );
     if (!result.ok) {
       setMessageTone("error");
       setMessage(result.error ?? "Could not open export.");
@@ -469,16 +482,18 @@ export function DeckStudioSurface({
           <h1>Deck Studio</h1>
         </div>
         <nav className="deck-tabs" aria-label="Deck Studio panels">
-          {(["brief", "outline", "slides", "export"] as DeckStep[]).map((step) => (
-            <button
-              key={step}
-              type="button"
-              className={activeStep === step ? "active" : ""}
-              onClick={() => setActiveStep(step)}
-            >
-              {step}
-            </button>
-          ))}
+          {(["brief", "outline", "slides", "export"] as DeckStep[]).map(
+            (step) => (
+              <button
+                key={step}
+                type="button"
+                className={activeStep === step ? "active" : ""}
+                onClick={() => setActiveStep(step)}
+              >
+                {step}
+              </button>
+            ),
+          )}
         </nav>
       </header>
 
@@ -539,7 +554,9 @@ export function DeckStudioSurface({
               Theme
               <select
                 value={theme}
-                onChange={(event) => updateTheme(event.currentTarget.value as DeckThemeId)}
+                onChange={(event) =>
+                  updateTheme(event.currentTarget.value as DeckThemeId)
+                }
               >
                 {DECK_THEME_IDS.map((themeId) => (
                   <option key={themeId} value={themeId}>
@@ -578,7 +595,9 @@ export function DeckStudioSurface({
                 min={4}
                 max={12}
                 value={slideCount}
-                onChange={(event) => setSlideCount(Number(event.currentTarget.value))}
+                onChange={(event) =>
+                  setSlideCount(Number(event.currentTarget.value))
+                }
               />
             </label>
             <label>
@@ -613,7 +632,11 @@ export function DeckStudioSurface({
               <article key={slide.id} className="deck-outline-row">
                 <span>{outlineLabel(slide, index)}</span>
                 <h2>{slide.title}</h2>
-                <p>{slide.subtitle || slide.body[0]?.text || "Review slide copy."}</p>
+                <p>
+                  {slide.subtitle ||
+                    slide.body[0]?.text ||
+                    "Review slide copy."}
+                </p>
                 <small>
                   {getDeckTemplateRecipe(project.theme, slide.kind).layout}
                 </small>
@@ -621,7 +644,11 @@ export function DeckStudioSurface({
             ))}
           </div>
           <div className="deck-outline-actions">
-            <button type="button" className="secondary" onClick={generateOutline}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={generateOutline}
+            >
               Regenerate outline
             </button>
             <button type="button" onClick={approveOutline}>
@@ -658,7 +685,9 @@ export function DeckStudioSurface({
               {inspectorVisible ? "Hide Inspector" : "Show Inspector"}
             </button>
           </div>
-          <section className={`deck-workbench ${inspectorVisible ? "" : "inspector-hidden"}`}>
+          <section
+            className={`deck-workbench ${inspectorVisible ? "" : "inspector-hidden"}`}
+          >
             <SlideThumbRail
               slides={project.slides}
               selectedId={selectedSlide.id}
@@ -666,14 +695,16 @@ export function DeckStudioSurface({
               issues={issues}
             />
             <DeckCanvas project={project} slide={selectedSlide} />
-            {inspectorVisible && <div className="deck-side-stack">
-              <SlideInspector slide={selectedSlide} onChange={updateSlide} />
-              <QaPanel
-                issues={issues}
-                reviewedWarnings={reviewedWarnings}
-                onReviewWarnings={() => setReviewedWarnings(true)}
-              />
-            </div>}
+            {inspectorVisible && (
+              <div className="deck-side-stack">
+                <SlideInspector slide={selectedSlide} onChange={updateSlide} />
+                <QaPanel
+                  issues={issues}
+                  reviewedWarnings={reviewedWarnings}
+                  onReviewWarnings={() => setReviewedWarnings(true)}
+                />
+              </div>
+            )}
           </section>
         </>
       )}
@@ -683,9 +714,8 @@ export function DeckStudioSurface({
           <div>
             <h2>Export</h2>
             <p>
-              PDF export preserves the deterministic preview. PPTX maps the
-              same Deck IR into editable PowerPoint text, shapes, and speaker
-              notes.
+              PDF export preserves the deterministic preview. PPTX maps the same
+              Deck IR into editable PowerPoint text, shapes, and speaker notes.
             </p>
             {lastNotesPath && <p>Notes sidecar: {lastNotesPath}</p>}
           </div>
@@ -714,7 +744,11 @@ export function DeckStudioSurface({
             Export PPTX
           </button>
           {lastExportPath && (
-            <button type="button" className="secondary" onClick={openLastExport}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={openLastExport}
+            >
               Reveal in Finder
             </button>
           )}

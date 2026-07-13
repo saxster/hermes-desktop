@@ -583,49 +583,46 @@ function setupIPC(): void {
     return kind;
   });
 
-  safeHandle(
-    "sps-trigger-screencapture",
-    async (_event, profile?: string) => {
-      if (captureWindow && !captureWindow.isDestroyed()) {
-        captureWindow.hide();
-      }
-      await new Promise((resolve) => setTimeout(resolve, 150));
+  safeHandle("sps-trigger-screencapture", async (_event, profile?: string) => {
+    if (captureWindow && !captureWindow.isDestroyed()) {
+      captureWindow.hide();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
-      const tempPath = join(tmpdir(), `hermes-capture-${Date.now()}.png`);
-      try {
-        await execFileAsync("screencapture", buildScreencaptureArgs(tempPath));
-        if (existsSync(tempPath)) {
-          const buffer = readFileSync(tempPath);
-          try {
-            unlinkSync(tempPath);
-          } catch (err) {
-            log.error("quick-capture", {
-              msg: "failed to delete temp file",
-              path: tempPath,
-              error: formatLogError(err),
-            });
-          }
-          const dir = spsVaultDirFor(profile);
-          const name = await writeAsset(dir, buffer, "png");
-          if (captureWindow && !captureWindow.isDestroyed()) {
-            captureWindow.show();
-            captureWindow.focus();
-          }
-          return name;
+    const tempPath = join(tmpdir(), `hermes-capture-${Date.now()}.png`);
+    try {
+      await execFileAsync("screencapture", buildScreencaptureArgs(tempPath));
+      if (existsSync(tempPath)) {
+        const buffer = readFileSync(tempPath);
+        try {
+          unlinkSync(tempPath);
+        } catch (err) {
+          log.error("quick-capture", {
+            msg: "failed to delete temp file",
+            path: tempPath,
+            error: formatLogError(err),
+          });
         }
-      } catch (err) {
-        log.error("quick-capture", {
-          msg: "screencapture failed or canceled",
-          error: formatLogError(err),
-        });
+        const dir = spsVaultDirFor(profile);
+        const name = await writeAsset(dir, buffer, "png");
+        if (captureWindow && !captureWindow.isDestroyed()) {
+          captureWindow.show();
+          captureWindow.focus();
+        }
+        return name;
       }
-      if (captureWindow && !captureWindow.isDestroyed()) {
-        captureWindow.show();
-        captureWindow.focus();
-      }
-      return null;
-    },
-  );
+    } catch (err) {
+      log.error("quick-capture", {
+        msg: "screencapture failed or canceled",
+        error: formatLogError(err),
+      });
+    }
+    if (captureWindow && !captureWindow.isDestroyed()) {
+      captureWindow.show();
+      captureWindow.focus();
+    }
+    return null;
+  });
 }
 function buildMenu(): void {
   const isMac = process.platform === "darwin";
@@ -933,8 +930,7 @@ app.whenReady().then(() => {
             id: `gateway-outage:${supervision.outageStartedAt}`,
             kind: "gateway-outage",
             title: "Hermes gateway is down",
-            body:
-              "Automatic recovery was exhausted. Open Gateway settings to inspect logs and retry.",
+            body: "Automatic recovery was exhausted. Open Gateway settings to inspect logs and retry.",
           },
           getActiveProfileNameSync(),
         );

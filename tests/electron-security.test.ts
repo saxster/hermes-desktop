@@ -89,7 +89,8 @@ describe("Electron main process hardening", () => {
   });
 
   it("routes shell.openExternal through the allowlist helper", () => {
-    const directShellOpens = navigationSrc.match(/shell\.openExternal\(/g) ?? [];
+    const directShellOpens =
+      navigationSrc.match(/shell\.openExternal\(/g) ?? [];
     expect(directShellOpens).toHaveLength(1);
     expect(navigationSrc).toContain(
       "function openExternalUrl(rawUrl: unknown): void",

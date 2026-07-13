@@ -50,7 +50,12 @@ function recordMap<T>(value: unknown): Record<string, T> {
     : {};
 }
 
-function clampInteger(value: unknown, fallback: number, min: number, max: number): number {
+function clampInteger(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.min(max, Math.max(min, Math.round(value)))
     : fallback;
@@ -103,7 +108,9 @@ export function normalizeOwnerDeliverySettings(
   };
 }
 
-export function getOwnerDeliverySettings(profile?: string): OwnerDeliverySettings {
+export function getOwnerDeliverySettings(
+  profile?: string,
+): OwnerDeliverySettings {
   const config = readDesktopConfig();
   const map = recordMap<Partial<OwnerDeliverySettings>>(config[SETTINGS_KEY]);
   return normalizeOwnerDeliverySettings(map[profileKey(profile)]);
@@ -184,8 +191,7 @@ export function ownerDeliverySkipReason(
   if (ownerDeliveryQuietHoursActive(settings, now)) return "quiet-hours";
   if (
     attempts.some(
-      (attempt) =>
-        attempt.eventId === event.id && attempt.channel === channel,
+      (attempt) => attempt.eventId === event.id && attempt.channel === channel,
     )
   ) {
     return "duplicate";

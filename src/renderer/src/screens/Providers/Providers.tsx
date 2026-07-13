@@ -1197,8 +1197,8 @@ function Providers({
                 {agentUpdateRoutine?.autoApplySuppressed
                   ? t("providers.agentUpdates.autoApplyPausedMode")
                   : agentUpdateRoutine?.autoApply
-                  ? t("providers.agentUpdates.autoApplyMode")
-                  : t("providers.agentUpdates.notifyOnly")}
+                    ? t("providers.agentUpdates.autoApplyMode")
+                    : t("providers.agentUpdates.notifyOnly")}
               </strong>
             </div>
             <div>
@@ -1344,7 +1344,9 @@ function Providers({
                   )}
                 </strong>
               ) : (
-                <strong>{t("providers.engineCapabilities.noVerification")}</strong>
+                <strong>
+                  {t("providers.engineCapabilities.noVerification")}
+                </strong>
               )}
             </div>
             <div>
@@ -1353,7 +1355,9 @@ function Providers({
             </div>
             <div>
               <span>{t("providers.engineCapabilities.contractFindings")}</span>
-              <strong>{formatEngineContractFindings(engineVerification)}</strong>
+              <strong>
+                {formatEngineContractFindings(engineVerification)}
+              </strong>
             </div>
           </div>
           {engineContractMessage && (

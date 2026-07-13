@@ -82,9 +82,7 @@ describe("capability risk scanner", () => {
   it("keeps malformed MCP entries visible for risk scanning", () => {
     writeFileSync(
       join(TEST_HOME, "config.yaml"),
-      ["mcp_servers:", "  incomplete:", "    enabled: true", ""].join(
-        "\n",
-      ),
+      ["mcp_servers:", "  incomplete:", "    enabled: true", ""].join("\n"),
     );
 
     const [entry] = listMcpServerEntries();

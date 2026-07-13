@@ -30,13 +30,15 @@ function verification(
   };
 }
 
-function harness(options: {
-  installedSha?: string | null;
-  lastVerifiedSha?: string | null;
-  prelaunch?: EngineContractVerificationResult["status"];
-  postlaunch?: EngineContractVerificationResult["status"];
-  running?: boolean;
-} = {}): {
+function harness(
+  options: {
+    installedSha?: string | null;
+    lastVerifiedSha?: string | null;
+    prelaunch?: EngineContractVerificationResult["status"];
+    postlaunch?: EngineContractVerificationResult["status"];
+    running?: boolean;
+  } = {},
+): {
   dependencies: TestDependencies;
   getState: () => EngineCapabilityState;
 } {
@@ -58,7 +60,9 @@ function harness(options: {
       state = { ...state, lastVerification: result };
       return state;
     }),
-    verifyContract: vi.fn(async () => verification(options.prelaunch ?? "unknown")),
+    verifyContract: vi.fn(async () =>
+      verification(options.prelaunch ?? "unknown"),
+    ),
     verifyAndRecordContract: vi.fn(async () =>
       verification(options.postlaunch ?? "passed"),
     ),

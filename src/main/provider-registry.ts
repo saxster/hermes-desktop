@@ -1,4 +1,7 @@
-export { PROVIDER_BASE_URLS, canonicalProviderBaseUrl } from "../shared/provider-catalog";
+export {
+  PROVIDER_BASE_URLS,
+  canonicalProviderBaseUrl,
+} from "../shared/provider-catalog";
 
 /**
  * Look up the canonical inference base URL for a built-in provider id.

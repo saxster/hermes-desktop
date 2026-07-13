@@ -28,7 +28,8 @@ describe("latest Hermes Agent release resolution", () => {
         response({
           tag_name: "v0.16.0",
           name: "Hermes Agent v0.16.0",
-          html_url: "https://github.com/NousResearch/hermes-agent/releases/tag/v0.16.0",
+          html_url:
+            "https://github.com/NousResearch/hermes-agent/releases/tag/v0.16.0",
           published_at: "2026-06-05T12:00:00Z",
           body: "Release notes",
         }),

@@ -153,9 +153,7 @@ function WorkScheduledPanel(): React.JSX.Element {
                   {rule.kind === "digest" ? "External sessions" : rule.topic}
                 </strong>
                 <span>
-                  {rule.kind === "digest"
-                    ? "External digest"
-                    : "Topic monitor"}{" "}
+                  {rule.kind === "digest" ? "External digest" : "Topic monitor"}{" "}
                   · {cadenceLabel(rule.cadence, rule.hour)} · last{" "}
                   {fmtTime(rule.lastRunAt)}
                 </span>
@@ -178,12 +176,13 @@ function WorkScheduledPanel(): React.JSX.Element {
               <div className="work-rule-main">
                 <strong>{rule.label}</strong>
                 <span>
-                  Launch recipe · {appLaunchCadenceLabel(rule.cadence, rule.hour)} ·
-                  last {fmtTime(rule.lastRunAt)}
+                  Launch recipe ·{" "}
+                  {appLaunchCadenceLabel(rule.cadence, rule.hour)} · last{" "}
+                  {fmtTime(rule.lastRunAt)}
                 </span>
                 <small>
-                  {rule.runWhenClosed ? "app-open and LaunchAgent" : "app-open"} ·{" "}
-                  {rule.enabled ? "enabled" : "paused"}
+                  {rule.runWhenClosed ? "app-open and LaunchAgent" : "app-open"}{" "}
+                  · {rule.enabled ? "enabled" : "paused"}
                   {rule.lastStatus ? ` · ${rule.lastStatus}` : ""}
                 </small>
                 {rule.lastError && <small>{rule.lastError}</small>}
@@ -257,7 +256,9 @@ function WorkTaskPanel({
       </div>
       {visible.length === 0 ? (
         <p className="work-task-empty">
-          {mode === "today" ? "Nothing needs attention today." : "No next tasks queued."}
+          {mode === "today"
+            ? "Nothing needs attention today."
+            : "No next tasks queued."}
         </p>
       ) : (
         <ul className="work-task-list">
@@ -285,7 +286,9 @@ export function MyWorkSurface() {
         <header className="work-shell-head">
           <div>
             <h1>Work</h1>
-            <p>What needs attention now, what comes next, and work in motion.</p>
+            <p>
+              What needs attention now, what comes next, and work in motion.
+            </p>
           </div>
         </header>
         <div className="work-tabs" role="tablist" aria-label="Work sections">

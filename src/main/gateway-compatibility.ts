@@ -63,8 +63,7 @@ const defaultDependencies: GatewayCompatibilityDependencies = {
   recordContractVerification: (verification, profile) =>
     recordEngineContractVerification(verification, profile),
   verifyContract: (profile, options) => verifyEngineContract(profile, options),
-  verifyAndRecordContract: (profile) =>
-    verifyAndRecordEngineContract(profile),
+  verifyAndRecordContract: (profile) => verifyAndRecordEngineContract(profile),
   refreshCapabilities: (profile) => refreshEngineCapabilities(profile),
   isRunning: (profile) => isGatewayRunning(profile),
   startWithRecovery: (profile) => startGatewayWithRecovery(profile),

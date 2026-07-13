@@ -39,7 +39,9 @@ async function freshConfig(): Promise<typeof import("../src/main/config")> {
   return await import("../src/main/config");
 }
 
-async function freshInstaller(): Promise<typeof import("../src/main/installer")> {
+async function freshInstaller(): Promise<
+  typeof import("../src/main/installer")
+> {
   vi.resetModules();
   return await import("../src/main/installer");
 }
@@ -61,9 +63,8 @@ afterEach(() => {
 
 describe("engine capability payload normalization", () => {
   it("preserves the installed engine's feature values and endpoint descriptors", async () => {
-    const { normalizeEngineCapabilitiesPayload } = await import(
-      "../src/shared/engine-capabilities"
-    );
+    const { normalizeEngineCapabilitiesPayload } =
+      await import("../src/shared/engine-capabilities");
 
     const normalized = normalizeEngineCapabilitiesPayload({
       object: "hermes.api_server.capabilities",
@@ -148,10 +149,8 @@ describe("installed engine SHA capture", () => {
 describe("engine capability state", () => {
   it("persists capability snapshots per profile", async () => {
     resetHome();
-    const {
-      getEngineCapabilityState,
-      recordEngineCapabilitySnapshot,
-    } = await freshConfig();
+    const { getEngineCapabilityState, recordEngineCapabilitySnapshot } =
+      await freshConfig();
 
     recordEngineCapabilitySnapshot(
       {

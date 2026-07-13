@@ -177,7 +177,9 @@ export function parsePersonFrontmatter(
     ...(asFiniteNumber(props.lastOutreachAt)
       ? { lastOutreachAt: asFiniteNumber(props.lastOutreachAt) }
       : {}),
-    ...((CHANNEL_PRIORITY as string[]).includes(String(props.lastOutreachChannel))
+    ...((CHANNEL_PRIORITY as string[]).includes(
+      String(props.lastOutreachChannel),
+    )
       ? { lastOutreachChannel: props.lastOutreachChannel as ChannelKind }
       : {}),
   };

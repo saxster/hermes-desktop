@@ -14,9 +14,9 @@ const store = vi.hoisted(() => ({
     ],
   },
   page: "home",
-  pendingDeckStudioInput: null as Parameters<
-    typeof createDeckProject
-  >[0] | null,
+  pendingDeckStudioInput: null as
+    | Parameters<typeof createDeckProject>[0]
+    | null,
   makePage: vi.fn(),
   flash: vi.fn(),
   clearPendingDeckStudioInput: vi.fn(),
@@ -107,7 +107,9 @@ describe("DeckStudioSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate outline" }));
 
     await waitFor(() => expect(api.deckGenerate).toHaveBeenCalled());
-    expect(await screen.findByText("Generation mode: model")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Generation mode: model"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("The Problem")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Approve outline" }));
@@ -245,7 +247,11 @@ describe("DeckStudioSurface", () => {
     await screen.findByTestId("deck-canvas");
 
     fireEvent.click(screen.getByRole("button", { name: "Hide Inspector" }));
-    expect(screen.getByRole("button", { name: "Show Inspector" })).toBeInTheDocument();
-    expect(document.querySelector(".deck-workbench")).toHaveClass("inspector-hidden");
+    expect(
+      screen.getByRole("button", { name: "Show Inspector" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".deck-workbench")).toHaveClass(
+      "inspector-hidden",
+    );
   });
 });

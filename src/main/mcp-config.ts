@@ -147,7 +147,9 @@ export function mcpServerBlocks(lines: string[]): McpServerBlock[] {
   return blocks;
 }
 
-function parseServerBlock(lines: string[]): Omit<ParsedMcpServer, "name" | "type" | "transport" | "detail"> {
+function parseServerBlock(
+  lines: string[],
+): Omit<ParsedMcpServer, "name" | "type" | "transport" | "detail"> {
   const result: Omit<
     ParsedMcpServer,
     "name" | "type" | "transport" | "detail"
@@ -197,9 +199,7 @@ function parseServerBlock(lines: string[]): Omit<ParsedMcpServer, "name" | "type
   return result;
 }
 
-export function parseMcpServersFromConfig(
-  content: string,
-): ParsedMcpServer[] {
+export function parseMcpServersFromConfig(content: string): ParsedMcpServer[] {
   const block = findMcpBlock(content);
   if (!block) return [];
 

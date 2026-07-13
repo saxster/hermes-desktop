@@ -32,11 +32,7 @@ export const IPC_ARGUMENT_CONTRACTS: Readonly<
   "revoke-pairing": [{ kind: "string" }, optionalString],
   "run-hermes-import": [{ kind: "string" }, optionalString],
   "set-app-zoom-factor": [{ kind: "number" }],
-  "set-env": [
-    { kind: "string" },
-    { kind: "string" },
-    optionalString,
-  ],
+  "set-env": [{ kind: "string" }, { kind: "string" }, optionalString],
   "set-locale": [{ kind: "string" }],
   "set-mcp-server-enabled": [
     { kind: "string" },
@@ -61,7 +57,9 @@ function matchesKind(value: unknown, kind: IpcArgumentKind): boolean {
     case "number":
       return typeof value === "number" && Number.isFinite(value);
     case "record":
-      return typeof value === "object" && value !== null && !Array.isArray(value);
+      return (
+        typeof value === "object" && value !== null && !Array.isArray(value)
+      );
     case "string":
       return typeof value === "string";
     case "unknown":
@@ -113,7 +111,9 @@ export function validateIpcArguments(
   args: readonly unknown[],
 ): void {
   if (args.length > MAX_ARGUMENTS) {
-    throw new Error(`Invalid IPC arguments for "${channel}": too many arguments.`);
+    throw new Error(
+      `Invalid IPC arguments for "${channel}": too many arguments.`,
+    );
   }
 
   const contract = IPC_ARGUMENT_CONTRACTS[channel];

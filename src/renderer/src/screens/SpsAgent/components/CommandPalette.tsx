@@ -780,7 +780,12 @@ export function CommandPalette() {
           </div>
 
           {showPreview && (
-            <PalettePreview item={selected} tree={tree} meta={meta} docs={docs} />
+            <PalettePreview
+              item={selected}
+              tree={tree}
+              meta={meta}
+              docs={docs}
+            />
           )}
         </div>
 

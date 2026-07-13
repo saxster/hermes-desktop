@@ -78,11 +78,7 @@ describe("update affordances", () => {
       "sps-dark-theme-legibility",
     ]);
     expect(ids).not.toEqual(
-      expect.arrayContaining([
-        "capture-pdf",
-        "work-review",
-        "desktop-updates",
-      ]),
+      expect.arrayContaining(["capture-pdf", "work-review", "desktop-updates"]),
     );
     expect(RELEASE_AFFORDANCES.map((a) => a.action)).toEqual([
       { kind: "settings", view: "overview" },
@@ -120,15 +116,16 @@ describe("update affordances", () => {
   it("drops malformed engine update ranges and cards", () => {
     expect(
       engineAffordancesForRange(
-        { ...availableEngineUpdate, range: "", cards: availableEngineUpdate.cards },
+        {
+          ...availableEngineUpdate,
+          range: "",
+          cards: availableEngineUpdate.cards,
+        },
         null,
       ),
     ).toEqual([]);
     expect(
-      engineAffordancesForRange(
-        { ...availableEngineUpdate, cards: [] },
-        null,
-      ),
+      engineAffordancesForRange({ ...availableEngineUpdate, cards: [] }, null),
     ).toEqual([]);
   });
 });

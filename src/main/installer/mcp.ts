@@ -51,8 +51,7 @@ export function listMcpServerEntries(profile?: string): Array<{
     if (!existsSync(configPath)) return [];
     const content = readFileSync(configPath, "utf-8");
     return parseMcpServersFromConfig(content).map((server) => {
-      const type: "stdio" | "http" =
-        server.type === "http" ? "http" : "stdio";
+      const type: "stdio" | "http" = server.type === "http" ? "http" : "stdio";
       return {
         name: server.name,
         type,

@@ -366,7 +366,9 @@ describe("LearningSurface", () => {
     expect(screen.getByText("Memories")).toBeInTheDocument();
     expect(screen.queryByText("Advanced")).toBeNull();
     expect(screen.queryByText("Skills")).toBeNull();
-    expect(await screen.findByText("Prefers terse answers.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Prefers terse answers."),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Assistants"));
     expect(await screen.findByText("Build an Assistant")).toBeInTheDocument();
@@ -757,9 +759,7 @@ describe("LearningSurface", () => {
     expect(screen.getByText(/privacy-screen-recording/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Choose pack"));
-    await waitFor(() =>
-      expect(api.spsPickLocalExpertPack).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(api.spsPickLocalExpertPack).toHaveBeenCalled());
     expect(screen.getByDisplayValue("/granted/excel.json")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Preview import"));

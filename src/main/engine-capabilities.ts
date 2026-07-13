@@ -34,9 +34,7 @@ function unknownSnapshot(
   };
 }
 
-export function getEngineCapabilities(
-  profile?: string,
-): EngineCapabilityState {
+export function getEngineCapabilities(profile?: string): EngineCapabilityState {
   return getStoredEngineCapabilityState(profile);
 }
 

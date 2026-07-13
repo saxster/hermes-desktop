@@ -19,11 +19,7 @@ describe("Hermes CLI runner", () => {
         _file: string,
         _args: readonly string[],
         _options: ExecFileOptions,
-        callback: (
-          error: Error | null,
-          stdout: string,
-          stderr: string,
-        ) => void,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
       ) => {
         callback(null, "ok\n", "");
         return { stdin: { end } } as unknown as ChildProcess;
@@ -56,11 +52,7 @@ describe("Hermes CLI runner", () => {
         _file: string,
         _args: readonly string[],
         _options: ExecFileOptions,
-        callback: (
-          error: Error | null,
-          stdout: string,
-          stderr: string,
-        ) => void,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
       ) => {
         callback(new Error("exit 1"), "partial", "bad input\n");
         return { stdin: { end: vi.fn() } } as unknown as ChildProcess;

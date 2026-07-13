@@ -152,7 +152,9 @@ describe("app launcher main service", () => {
     const result = await runAppLaunchTarget(target.id);
 
     expect(result.ok).toBe(true);
-    expect(openExternalMock).toHaveBeenCalledWith("https://status.example.com/");
+    expect(openExternalMock).toHaveBeenCalledWith(
+      "https://status.example.com/",
+    );
     expect(execFileMock).not.toHaveBeenCalled();
   });
 

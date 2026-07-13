@@ -62,11 +62,7 @@ export async function openContactChannel(
     await shell.openExternal(url);
     if (context) {
       try {
-        const recorded = await recordContactOutreach(
-          channel,
-          context,
-          profile,
-        );
+        const recorded = await recordContactOutreach(channel, context, profile);
         if (!recorded) {
           log.warn("contact-messaging", {
             msg: "outreach opened but contact follow-up was not recorded",

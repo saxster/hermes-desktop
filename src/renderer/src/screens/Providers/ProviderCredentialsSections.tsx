@@ -58,7 +58,10 @@ export function ProviderCredentialsSections(props: {
                     {isLlmProviders && (
                       <>
                         <div className="provider-key-card-head">
-                          <BrandLogo provider={setup?.id || field.key} size={22} />
+                          <BrandLogo
+                            provider={setup?.id || field.key}
+                            size={22}
+                          />
                           <span className="provider-key-card-title">
                             {t(field.label)}
                           </span>
@@ -155,7 +158,9 @@ export function ProviderCredentialsSections(props: {
                               !hasKey ||
                               props.testingProviderKey === field.key
                             }
-                            onClick={() => props.onTestProvider(field.key, setup)}
+                            onClick={() =>
+                              props.onTestProvider(field.key, setup)
+                            }
                           >
                             {props.testingProviderKey === field.key
                               ? t("providers.status.testing")

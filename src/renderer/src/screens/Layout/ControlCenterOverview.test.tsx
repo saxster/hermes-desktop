@@ -126,7 +126,9 @@ describe("ControlCenterOverview", () => {
     expect(screen.getByRole("button", { name: "Open AI Setup" })).toBeEnabled();
     expect(document.querySelector(".control-center-card")).toBeNull();
     expect(
-      screen.getByText("Choose a category in the sidebar to change configuration."),
+      screen.getByText(
+        "Choose a category in the sidebar to change configuration.",
+      ),
     ).toBeInTheDocument();
     await screen.findByRole("region", { name: "Operator readiness" });
   });
@@ -166,7 +168,9 @@ describe("ControlCenterOverview", () => {
     const panel = await screen.findByRole("region", {
       name: "Operator readiness",
     });
-    expect(within(panel).getByText("Ready with follow-up work")).toBeInTheDocument();
+    expect(
+      within(panel).getByText("Ready with follow-up work"),
+    ).toBeInTheDocument();
     expect(window.hermesAPI.getOperatorReadiness).toHaveBeenCalledWith(
       "default",
     );

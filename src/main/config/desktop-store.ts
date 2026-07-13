@@ -253,8 +253,9 @@ function profileConfigKey(profile?: string): string {
 
 const ENGINE_CAPABILITIES_KEY = "engineCapabilitiesByProfile";
 
-interface StoredEngineCapabilityState
-  extends Partial<Omit<EngineCapabilityState, "snapshot">> {
+interface StoredEngineCapabilityState extends Partial<
+  Omit<EngineCapabilityState, "snapshot">
+> {
   snapshot?: EngineCapabilitySnapshot;
 }
 
@@ -288,7 +289,8 @@ function normalizeStoredEngineCapabilityState(
           ...fallback.snapshot,
           ...stored.snapshot,
           features:
-            stored.snapshot.features && typeof stored.snapshot.features === "object"
+            stored.snapshot.features &&
+            typeof stored.snapshot.features === "object"
               ? stored.snapshot.features
               : {},
           endpoints:
@@ -303,7 +305,9 @@ function normalizeStoredEngineCapabilityState(
     installedSha:
       typeof stored.installedSha === "string" ? stored.installedSha : null,
     lastVerifiedSha:
-      typeof stored.lastVerifiedSha === "string" ? stored.lastVerifiedSha : null,
+      typeof stored.lastVerifiedSha === "string"
+        ? stored.lastVerifiedSha
+        : null,
     lastVerification:
       stored.lastVerification && typeof stored.lastVerification === "object"
         ? (stored.lastVerification as EngineContractVerificationResult)
@@ -438,11 +442,13 @@ export function getHermesAgentUpdateRoutine(
     autoApplySuppressed: autoApplySuppressionReason !== null,
     autoApplySuppressionReason,
     autoApplySuppressedAt:
-      autoApplySuppressionReason && typeof stored.autoApplySuppressedAt === "string"
+      autoApplySuppressionReason &&
+      typeof stored.autoApplySuppressedAt === "string"
         ? stored.autoApplySuppressedAt
         : null,
     autoApplySuppressedSha:
-      autoApplySuppressionReason && typeof stored.autoApplySuppressedSha === "string"
+      autoApplySuppressionReason &&
+      typeof stored.autoApplySuppressedSha === "string"
         ? stored.autoApplySuppressedSha
         : null,
   };

@@ -36,6 +36,12 @@ export interface OwnerDeliveryResult {
   delivered: OwnerDeliveryChannel[];
   skipped: Array<{
     channel: OwnerDeliveryChannel;
-    reason: "disabled" | "event-disabled" | "quiet-hours" | "rate-limit" | "duplicate" | "failed";
+    reason:
+      | "disabled"
+      | "event-disabled"
+      | "quiet-hours"
+      | "rate-limit"
+      | "duplicate"
+      | "failed";
   }>;
 }

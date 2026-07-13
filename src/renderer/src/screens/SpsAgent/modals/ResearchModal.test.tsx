@@ -108,9 +108,7 @@ beforeEach(() => {
     restarted: false,
     message: "NotebookLM can connect through the local MCP server.",
   });
-  api.listProfiles.mockResolvedValue([
-    { name: "default", isActive: true },
-  ]);
+  api.listProfiles.mockResolvedValue([{ name: "default", isActive: true }]);
 });
 
 describe("ResearchModal", () => {
@@ -194,7 +192,9 @@ describe("ResearchModal", () => {
 
     render(<ResearchModal embedded />);
 
-    expect(await screen.findByText("Work profile research")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Work profile research"),
+    ).toBeInTheDocument();
   });
 
   it("migrates legacy research history into the active profile", async () => {

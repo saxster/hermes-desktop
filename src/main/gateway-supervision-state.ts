@@ -52,10 +52,7 @@ export function reduceGatewaySupervisionState(
     const recovered = previous.outageStartedAt
       ? {
           recoveredAt: nowMs,
-          lastOutageDurationMs: Math.max(
-            0,
-            nowMs - previous.outageStartedAt,
-          ),
+          lastOutageDurationMs: Math.max(0, nowMs - previous.outageStartedAt),
         }
       : {};
     const next = {
@@ -86,9 +83,6 @@ export function recordGatewaySupervisionHealth(
     health,
     nowMs,
   );
-  safeWriteFile(
-    gatewaySupervisionStatePath(),
-    JSON.stringify(next, null, 2),
-  );
+  safeWriteFile(gatewaySupervisionStatePath(), JSON.stringify(next, null, 2));
   return next;
 }

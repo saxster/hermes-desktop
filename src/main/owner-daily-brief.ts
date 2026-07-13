@@ -63,7 +63,11 @@ function dailyBriefPrompt(vaultDir: string): string {
 export async function syncOwnerDailyBriefCron(
   profile?: string,
   dependencies: DailyBriefCronDependencies = defaultDependencies,
-): Promise<{ success: boolean; action: "created" | "updated" | "paused" | "resumed" | "unchanged"; error?: string }> {
+): Promise<{
+  success: boolean;
+  action: "created" | "updated" | "paused" | "resumed" | "unchanged";
+  error?: string;
+}> {
   const settings = getOwnerDeliverySettings(profile);
   const jobs = await dependencies.list(true, profile);
   const existing = jobs.find((job) => job.name === OWNER_DAILY_BRIEF_JOB_NAME);

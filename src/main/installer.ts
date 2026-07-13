@@ -22,10 +22,7 @@ import { getActiveProfileNameSync, stripAnsi } from "./utils";
 import { setupAskpass } from "./askpass";
 import { precacheSudoCredentials } from "./sudoCreds";
 import { HIDDEN_SUBPROCESS_OPTIONS } from "./process-options";
-import {
-  hostDerivedEnvKeyForUrl,
-  isLocalBaseUrl,
-} from "../shared/url-key-map";
+import { hostDerivedEnvKeyForUrl, isLocalBaseUrl } from "../shared/url-key-map";
 import { providerEnvKey } from "../shared/provider-catalog";
 import { runHermesCli, runHermesCliSync } from "./hermes-cli-runner";
 

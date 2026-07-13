@@ -152,9 +152,7 @@ export function ResearchModal({
 
   const [mode, setMode] = useState<Mode>("research");
   const [historyProfile, setHistoryProfile] = useState<string | null>(null);
-  const historyKey = historyProfile
-    ? researchHistoryKey(historyProfile)
-    : null;
+  const historyKey = historyProfile ? researchHistoryKey(historyProfile) : null;
   const [history, setHistory] = useState<ResearchHistoryEntry[]>([]);
 
   useEffect(() => {
@@ -183,8 +181,8 @@ export function ResearchModal({
 
   useEffect(() => {
     if (!historyProfile || !historyKey) return;
-    const valid = history.filter(
-      (entry) => Boolean(docs[entry.pageId] && meta[entry.pageId]),
+    const valid = history.filter((entry) =>
+      Boolean(docs[entry.pageId] && meta[entry.pageId]),
     );
     if (valid.length !== history.length) {
       setHistory(valid);
@@ -337,7 +335,11 @@ export function ResearchModal({
       if (res.pageId) {
         setHistory((current) => {
           const next = [
-            { pageId: res.pageId!, title: res.summary || t, savedAt: Date.now() },
+            {
+              pageId: res.pageId!,
+              title: res.summary || t,
+              savedAt: Date.now(),
+            },
             ...current.filter((entry) => entry.pageId !== res.pageId),
           ].slice(0, 8);
           if (historyKey) saveResearchHistory(historyKey, next);
@@ -362,9 +364,7 @@ export function ResearchModal({
     undoRef.current = null;
     if (resultPageId) {
       setHistory((current) => {
-        const next = current.filter(
-          (entry) => entry.pageId !== resultPageId,
-        );
+        const next = current.filter((entry) => entry.pageId !== resultPageId);
         if (historyKey) saveResearchHistory(historyKey, next);
         return next;
       });
@@ -706,30 +706,35 @@ export function ResearchModal({
     >
       <div className="modal-body">
         {embedded && phase === "idle" && (
-          <section className="research-history" aria-labelledby="research-history-title">
+          <section
+            className="research-history"
+            aria-labelledby="research-history-title"
+          >
             <h2 id="research-history-title">Recent research</h2>
             {history.length === 0 ? (
               <p className="research-history-empty">
                 Completed research will appear here for quick return.
               </p>
-            ) : <div className="research-history-list">
-              {history.map((entry) => (
-                <button
-                  key={entry.pageId}
-                  type="button"
-                  onClick={() => {
-                    if (!docs[entry.pageId] || !meta[entry.pageId]) return;
-                    selectPage(entry.pageId);
-                    setSurface("doc");
-                  }}
-                >
-                  <span>{entry.title}</span>
-                  <time dateTime={new Date(entry.savedAt).toISOString()}>
-                    {new Date(entry.savedAt).toLocaleDateString()}
-                  </time>
-                </button>
-              ))}
-            </div>}
+            ) : (
+              <div className="research-history-list">
+                {history.map((entry) => (
+                  <button
+                    key={entry.pageId}
+                    type="button"
+                    onClick={() => {
+                      if (!docs[entry.pageId] || !meta[entry.pageId]) return;
+                      selectPage(entry.pageId);
+                      setSurface("doc");
+                    }}
+                  >
+                    <span>{entry.title}</span>
+                    <time dateTime={new Date(entry.savedAt).toISOString()}>
+                      {new Date(entry.savedAt).toLocaleDateString()}
+                    </time>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         )}
         {mode === "research" ? (

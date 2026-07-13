@@ -28,12 +28,7 @@ export type ReleaseAffordanceAction =
   | { kind: "surface"; surface: ReleaseSurfaceTarget }
   | {
       kind: "settings";
-      view:
-        | "overview"
-        | "providers"
-        | "settings"
-        | "gateway"
-        | "connectedApps";
+      view: "overview" | "providers" | "settings" | "gateway" | "connectedApps";
     }
   | {
       kind: "modal";

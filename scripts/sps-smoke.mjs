@@ -132,7 +132,7 @@ const workspace = {
       date: today,
       time: "10:30",
       mood: "😄",
-      tags: ["ai", "mentor"]
+      tags: ["ai", "mentor"],
     },
   },
   docs: {
@@ -163,10 +163,33 @@ const workspace = {
       },
     ],
     journal_dummy: [
-      { id: "j_h1", type: "h1", text: "Reflections on the AI Mentor Integration" },
-      { id: "j_p1", type: "p", text: "Today we integrated the AI Mentor. The lessons are extremely well-structured and the system is starting to feel incredibly rich and cohesive. The mental models in the Latticework have seeded perfectly." },
-      { id: "j_img", type: "image", text: "", src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='400' viewBox='0 0 800 400'><rect width='100%' height='100%' fill='%231f2937'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%236366f1' font-size='24' font-family='sans-serif'>Visual Memory Palace: major-system-01</text></svg>", caption: "Visual Memory Palace mock representation" },
-      { id: "j_bm", type: "bookmark", text: "", bm: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Louis Armstrong - St. James Infirmary (Audio)", desc: "A classic rendition of St. James Infirmary, which is track #1 in our Standard 21 jazz education curriculum." } }
+      {
+        id: "j_h1",
+        type: "h1",
+        text: "Reflections on the AI Mentor Integration",
+      },
+      {
+        id: "j_p1",
+        type: "p",
+        text: "Today we integrated the AI Mentor. The lessons are extremely well-structured and the system is starting to feel incredibly rich and cohesive. The mental models in the Latticework have seeded perfectly.",
+      },
+      {
+        id: "j_img",
+        type: "image",
+        text: "",
+        src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='400' viewBox='0 0 800 400'><rect width='100%' height='100%' fill='%231f2937'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%236366f1' font-size='24' font-family='sans-serif'>Visual Memory Palace: major-system-01</text></svg>",
+        caption: "Visual Memory Palace mock representation",
+      },
+      {
+        id: "j_bm",
+        type: "bookmark",
+        text: "",
+        bm: {
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          title: "Louis Armstrong - St. James Infirmary (Audio)",
+          desc: "A classic rendition of St. James Infirmary, which is track #1 in our Standard 21 jazz education curriculum.",
+        },
+      },
     ],
   },
   comments: [],
@@ -344,7 +367,10 @@ async function openCommand(label) {
     window.dispatchEvent(new CustomEvent("sps:search"));
   });
   await win.waitForSelector(".palette", { timeout: 8000 });
-  await win.locator(".pal-item", { hasText: label }).first().click({ force: true });
+  await win
+    .locator(".pal-item", { hasText: label })
+    .first()
+    .click({ force: true });
 }
 
 async function openPageFromPalette(title) {
@@ -353,7 +379,10 @@ async function openPageFromPalette(title) {
   });
   await win.waitForSelector(".palette", { timeout: 8000 });
   await win.getByPlaceholder("Search or open in new tab…").fill(title);
-  await win.locator(".pal-item", { hasText: title }).first().click({ force: true });
+  await win
+    .locator(".pal-item", { hasText: title })
+    .first()
+    .click({ force: true });
 }
 
 async function waitForInputValue(locator, predicate, label, timeoutMs = 8000) {
@@ -468,7 +497,9 @@ await win.getByText("Home", { exact: true }).first().click();
 // 02a — Learning surface, opened from command palette.
 await shot("02a-learning", async () => {
   await openCommand("Open Learning");
-  await win.getByRole("button", { name: "Memories" }).waitFor({ timeout: 8000 });
+  await win
+    .getByRole("button", { name: "Memories" })
+    .waitFor({ timeout: 8000 });
 });
 
 // 02b — persistent Research workspace, offline-safe at its initial state.
@@ -507,7 +538,9 @@ await shot("02e-settings-preferences", async () => {
   await win.getByText("Authored content font").waitFor({ timeout: 8000 });
 });
 await shot("02f-settings-data-privacy", async () => {
-  await win.getByRole("button", { name: "Data & Privacy", exact: true }).click();
+  await win
+    .getByRole("button", { name: "Data & Privacy", exact: true })
+    .click();
   await win
     .locator(
       '.settings-container[data-section="dataPrivacy"] .settings-section-title',
@@ -594,7 +627,10 @@ await shot("10-journal", async () => {
 
 // 11 — open the seeded journal entry with image and bookmark embeds.
 await shot("11-journal-entry", async () => {
-  await win.getByText("Reflections on the AI Mentor Integration", { exact: false }).first().click();
+  await win
+    .getByText("Reflections on the AI Mentor Integration", { exact: false })
+    .first()
+    .click();
   await win.waitForSelector(".doc-scroll", { timeout: 8000 });
 });
 
@@ -831,7 +867,8 @@ const acceptanceSizes = [
 const acceptanceSurfaces = [
   {
     id: "home",
-    open: () => win.getByRole("button", { name: "Home" }).click({ force: true }),
+    open: () =>
+      win.getByRole("button", { name: "Home" }).click({ force: true }),
   },
   { id: "dashboard", open: () => openCommand("Open Dashboard") },
   { id: "work", open: () => openCommand("Open Work") },

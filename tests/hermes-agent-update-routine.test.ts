@@ -59,16 +59,11 @@ describe("Hermes Agent update routine state", () => {
     const { getHermesAgentUpdateRoutine, setHermesAgentUpdateRoutine } =
       await freshConfig(TEST_DIR);
 
-    setHermesAgentUpdateRoutine(
-      { autoApply: true, channel: "main" },
-      "work",
-    );
+    setHermesAgentUpdateRoutine({ autoApply: true, channel: "main" }, "work");
 
     expect(
-      getHermesAgentUpdateRoutine(
-        "work",
-        new Date("2026-06-20T23:00:00.000Z"),
-      ).autoApply,
+      getHermesAgentUpdateRoutine("work", new Date("2026-06-20T23:00:00.000Z"))
+        .autoApply,
     ).toBe(true);
     expect(getHermesAgentUpdateRoutine("work").channel).toBe("main");
     expect(
@@ -103,9 +98,7 @@ describe("Hermes Agent update routine state", () => {
     expect(suppressed.autoApply).toBe(true);
     expect(suppressed.autoApplySuppressed).toBe(true);
     expect(suppressed.autoApplySuppressionReason).toBe("contract-broken");
-    expect(suppressed.autoApplySuppressedAt).toBe(
-      "2026-06-20T23:05:00.000Z",
-    );
+    expect(suppressed.autoApplySuppressedAt).toBe("2026-06-20T23:05:00.000Z");
     expect(suppressed.autoApplySuppressedSha).toBe(
       "def4567890abcdef1234567890abcdef12345678",
     );

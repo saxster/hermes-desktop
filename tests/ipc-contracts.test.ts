@@ -19,11 +19,7 @@ describe("IPC argument contracts", () => {
 
   it("accepts optional trailing profile arguments", () => {
     expect(() =>
-      validateIpcArguments("set-mcp-server-enabled", [
-        "github",
-        true,
-        "work",
-      ]),
+      validateIpcArguments("set-mcp-server-enabled", ["github", true, "work"]),
     ).not.toThrow();
     expect(() =>
       validateIpcArguments("set-mcp-server-enabled", ["github", false]),
@@ -31,16 +27,16 @@ describe("IPC argument contracts", () => {
   });
 
   it("rejects wrong arity and non-finite numbers", () => {
-    expect(() => validateIpcArguments("set-locale", [])).toThrow(
-      "wrong arity",
-    );
+    expect(() => validateIpcArguments("set-locale", [])).toThrow("wrong arity");
     expect(() =>
       validateIpcArguments("set-app-zoom-factor", [Number.NaN]),
     ).toThrow("expected number");
   });
 
   it("applies bounded structured-clone validation to undeclared channels", () => {
-    expect(() => validateIpcArguments("plain-channel", [{ ok: true }])).not.toThrow();
+    expect(() =>
+      validateIpcArguments("plain-channel", [{ ok: true }]),
+    ).not.toThrow();
     expect(() =>
       validateIpcArguments("plain-channel", [{ callback: () => undefined }]),
     ).toThrow("unsupported value");

@@ -100,9 +100,7 @@ describe("QuickCapture visual captures", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /capture screen snippet/i }),
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Save" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(api.spsExportRow).toHaveBeenCalled();

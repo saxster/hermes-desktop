@@ -49,9 +49,9 @@ function job(overrides: Partial<CronJob> = {}): CronJob {
   };
 }
 
-function dependencies(jobs: CronJob[] = []): NonNullable<
-  Parameters<typeof syncOwnerDailyBriefCron>[1]
-> {
+function dependencies(
+  jobs: CronJob[] = [],
+): NonNullable<Parameters<typeof syncOwnerDailyBriefCron>[1]> {
   return {
     list: vi.fn(async () => jobs),
     create: vi.fn(async () => ({ success: true })),

@@ -43,7 +43,10 @@ export function WorkspaceAppearanceSettings(): React.JSX.Element {
     <>
       {tweaks.dark && (
         <div className="settings-field">
-          <label className="settings-field-label" htmlFor="workspace-dark-palette">
+          <label
+            className="settings-field-label"
+            htmlFor="workspace-dark-palette"
+          >
             Dark palette
           </label>
           <select
@@ -112,8 +115,8 @@ export function WorkspaceAppearanceSettings(): React.JSX.Element {
           <option value="mono">Monospaced</option>
         </select>
         <div className="settings-field-hint">
-          Applies to authored page content. The application interface always uses
-          the macOS system font.
+          Applies to authored page content. The application interface always
+          uses the macOS system font.
         </div>
       </div>
 

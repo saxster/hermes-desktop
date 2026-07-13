@@ -129,9 +129,12 @@ describe("CommandPalette", () => {
     expect(container.querySelector(".palette.has-preview")).toBeNull();
     expect(container.querySelector(".pal-preview")).toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText("Search or open in new tab…"), {
-      target: { value: "Launch Notes" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Search or open in new tab…"),
+      {
+        target: { value: "Launch Notes" },
+      },
+    );
     expect(await screen.findByText("Existing page text")).toBeInTheDocument();
     expect(container.querySelector(".palette.has-preview")).not.toBeNull();
   });
@@ -203,7 +206,9 @@ describe("CommandPalette", () => {
       ),
     );
     const markdown = String(api.spsExportRow.mock.calls.at(-1)?.[2] ?? "");
-    expect(markdown).toContain("Selected proof that should become a draft angle.");
+    expect(markdown).toContain(
+      "Selected proof that should become a draft angle.",
+    );
     expect(markdown).toContain('capturedFrom: "workspace-selection"');
     expect(store.openContentStudioIdea).toHaveBeenCalledWith(
       expect.objectContaining({

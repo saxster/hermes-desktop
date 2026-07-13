@@ -30,13 +30,23 @@ describe("PersonalHealthDashboard", () => {
 
     await waitFor(() => expect(api.spsHealthGetProfile).toHaveBeenCalled());
     expect(screen.getByText("Health")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Daily Log/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Medications/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Daily Log/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Medications/ }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Records/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Research/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Research/ }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Weight (kg)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Fasting Glucose (mg/dL)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Blood Pressure (SYS/DIA)")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Fasting Glucose (mg/dL)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Blood Pressure (SYS/DIA)"),
+    ).toBeInTheDocument();
     for (const novelty of ["❤️", "💡", "🎙️", "📸", "📰", "🥗"]) {
       expect(container.textContent).not.toContain(novelty);
     }

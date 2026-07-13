@@ -178,7 +178,9 @@ export function OwnerDeliverySettings({
           </div>
           <div className="settings-field" style={{ display: "flex", gap: 16 }}>
             <label>
-              <span className="settings-field-label">Minutes between sends</span>
+              <span className="settings-field-label">
+                Minutes between sends
+              </span>
               <input
                 aria-label="Minutes between sends"
                 className="input"

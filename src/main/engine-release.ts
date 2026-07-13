@@ -72,7 +72,9 @@ export async function resolveLatestEngineRelease(
   );
   const sha = string(commit.sha);
   if (!sha || !/^[0-9a-f]{40}$/i.test(sha)) {
-    throw new Error(`Hermes Agent release ${tag} did not resolve to a commit SHA.`);
+    throw new Error(
+      `Hermes Agent release ${tag} did not resolve to a commit SHA.`,
+    );
   }
 
   return {

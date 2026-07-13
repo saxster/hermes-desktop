@@ -15,7 +15,9 @@ export function PillEditor({
 }): React.JSX.Element {
   const [input, setInput] = useState("");
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+  const handleKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ): void => {
     if (event.key !== "Enter" && event.key !== ",") return;
     event.preventDefault();
     const value = input.trim();

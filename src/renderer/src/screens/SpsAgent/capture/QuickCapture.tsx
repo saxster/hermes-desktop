@@ -51,9 +51,7 @@ function routeChipLabel(
   triage: TaskTriageResult,
 ): string {
   if (outcome.route === "ai") {
-    return outcome.dispatched
-      ? "Hermes is on it"
-      : "Flagged for your review";
+    return outcome.dispatched ? "Hermes is on it" : "Flagged for your review";
   }
   const due = triage.due ? ` · due ${triage.due}` : "";
   if (outcome.fellBackToHuman) {

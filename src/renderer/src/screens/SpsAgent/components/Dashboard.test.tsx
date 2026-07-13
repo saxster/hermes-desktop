@@ -23,9 +23,7 @@ describe("Dashboard", () => {
       docs: {
         ...state.docs,
         home: [{ id: "home-p", type: "p", text: "" }],
-        dashboard_scratchpad: [
-          { id: "sp-1", type: "p", text: "A calm note" },
-        ],
+        dashboard_scratchpad: [{ id: "sp-1", type: "p", text: "A calm note" }],
       },
     }));
     Object.defineProperty(window, "hermesAPI", {

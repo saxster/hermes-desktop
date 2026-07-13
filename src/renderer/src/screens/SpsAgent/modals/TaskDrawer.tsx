@@ -488,8 +488,7 @@ export function TaskDrawer({ task, onClose }: Props) {
                                 followUpAt:
                                   followUpDays === 0
                                     ? null
-                                    : Date.now() +
-                                      followUpDays * 86_400_000,
+                                    : Date.now() + followUpDays * 86_400_000,
                               },
                             )
                           }

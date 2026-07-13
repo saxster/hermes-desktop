@@ -417,9 +417,7 @@ await shot("02-dashboard-scratchpad", async () => {
 });
 
 await shot("03-dashboard-task-drawer", async () => {
-  await win
-    .getByRole("button", { name: "New task" })
-    .click();
+  await win.getByRole("button", { name: "New task" }).click();
   await win.locator(".drawer-title-input").waitFor({ timeout: 8000 });
   await win.locator(".drawer-title-input").fill("Smoke dashboard task");
   await win.locator(".drawer-title-input").blur();

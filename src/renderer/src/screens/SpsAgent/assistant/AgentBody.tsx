@@ -66,6 +66,9 @@ export function AgentBody() {
   const [filed, setFiled] = useState<Set<string>>(new Set());
   const bodyRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // TanStack Virtual exposes mutable measurement functions by design, so this
+  // component must remain outside React Compiler memoization.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const messageVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => bodyRef.current,

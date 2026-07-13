@@ -86,11 +86,7 @@ import {
   sshSetPlatformEnabled,
 } from "../ssh-remote";
 import { discoverProviderModels } from "../model-discovery";
-import {
-  listProfiles,
-  createProfile,
-  deleteProfile,
-} from "../profiles";
+import { listProfiles, createProfile, deleteProfile } from "../profiles";
 import { listModels, addModel, removeModel, updateModel } from "../models";
 import {
   runHermesAuthLogin,
@@ -627,11 +623,7 @@ export function registerConfigIpc(): void {
   );
   safeHandle(
     "set-owner-delivery-settings",
-    (
-      _event,
-      update: Partial<OwnerDeliverySettings>,
-      profile?: string,
-    ) => {
+    (_event, update: Partial<OwnerDeliverySettings>, profile?: string) => {
       const settings = setOwnerDeliverySettings(update, profile);
       void syncOwnerDailyBriefCron(profile)
         .then((result) => {

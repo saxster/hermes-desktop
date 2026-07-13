@@ -73,7 +73,10 @@ function loadRegistry(profile?: string): AppLauncherRegistry {
 function saveRegistry(registry: AppLauncherRegistry, profile?: string): void {
   const dir = launcherDir(profile);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  safeWriteFile(registryFile(profile), `${JSON.stringify(registry, null, 2)}\n`);
+  safeWriteFile(
+    registryFile(profile),
+    `${JSON.stringify(registry, null, 2)}\n`,
+  );
 }
 
 function cleanLabel(value: unknown): string {
@@ -115,7 +118,8 @@ function hasRunOrSkippedThisPeriod(
 ): boolean {
   return (
     !!schedule.lastRunAt &&
-    periodKey(schedule, new Date(schedule.lastRunAt)) === periodKey(schedule, now)
+    periodKey(schedule, new Date(schedule.lastRunAt)) ===
+      periodKey(schedule, now)
   );
 }
 
@@ -126,10 +130,15 @@ function isAppLaunchScheduleMissed(
   if (!schedule.enabled) return false;
   if (hasRunOrSkippedThisPeriod(schedule, now)) return false;
   if (schedule.cadence === "weekly") {
-    return now.getDay() > 1 || (now.getDay() === 1 && now.getHours() > schedule.hour);
+    return (
+      now.getDay() > 1 || (now.getDay() === 1 && now.getHours() > schedule.hour)
+    );
   }
   if (schedule.cadence === "monthly") {
-    return now.getDate() > 1 || (now.getDate() === 1 && now.getHours() > schedule.hour);
+    return (
+      now.getDate() > 1 ||
+      (now.getDate() === 1 && now.getHours() > schedule.hour)
+    );
   }
   return now.getHours() > schedule.hour;
 }
@@ -185,7 +194,9 @@ function launchMacApplication(target: AppLaunchTarget): Promise<void> {
     return Promise.reject(new Error("Target is not a macOS app."));
   }
   if (process.platform !== "darwin") {
-    return Promise.reject(new Error("macOS app launching is unavailable here."));
+    return Promise.reject(
+      new Error("macOS app launching is unavailable here."),
+    );
   }
   const args = target.locator.bundleId
     ? ["-b", target.locator.bundleId]
@@ -216,7 +227,8 @@ async function launchTarget(
 ): Promise<AppLauncherResult<AppLaunchTarget>> {
   const modeError = localConnectionError();
   if (modeError) return { ok: false, error: modeError };
-  if (!target.enabled) return { ok: false, error: "Launch target is disabled." };
+  if (!target.enabled)
+    return { ok: false, error: "Launch target is disabled." };
   try {
     if (target.locator.kind === "macos-app") {
       await launchMacApplication(target);
@@ -504,7 +516,9 @@ export async function runAppLaunchScheduleNow(
   id: string,
   profile?: string,
 ): Promise<AppLauncherResult<AppLaunchSchedule>> {
-  const schedule = loadRegistry(profile).schedules.find((item) => item.id === id);
+  const schedule = loadRegistry(profile).schedules.find(
+    (item) => item.id === id,
+  );
   if (!schedule) return { ok: false, error: "Launch schedule not found." };
   return runSchedule(schedule, "manual", profile);
 }
