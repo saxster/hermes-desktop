@@ -238,6 +238,10 @@ export interface UiSlice {
    *  latest save did not reach disk; the shell shows a standing warning until a
    *  later save succeeds. Distinct from the transient `toast`. */
   saveError: string | null;
+  workspaceLoadIssue: {
+    kind: "corrupt" | "error";
+    error: string;
+  } | null;
   /** One-shot guard so the >25 MB "consider vault migration" hint fires once. */
   oversizeAdvised: boolean;
   focusReq: string | null;
@@ -289,6 +293,7 @@ export interface UiSlice {
    *  flash a transient toast on a failure→ok transition, and fire the one-time
    *  oversize advisory. */
   reportSaveResult: (result: SpsSaveResult) => void;
+  setWorkspaceLoadIssue: (issue: UiSlice["workspaceLoadIssue"]) => void;
   setActiveChatSession: (id: string | null, title?: string | null) => void;
   setPendingChatPrompt: (text: string | null) => void;
   /** Open the AI Chats surface on a fresh chat, optionally pre-filled. */

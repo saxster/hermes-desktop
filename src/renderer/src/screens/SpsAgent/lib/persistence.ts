@@ -6,7 +6,13 @@
 // files so the substrate + note-index materialize. The JSON blob above stays the
 // authoritative store — mirroring is best-effort and never read back as truth.
 import { pageToMarkdown } from "../editor/pageMarkdown";
-import type { Block, PageMeta, Workspace, SpsSaveResult } from "../types";
+import type {
+  Block,
+  PageMeta,
+  Workspace,
+  SpsSaveResult,
+  SpsWorkspaceLoadResult,
+} from "../types";
 
 // The base revision our in-memory workspace was derived from. Echoed back on
 // every save so the main-process write queue can detect a stale base (a
@@ -36,16 +42,19 @@ export function mirrorAllPages(ws: Workspace): void {
   }
 }
 
-export async function loadWorkspace(): Promise<Workspace | null> {
+export async function loadWorkspace(): Promise<SpsWorkspaceLoadResult> {
   try {
-    const data = await window.hermesAPI.spsLoad();
-    if (data && typeof data === "object") {
-      const rev = (data as { __rev?: unknown }).__rev;
+    const result = await window.hermesAPI.spsLoad();
+    if (result.status === "ok") {
+      const rev = result.workspace.__rev;
       baseRev = typeof rev === "number" ? rev : undefined;
     }
-    return (data as Workspace | null) ?? null;
-  } catch {
-    return null;
+    return result;
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : "Workspace load unavailable.",
+    };
   }
 }
 

@@ -52,6 +52,7 @@ export const createUiSlice: StateCreator<Store, [], [], UiSlice> = (
   coverPick: null,
   toast: null,
   saveError: null,
+  workspaceLoadIssue: null,
   oversizeAdvised: false,
   focusReq: null,
   activeChatSession: null,
@@ -158,4 +159,5 @@ export const createUiSlice: StateCreator<Store, [], [], UiSlice> = (
       );
     }
   },
+  setWorkspaceLoadIssue: (workspaceLoadIssue) => set({ workspaceLoadIssue }),
 });

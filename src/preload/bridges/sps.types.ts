@@ -10,6 +10,7 @@ import type {
   TaskNagRecord,
   TaskTriageResult,
 } from "../../shared/tasks-dump";
+import type { SpsWorkspaceLoadResult } from "../../shared/sps-types";
 
 export interface SpsBridgeApi {
   spsUnfurl: (url: string) => Promise<{
@@ -355,7 +356,7 @@ export interface SpsBridgeApi {
     profile?: string,
   ) => Promise<Api.LocalExpertCheckRunResult>;
 
-  spsLoad: (profile?: string) => Promise<unknown | null>;
+  spsLoad: (profile?: string) => Promise<SpsWorkspaceLoadResult>;
 
   spsSave: (
     ws: unknown,

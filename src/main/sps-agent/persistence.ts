@@ -4,10 +4,14 @@ import {
   WorkspaceWriteQueue,
   selectBackupsToPrune,
   OVERSIZE_ADVISORY_BYTES,
-  type RevisionedWorkspace,
   type WorkspaceQueueIO,
 } from "../sps-write-queue";
-import type { Workspace, SpsSaveResult } from "../../shared/sps-types";
+import {
+  SPS_WORKSPACE_VERSION,
+  type Workspace,
+  type SpsSaveResult,
+  type SpsWorkspaceLoadResult,
+} from "../../shared/sps-types";
 import {
   profileHome,
   getActiveProfileNameSync,
@@ -26,12 +30,63 @@ function workspaceDir(profile?: string): string {
   return join(profileHome(profile || getActiveProfileNameSync()), "sps-agent");
 }
 
-export async function spsLoad(profile?: string): Promise<unknown | null> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parseWorkspaceDocument(raw: string): SpsWorkspaceLoadResult {
   try {
-    const raw = await fs.readFile(workspacePath(profile), "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      !isRecord(parsed) ||
+      !Array.isArray(parsed.tree) ||
+      !isRecord(parsed.meta) ||
+      !isRecord(parsed.docs) ||
+      !Array.isArray(parsed.comments) ||
+      !Array.isArray(parsed.trash) ||
+      typeof parsed.page !== "string"
+    ) {
+      return { status: "corrupt", error: "Workspace schema is invalid." };
+    }
+    if (
+      parsed.version !== undefined &&
+      parsed.version !== SPS_WORKSPACE_VERSION
+    ) {
+      return {
+        status: "corrupt",
+        error: `Unsupported workspace version: ${String(parsed.version)}.`,
+      };
+    }
+    return {
+      status: "ok",
+      workspace: {
+        ...(parsed as unknown as Workspace),
+        version: SPS_WORKSPACE_VERSION,
+      },
+    };
+  } catch (err) {
+    return {
+      status: "corrupt",
+      error: err instanceof Error ? err.message : "Workspace JSON is invalid.",
+    };
+  }
+}
+
+export async function spsLoad(
+  profile?: string,
+): Promise<SpsWorkspaceLoadResult> {
+  try {
+    return parseWorkspaceDocument(
+      await fs.readFile(workspacePath(profile), "utf-8"),
+    );
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return { status: "missing" };
+    return {
+      status: "error",
+      error:
+        err instanceof Error ? err.message : "Workspace could not be read.",
+    };
   }
 }
 
@@ -55,11 +110,13 @@ function makeQueueIo(profile?: string): WorkspaceQueueIO {
   const p = workspacePath(profile);
   return {
     async read() {
-      const data = await spsLoad(profile);
-      return (data as RevisionedWorkspace | null) ?? null;
+      const result = await spsLoad(profile);
+      if (result.status === "missing") return null;
+      if (result.status === "ok") return result.workspace;
+      throw new Error(result.error);
     },
     async write(blob) {
-      const json = JSON.stringify(blob);
+      const json = JSON.stringify({ ...blob, version: SPS_WORKSPACE_VERSION });
       await safeWriteFileAsync(p, json);
       return Buffer.byteLength(json);
     },
@@ -92,27 +149,40 @@ export async function spsSave(
   profile?: string,
   baseRev?: number,
 ): Promise<SpsSaveResult> {
-  // The reset path bypasses the queue/merge and resets revision tracking.
-  if (ws === null || typeof ws !== "object") {
-    writeQueues.delete(profile || getActiveProfileNameSync());
-    try {
-      await safeWriteFileAsync(workspacePath(profile), JSON.stringify(ws));
-      return { ok: true, rev: 0, merged: false };
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-        rev: 0,
-        merged: false,
-      };
-    }
+  let parsed: SpsWorkspaceLoadResult;
+  try {
+    parsed = parseWorkspaceDocument(JSON.stringify(ws));
+  } catch (err) {
+    parsed = {
+      status: "corrupt",
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
-
-  const outcome = await queueFor(profile).enqueue(ws as Workspace, baseRev);
-  const oversize =
-    typeof outcome.bytes === "number" &&
-    outcome.bytes > OVERSIZE_ADVISORY_BYTES;
-  return { ...outcome, oversize };
+  if (parsed.status !== "ok") {
+    return {
+      ok: false,
+      error:
+        parsed.status === "missing"
+          ? "Workspace payload is missing."
+          : parsed.error,
+      rev: 0,
+      merged: false,
+    };
+  }
+  try {
+    const outcome = await queueFor(profile).enqueue(parsed.workspace, baseRev);
+    const oversize =
+      typeof outcome.bytes === "number" &&
+      outcome.bytes > OVERSIZE_ADVISORY_BYTES;
+    return { ...outcome, oversize };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      rev: baseRev ?? 0,
+      merged: false,
+    };
+  }
 }
 
 /** Drop a profile's in-memory write queue (its cached revision) — used after a

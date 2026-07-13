@@ -27,24 +27,28 @@ import "./styles/deck-studio.css";
 import "./screen.css";
 import { App } from "./App";
 import { useStore } from "./store";
-import {
-  hydrateWorkspace,
-  startSpsStoreLifecycle,
-} from "./store/lifecycle";
+import { hydrateWorkspace, startSpsStoreLifecycle } from "./store/lifecycle";
 import { setThemeScope, applyTweaks, setSkinVars } from "./lib/theme";
 import { skinToSpsVars } from "./lib/skin";
 import { getActiveSkinId } from "../../utils/skin";
 import { SystemThemeSync } from "./components/SystemThemeSync";
+import { WorkspaceRecovery } from "./components/WorkspaceRecovery";
 
 export function SpsAgent() {
   const scopeRef = useRef<HTMLDivElement>(null);
+  const workspaceLoadIssue = useStore((state) => state.workspaceLoadIssue);
   useEffect(() => {
-    const stopStoreLifecycle = startSpsStoreLifecycle();
+    let stopStoreLifecycle: (() => void) | null = null;
+    let cancelled = false;
     setThemeScope(scopeRef.current);
     applyTweaks(useStore.getState().t);
     // Resume any OCR jobs persisted from a previous session once the workspace
     // is loaded (so OCR'd pages land in the real tree). No-op when idle.
-    void hydrateWorkspace().then(() => useStore.getState().ocrResume());
+    void hydrateWorkspace().then(() => {
+      if (cancelled || useStore.getState().workspaceLoadIssue) return;
+      stopStoreLifecycle = startSpsStoreLifecycle();
+      useStore.getState().ocrResume();
+    });
     // Apply the active skin onto the SPS scope (idea A6 — fixes the regression
     // where skins targeted document root with Hermes var names). No-op in the
     // standalone web app where window.hermesAPI is absent.
@@ -58,15 +62,16 @@ export function SpsAgent() {
       }
     })();
     return () => {
+      cancelled = true;
       useStore.getState().ocrStopScheduler();
-      stopStoreLifecycle();
+      stopStoreLifecycle?.();
       setThemeScope(null);
     };
   }, []);
   return (
     <div className="sps-scope" ref={scopeRef}>
       <SystemThemeSync />
-      <App />
+      {workspaceLoadIssue ? <WorkspaceRecovery /> : <App />}
     </div>
   );
 }

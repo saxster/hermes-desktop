@@ -58,6 +58,17 @@ explicitly migrates.
 Both modes are always present and reversible — migrating never rips out the blob
 or the embedded data.
 
+### Blob schema and recovery
+
+`workspace.json` carries a numeric `version` (currently `1`). Unversioned legacy
+workspaces are migrated in memory on load and receive the current version on the
+next successful save. Loading distinguishes a missing file from malformed JSON,
+an invalid shape, an unsupported version, and an I/O failure. For the latter
+three cases SPS blocks autosave and replaces the editor with the workspace
+recovery surface; it never initializes over the damaged source. The recovery
+surface can preserve the source as a timestamped `workspace.json.bak-*`, restore
+the newest whole-workspace snapshot, or retry after an external repair.
+
 ## Serializers (round‑trip markdown ↔ blocks)
 
 - `editor/blockMarkdown.ts` — block‑tree ↔ markdown, two tiers:

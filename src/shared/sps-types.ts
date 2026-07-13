@@ -555,6 +555,23 @@ export interface Workspace {
   page: string;
 }
 
+export const SPS_WORKSPACE_VERSION = 1;
+
+export type SpsWorkspaceLoadResult =
+  | { status: "missing" }
+  | {
+      status: "ok";
+      workspace: Workspace & {
+        version: typeof SPS_WORKSPACE_VERSION;
+        __rev?: number;
+        __savedAt?: number;
+      };
+    }
+  | {
+      status: "corrupt" | "error";
+      error: string;
+    };
+
 /** Result of a workspace save (Phase 1.5 write-safety). `ok:false` means the
  *  blob did NOT reach disk — the renderer surfaces a persistent warning. `rev`
  *  is the on-disk revision after the save (unchanged on failure); the renderer

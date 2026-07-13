@@ -72,6 +72,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lifecycleUsers = 0;
 let stopSubscriptions: Unsubscribe | null = null;
 let vaultSaveQueue: Promise<void> = Promise.resolve();
+let workspacePersistenceBlocked = true;
 
 function changedPageIds(s: Store): string[] {
   return Object.keys(s.docs).filter(
@@ -103,6 +104,7 @@ function persistVaultWorkspace(s: Store, ws: Workspace): void {
 }
 
 function persistCurrentWorkspace(): void {
+  if (workspacePersistenceBlocked) return;
   const s = useStore.getState();
   const ws = snapshotWorkspace(s);
   if (getStorageMode() === "vault") {
@@ -193,26 +195,51 @@ function applyWorkspace(ws: Workspace): void {
 let hydrationPromise: Promise<void> | null = null;
 
 async function loadAndApplyWorkspace(): Promise<void> {
-  if (getStorageMode() === "vault") {
-    const vault = await readVaultWorkspace();
-    if (vault && vault.docs && vault.tree) {
-      applyWorkspace(vault);
-      seedMirrored(useStore.getState());
-      gcOrphanAssets(vault.docs);
+  try {
+    if (getStorageMode() === "vault") {
+      const vault = await readVaultWorkspace();
+      if (vault && vault.docs && vault.tree) {
+        applyWorkspace(vault);
+        seedMirrored(useStore.getState());
+        gcOrphanAssets(vault.docs);
+        workspacePersistenceBlocked = false;
+        useStore.getState().setWorkspaceLoadIssue(null);
+        return;
+      }
+      // Vault not populated yet — fall back to the blob so the user is not
+      // stranded. Migration still happens only through the storage switch.
+    }
+
+    const result = await loadWorkspace();
+    if (result.status !== "ok" && result.status !== "missing") {
+      workspacePersistenceBlocked = true;
+      useStore.getState().setWorkspaceLoadIssue({
+        kind: result.status,
+        error: result.error,
+      });
       return;
     }
-    // Vault not populated yet — fall back to the blob so the user is not
-    // stranded. Migration still happens only through the storage switch.
+    if (result.status === "missing") {
+      workspacePersistenceBlocked = false;
+      useStore.getState().setWorkspaceLoadIssue(null);
+      seedMirrored(useStore.getState());
+      return;
+    }
+    applyWorkspace(result.workspace);
+    // Materialize the markdown substrate for every page once on load (S2b), then
+    // seed the diff mirror so later saves export only changed pages.
+    mirrorAllPages(snapshotWorkspace(useStore.getState()));
+    seedMirrored(useStore.getState());
+    gcOrphanAssets(useStore.getState().docs);
+    workspacePersistenceBlocked = false;
+    useStore.getState().setWorkspaceLoadIssue(null);
+  } catch (err) {
+    workspacePersistenceBlocked = true;
+    useStore.getState().setWorkspaceLoadIssue({
+      kind: "error",
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
-
-  const ws = await loadWorkspace();
-  if (!ws || !ws.docs || !ws.tree) return;
-  applyWorkspace(ws);
-  // Materialize the markdown substrate for every page once on load (S2b), then
-  // seed the diff mirror so later saves export only changed pages.
-  mirrorAllPages(snapshotWorkspace(useStore.getState()));
-  seedMirrored(useStore.getState());
-  gcOrphanAssets(useStore.getState().docs);
 }
 
 /** Load the authoritative workspace once; concurrent callers share the load. */
@@ -224,4 +251,10 @@ export function hydrateWorkspace(): Promise<void> {
     });
   }
   return hydrationPromise;
+}
+
+/** Retry after the user repairs or restores the authoritative workspace. */
+export function retryWorkspaceHydration(): Promise<void> {
+  hydrationPromise = null;
+  return hydrateWorkspace();
 }

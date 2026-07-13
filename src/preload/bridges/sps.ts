@@ -53,6 +53,7 @@ import type {
   SpsImportSource,
   SpsPropertyValue,
   SpsSaveResult,
+  SpsWorkspaceLoadResult,
   VaultHealthReport,
   VaultLinkEdge,
   VaultProposal,
@@ -448,7 +449,7 @@ export const spsBridge = {
     profile?: string,
   ): Promise<LocalExpertCheckRunResult> =>
     ipcRenderer.invoke("sps-run-local-expert-checks", packId, profile),
-  spsLoad: (profile?: string): Promise<unknown | null> =>
+  spsLoad: (profile?: string): Promise<SpsWorkspaceLoadResult> =>
     ipcRenderer.invoke("sps-load", profile),
   spsSave: (
     ws: unknown,

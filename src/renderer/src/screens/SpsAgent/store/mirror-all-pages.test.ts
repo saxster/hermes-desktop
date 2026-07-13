@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "./index";
-import { startSpsStoreLifecycle } from "./lifecycle";
+import { retryWorkspaceHydration, startSpsStoreLifecycle } from "./lifecycle";
 import { blk } from "../lib/ids";
 
 // MED-8 regression: the blob-mode autosave subscriber historically mirrored
@@ -10,6 +10,7 @@ import { blk } from "../lib/ids";
 // The diff-mirror must export every changed page and delete removed ones.
 
 interface MirrorApi {
+  spsLoad: ReturnType<typeof vi.fn>;
   spsSave: ReturnType<typeof vi.fn>;
   spsExportPage: ReturnType<typeof vi.fn>;
   spsDeletePage: ReturnType<typeof vi.fn>;
@@ -26,15 +27,17 @@ async function flushAutosave(): Promise<void> {
   await vi.advanceTimersByTimeAsync(400);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear(); // storage mode defaults to blob
   vi.useFakeTimers();
   api = {
+    spsLoad: vi.fn().mockResolvedValue({ status: "missing" }),
     spsSave: vi.fn().mockResolvedValue({ ok: true, rev: 1, merged: false }),
     spsExportPage: vi.fn().mockResolvedValue(true),
     spsDeletePage: vi.fn().mockResolvedValue(true),
   };
   (window as unknown as { hermesAPI: unknown }).hermesAPI = api;
+  await retryWorkspaceHydration();
   stopLifecycle = startSpsStoreLifecycle();
 });
 
