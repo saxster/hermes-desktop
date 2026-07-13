@@ -7,17 +7,21 @@
  */
 
 import {
-  existsSync,
+  mkdirSync,
+  realpathSync,
   writeFileSync,
   copyFileSync,
   statSync,
   promises as fsPromises,
 } from "fs";
-import { extname } from "path";
+import { extname, isAbsolute, join, relative, resolve } from "path";
 import { BrowserWindow, dialog } from "electron";
 import { safeFetch } from "./security/ssrf-guard";
+import { assertGrantedFilePath } from "./file-access-grants";
+import { HERMES_HOME } from "./installer/paths";
 
 const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+const MEDIA_OUTPUT_DIR = join(HERMES_HOME, "media-output");
 
 const MIME_BY_EXT: Record<string, string> = {
   ".png": "image/png",
@@ -30,6 +34,32 @@ const MIME_BY_EXT: Record<string, string> = {
   ".avif": "image/avif",
 };
 
+function isWithin(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  return rel === "" || (!!rel && !rel.startsWith("..") && !isAbsolute(rel));
+}
+
+export function prepareMediaOutputDirectory(): string {
+  mkdirSync(MEDIA_OUTPUT_DIR, { recursive: true });
+  return MEDIA_OUTPUT_DIR;
+}
+
+/** Resolve a renderer-supplied media path only when the user granted it or the
+ * agent wrote it into the dedicated media-output directory. Realpath checks
+ * make symlinks unable to escape either boundary. */
+export function resolveAllowedMediaPath(filePath: string): string {
+  try {
+    return assertGrantedFilePath(filePath);
+  } catch {
+    const normalized = realpathSync(resolve(filePath));
+    const outputRoot = realpathSync(prepareMediaOutputDirectory());
+    if (!statSync(normalized).isFile() || !isWithin(outputRoot, normalized)) {
+      throw new Error("Media path was not granted by the user or agent output");
+    }
+    return normalized;
+  }
+}
+
 /**
  * Read a local image file and return it as a `data:` URL. Returns null when
  * the file is missing, not an image, too large, or unreadable.
@@ -39,12 +69,13 @@ export async function readMediaAsDataUrl(
 ): Promise<string | null> {
   try {
     if (!filePath) return null;
-    const stat = await fsPromises.stat(filePath);
+    const allowedPath = resolveAllowedMediaPath(filePath);
+    const stat = await fsPromises.stat(allowedPath);
     if (!stat.isFile() || stat.size > MAX_MEDIA_BYTES) return null;
-    const ext = extname(filePath).toLowerCase();
+    const ext = extname(allowedPath).toLowerCase();
     const mime = MIME_BY_EXT[ext];
     if (!mime) return null;
-    const buffer = await fsPromises.readFile(filePath);
+    const buffer = await fsPromises.readFile(allowedPath);
     return `data:${mime};base64,${buffer.toString("base64")}`;
   } catch {
     return null;
@@ -58,7 +89,8 @@ export async function readMediaAsDataUrl(
  */
 export function mediaFileExists(filePath: string): boolean {
   try {
-    return !!filePath && existsSync(filePath) && statSync(filePath).isFile();
+    if (!filePath) return false;
+    return statSync(resolveAllowedMediaPath(filePath)).isFile();
   } catch {
     return false;
   }
@@ -75,21 +107,24 @@ export async function saveMedia(
   win: BrowserWindow | null,
 ): Promise<boolean> {
   try {
+    const isData = src.startsWith("data:");
+    const isUrl = /^https?:\/\//i.test(src);
+    const safeSrc = isData || isUrl ? src : resolveAllowedMediaPath(src);
     const result = win
       ? await dialog.showSaveDialog(win, { defaultPath: suggestedName })
       : await dialog.showSaveDialog({ defaultPath: suggestedName });
     if (result.canceled || !result.filePath) return false;
     const dest = result.filePath;
 
-    if (src.startsWith("data:")) {
-      const comma = src.indexOf(",");
+    if (isData) {
+      const comma = safeSrc.indexOf(",");
       if (comma === -1) return false;
-      writeFileSync(dest, Buffer.from(src.slice(comma + 1), "base64"));
+      writeFileSync(dest, Buffer.from(safeSrc.slice(comma + 1), "base64"));
       return true;
     }
 
-    if (/^https?:\/\//i.test(src)) {
-      const response = await safeFetch(src, {
+    if (isUrl) {
+      const response = await safeFetch(safeSrc, {
         redirect: "follow",
         headers: { "User-Agent": "HermesDesktop/1.0 (+media-saver)" },
       });
@@ -99,7 +134,7 @@ export async function saveMedia(
       return true;
     }
 
-    copyFileSync(src, dest);
+    copyFileSync(safeSrc, dest);
     return true;
   } catch {
     return false;

@@ -1,11 +1,12 @@
 import { getHermesVersion } from "../../installer";
+import { prepareMediaOutputDirectory } from "../../media";
 import type {
   ApprovalRequest,
   CheckpointEvent,
   DelegateProgress,
 } from "../../sse-parser";
 import { type Attachment, escapeXmlAttr } from "../../../shared/attachments";
-import { resolveProfile } from "../gateway-process";
+import { isRemoteMode, resolveProfile } from "../gateway-process";
 import { formatLogError, log } from "../../log";
 
 export interface ChatCallbacks {
@@ -133,6 +134,9 @@ export async function buildSelfAwarenessSystemMessage(
       /* best-effort */
     }
 
+    const mediaInstruction = isRemoteMode()
+      ? ""
+      : `\n- For files you want Hermes Desktop to render through MEDIA:, write them under ${prepareMediaOutputDirectory()}`;
     const sysMsg =
       `You are Hermes, a self-improving AI agent. ` +
       `You are running inside Hermes Desktop v${version} on the user's local machine. ` +
@@ -140,7 +144,7 @@ export async function buildSelfAwarenessSystemMessage(
       `Your active capabilities configuration:\n` +
       `- Enabled toolsets: [${enabledTools.join(", ")}]\n` +
       `- Installed skills (advanced agents you can delegate to): [${installedSkills.join(", ")}]\n` +
-      `- Skills available in registry: ${registryCount} (use skills-registry-lookup to find or sync them)\n\n` +
+      `- Skills available in registry: ${registryCount} (use skills-registry-lookup to find or sync them)${mediaInstruction}\n\n` +
       `Feel free to use your tools to achieve the user's goal.`;
 
     return { role: "system", content: sysMsg };

@@ -2,14 +2,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { processFiles, filesFromClipboard } from "./attachmentUtils";
 
-// Stub the window.hermesAPI surface used by the path-ref code path.
-// Picker / drag-drop normally return an absolute granted path via preload; we
-// simulate the paste path (no origin) by leaving grantPathForFile empty
-// and routing through a fake stageAttachment.
+// Binary picker, drag-drop, and paste inputs are staged by the main process;
+// the renderer never gets an IPC that can self-grant an arbitrary path.
 beforeEach(() => {
   (window as unknown as { hermesAPI: Record<string, unknown> }).hermesAPI = {
-    getPathForFile: vi.fn(() => ""),
-    grantPathForFile: vi.fn(async () => ""),
     stageAttachment: vi.fn(
       async (sessionId: string, filename: string): Promise<string> =>
         `C:/staging/${sessionId || "default"}/${filename}`,
@@ -135,11 +131,10 @@ describe("processFiles", () => {
     expect(a.mime).toBe("application/pdf");
   });
 
-  it("uses the origin path returned by webUtils for picker/drag-drop files", async () => {
+  it("stages picker and drag-drop files instead of self-granting their origin path", async () => {
+    const stageAttachment = vi.fn(async () => "C:/staging/default/doc.pdf");
     (window as unknown as { hermesAPI: Record<string, unknown> }).hermesAPI = {
-      getPathForFile: vi.fn(() => "C:/Users/me/Downloads/doc.pdf"),
-      grantPathForFile: vi.fn(async () => "C:/Users/me/Downloads/doc.pdf"),
-      stageAttachment: vi.fn(),
+      stageAttachment,
     };
     const file = makeFile("doc.pdf", "application/pdf", "%PDF-1.4");
     const out = await processFiles([file], 0);
@@ -147,14 +142,8 @@ describe("processFiles", () => {
     expect(out.attachments).toHaveLength(1);
     const a = out.attachments[0];
     expect(a.kind).toBe("path-ref");
-    expect(a.path).toBe("C:/Users/me/Downloads/doc.pdf");
-    expect(
-      (
-        window as unknown as {
-          hermesAPI: { stageAttachment: ReturnType<typeof vi.fn> };
-        }
-      ).hermesAPI.stageAttachment,
-    ).not.toHaveBeenCalled();
+    expect(a.path).toBe("C:/staging/default/doc.pdf");
+    expect(stageAttachment).toHaveBeenCalledOnce();
   });
 
   it("blocks path-ref attachments in remote mode", async () => {

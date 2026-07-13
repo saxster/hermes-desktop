@@ -9,7 +9,12 @@ import {
 import { safeHandle } from "./safe-handle";
 import { readdir, readFile } from "fs/promises";
 import { extname } from "path";
-import { readMediaAsDataUrl, saveMedia, mediaFileExists } from "../media";
+import {
+  readMediaAsDataUrl,
+  resolveAllowedMediaPath,
+  saveMedia,
+  mediaFileExists,
+} from "../media";
 import { stageAttachment, clearStagedAttachments } from "../attachment-staging";
 import { assertFileWithinByteLimit } from "../file-size-limits";
 import {
@@ -118,6 +123,14 @@ export function registerUtilityIpc(
       if (!win || !src) return;
       const isUrl = /^https?:\/\//i.test(src);
       const isData = src.startsWith("data:");
+      let safeSrc = src;
+      if (!isUrl && !isData) {
+        try {
+          safeSrc = resolveAllowedMediaPath(src);
+        } catch {
+          return;
+        }
+      }
       const template: Electron.MenuItemConstructorOptions[] = [];
       if (!isData) {
         template.push({
@@ -126,11 +139,11 @@ export function registerUtilityIpc(
             if (isUrl) {
               openExternalUrl(src);
             } else {
-              shell.openPath(src).then((err) => {
+              shell.openPath(safeSrc).then((err) => {
                 if (err) {
                   log.error("media", {
                     msg: "open failed",
-                    path: src,
+                    path: safeSrc,
                     error: err,
                   });
                 }
@@ -142,7 +155,7 @@ export function registerUtilityIpc(
       template.push({
         label: labels.saveAs,
         click: () => {
-          void saveMedia(src, name, win);
+          void saveMedia(safeSrc, name, win);
         },
       });
       Menu.buildFromTemplate(template).popup({ window: win });
@@ -155,9 +168,6 @@ export function registerUtilityIpc(
     (_event, sessionId: string, filename: string, base64Bytes: string) => {
       return grantFilePath(stageAttachment(sessionId, filename, base64Bytes));
     },
-  );
-  safeHandle("grant-file-path", (_event, filePath: string) =>
-    grantFilePath(filePath),
   );
   safeHandle("clear-staged-attachments", (_event, sessionId: string) => {
     clearStagedAttachments(sessionId);

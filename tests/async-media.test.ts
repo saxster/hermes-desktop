@@ -1,42 +1,68 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFileSync, rmSync, mkdirSync } from "fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { readMediaAsDataUrl } from "../src/main/media";
 
-const TEST_DIR = join(tmpdir(), `hermes-async-media-test-${Date.now()}`);
+const TEST_DIR = join(tmpdir(), `hermes-async-media-test-${process.pid}`);
+const ORIGINAL_HERMES_HOME = process.env.HERMES_HOME;
 
-describe("readMediaAsDataUrl (Async)", () => {
+async function loadMedia(): Promise<typeof import("../src/main/media")> {
+  vi.resetModules();
+  return import("../src/main/media");
+}
+
+describe("authorized async media", () => {
   beforeEach(() => {
-    mkdirSync(TEST_DIR, { recursive: true });
+    rmSync(TEST_DIR, { recursive: true, force: true });
+    mkdirSync(join(TEST_DIR, "home", "media-output"), { recursive: true });
+    process.env.HERMES_HOME = join(TEST_DIR, "home");
   });
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
+    if (ORIGINAL_HERMES_HOME === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = ORIGINAL_HERMES_HOME;
   });
 
-  it("reads a local image asynchronously as a data URL", async () => {
-    const filePath = join(TEST_DIR, "test.png");
+  it("reads an agent-output image asynchronously as a data URL", async () => {
+    const { readMediaAsDataUrl } = await loadMedia();
+    const filePath = join(TEST_DIR, "home", "media-output", "test.png");
     writeFileSync(filePath, "dummy-png-data");
 
     const promise = readMediaAsDataUrl(filePath);
     expect(promise).toBeInstanceOf(Promise);
-
-    const dataUrl = await promise;
-    expect(dataUrl).toBe("data:image/png;base64,ZHVtbXktcG5nLWRhdGE=");
+    await expect(promise).resolves.toBe(
+      "data:image/png;base64,ZHVtbXktcG5nLWRhdGE=",
+    );
   });
 
-  it("returns null for non-image or unsupported extensions", async () => {
-    const filePath = join(TEST_DIR, "test.txt");
-    writeFileSync(filePath, "plain text");
+  it("rejects an ungranted image outside the agent-output directory", async () => {
+    const { mediaFileExists, readMediaAsDataUrl } = await loadMedia();
+    const filePath = join(TEST_DIR, "secret.png");
+    writeFileSync(filePath, "secret");
 
-    const dataUrl = await readMediaAsDataUrl(filePath);
-    expect(dataUrl).toBeNull();
+    await expect(readMediaAsDataUrl(filePath)).resolves.toBeNull();
+    expect(mediaFileExists(filePath)).toBe(false);
   });
 
-  it("returns null for non-existent files", async () => {
-    const filePath = join(TEST_DIR, "missing.png");
-    const dataUrl = await readMediaAsDataUrl(filePath);
-    expect(dataUrl).toBeNull();
+  it("uses realpaths so a symlink cannot escape the agent-output directory", async () => {
+    const { readMediaAsDataUrl } = await loadMedia();
+    const outside = join(TEST_DIR, "secret.png");
+    const link = join(TEST_DIR, "home", "media-output", "link.png");
+    writeFileSync(outside, "secret");
+    symlinkSync(outside, link);
+
+    await expect(readMediaAsDataUrl(link)).resolves.toBeNull();
+  });
+
+  it("returns null for unsupported extensions and missing files", async () => {
+    const { readMediaAsDataUrl } = await loadMedia();
+    const textPath = join(TEST_DIR, "home", "media-output", "test.txt");
+    writeFileSync(textPath, "plain text");
+
+    await expect(readMediaAsDataUrl(textPath)).resolves.toBeNull();
+    await expect(
+      readMediaAsDataUrl(join(TEST_DIR, "home", "media-output", "missing.png")),
+    ).resolves.toBeNull();
   });
 });

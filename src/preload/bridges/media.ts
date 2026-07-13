@@ -1,4 +1,4 @@
-import { ipcRenderer, webUtils } from "electron";
+import { ipcRenderer } from "electron";
 import type { MediaBridgeApi } from "./media.types";
 
 export const mediaBridge = {
@@ -15,29 +15,6 @@ export const mediaBridge = {
     labels: { open: string; saveAs: string },
   ): void => {
     ipcRenderer.send("show-media-menu", src, name, labels);
-  },
-
-  // Resolve the absolute filesystem path for a File coming from drag-drop
-  // or the file picker.  Returns "" for blobs that have no origin path
-  // (e.g. clipboard paste) — caller should stageAttachment for those.
-  getPathForFile: (file: File): string => {
-    try {
-      return webUtils.getPathForFile(file) || "";
-    } catch {
-      return "";
-    }
-  },
-
-  grantPathForFile: (file: File): Promise<string> => {
-    let path = "";
-    try {
-      path = webUtils.getPathForFile(file) || "";
-    } catch {
-      path = "";
-    }
-    return path
-      ? ipcRenderer.invoke("grant-file-path", path)
-      : Promise.resolve("");
   },
 
   stageAttachment: (
