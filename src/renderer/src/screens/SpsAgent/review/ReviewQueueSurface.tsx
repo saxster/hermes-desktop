@@ -151,6 +151,11 @@ export function ReviewQueueSurface({
                           {operation.pageId}
                         </button>
                       )}
+                      {operation.kind === "create-task" && (
+                        <span className="health-mono-text">
+                          tasks/{operation.rowId} · {operation.title}
+                        </span>
+                      )}
                       {operation.kind === "enrich-contact" && (
                         <span
                           className="health-mono-text"

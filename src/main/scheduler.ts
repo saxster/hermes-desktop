@@ -34,6 +34,7 @@ import { getApiUrl, getRemoteAuthHeader } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 import { createLearningProposal } from "./learning-proposals";
 import { listInstalledSkills, getSkillContent } from "./skills";
+import { drainTaskProposalSpool } from "./task-proposal-bridge";
 
 export async function captureScreenshot(
   jobId: string,
@@ -362,6 +363,16 @@ export async function tickScheduler(profile?: string): Promise<void> {
       error: formatLogError(err),
     });
   });
+
+  try {
+    await drainTaskProposalSpool(activeProfile);
+  } catch (err) {
+    log.error("task-proposal", {
+      msg: "failed to drain inbound task proposals",
+      profile: activeProfile,
+      error: formatLogError(err),
+    });
+  }
 
   // Nag engine: chase overdue human tasks (throttled to ~60s).
   try {

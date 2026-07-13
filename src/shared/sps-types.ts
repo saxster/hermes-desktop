@@ -156,6 +156,13 @@ export interface VaultUpsertPageOperation extends VaultOperationBase {
   markdown: string;
 }
 
+export interface VaultCreateTaskOperation extends VaultOperationBase {
+  kind: "create-task";
+  rowId: string;
+  title: string;
+  markdown: string;
+}
+
 export interface VaultUpdateFrontmatterOperation extends VaultOperationBase {
   kind: "update-frontmatter";
   pageId: string;
@@ -208,6 +215,7 @@ export interface VaultEnrichContactOperation extends VaultOperationBase {
 
 export type VaultOperation =
   | VaultUpsertPageOperation
+  | VaultCreateTaskOperation
   | VaultUpdateFrontmatterOperation
   | VaultReplaceWikilinkOperation
   | VaultMarkDuplicateMergedOperation
@@ -224,7 +232,8 @@ export interface VaultProposalInput {
     | "obsidian"
     | "context-pack"
     | "manual"
-    | "enrichment";
+    | "enrichment"
+    | "telegram";
   title: string;
   summary: string;
   operations: VaultOperation[];

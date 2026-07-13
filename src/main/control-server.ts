@@ -826,6 +826,7 @@ function writeShellHelper(port: number, token: string): void {
     safeWriteFile(helperPath, renderShellHelperScript(port, tokenPath));
     chmodSync(helperPath, 0o755);
     writeSpsHelper(binDir, port, tokenPath);
+    writeTaskProposalHelper(binDir);
     log.info("control-server", {
       msg: "generated OS-native CLI tool",
       path: helperPath,
@@ -836,6 +837,74 @@ function writeShellHelper(port: number, token: string): void {
       error: formatLogError(err),
     });
   }
+}
+
+export function renderTaskProposalHelperScript(): string {
+  return `#!/usr/bin/env node
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+
+function fail(message) {
+  process.stderr.write(message + '\n');
+  process.exit(2);
+}
+
+const values = {};
+for (let i = 2; i < process.argv.length; i += 2) {
+  const key = process.argv[i];
+  const value = process.argv[i + 1];
+  if (!key || !key.startsWith('--') || value === undefined) {
+    fail('Usage: sps-propose-task --title <text> --source-message-id <id> [--body <text>] [--due YYYY-MM-DD] [--priority high|med|low] [--source telegram|email]');
+  }
+  values[key.slice(2)] = value;
+}
+
+const title = String(values.title || '').trim();
+const requestId = String(values['source-message-id'] || '').trim();
+if (!title || title.length > 240) fail('Task title must be 1-240 characters.');
+if (!requestId || requestId.length > 240) fail('A stable source message id is required.');
+if (values.due && !/^\\d{4}-\\d{2}-\\d{2}$/.test(values.due)) fail('Due date must use YYYY-MM-DD.');
+if (values.priority && !['high', 'med', 'low'].includes(values.priority)) fail('Priority must be high, med, or low.');
+if (values.source && !['telegram', 'email'].includes(values.source)) fail('Source must be telegram or email.');
+
+const hermesHome = path.join(os.homedir(), '.hermes');
+let activeProfile = 'default';
+try {
+  const desktop = JSON.parse(fs.readFileSync(path.join(hermesHome, 'desktop.json'), 'utf-8'));
+  if (typeof desktop.activeProfile === 'string' && desktop.activeProfile) activeProfile = desktop.activeProfile;
+} catch (err) {}
+const requestedProfile = String(values.profile || process.env.HERMES_PROFILE || activeProfile);
+if (!/^[A-Za-z0-9_-]+$/.test(requestedProfile)) fail('Invalid profile name.');
+const profileRoot = requestedProfile === 'default'
+  ? hermesHome
+  : path.join(hermesHome, 'profiles', requestedProfile);
+const inbox = path.join(profileRoot, 'sps-agent', 'task-proposals', 'inbox');
+fs.mkdirSync(inbox, { recursive: true });
+const id = crypto.randomUUID();
+const target = path.join(inbox, id + '.json');
+const temporary = target + '.tmp';
+const payload = {
+  requestId,
+  title,
+  body: String(values.body || '').slice(0, 10000),
+  due: values.due || undefined,
+  priority: values.priority || undefined,
+  requester: values.requester || undefined,
+  source: values.source || 'telegram',
+  requestedAt: Date.now()
+};
+fs.writeFileSync(temporary, JSON.stringify(payload, null, 2), { encoding: 'utf-8', mode: 0o600 });
+fs.renameSync(temporary, target);
+process.stdout.write(JSON.stringify({ success: true, proposalId: id, status: 'pending-approval' }) + '\n');
+`;
+}
+
+function writeTaskProposalHelper(binDir: string): void {
+  const helperPath = join(binDir, "sps-propose-task");
+  safeWriteFile(helperPath, renderTaskProposalHelperScript());
+  chmodSync(helperPath, 0o755);
 }
 
 function writeSpsHelper(binDir: string, port: number, tokenPath: string): void {

@@ -110,6 +110,7 @@ import { refreshEngineCapabilities } from "./engine-capabilities";
 import { recordGatewaySupervisionHealth } from "./gateway-supervision-state";
 import { deliverOwnerEvent } from "./owner-delivery";
 import { syncOwnerDailyBriefCron } from "./owner-daily-brief";
+import { ensureSpsTaskProposalSkill } from "./task-proposal-bridge";
 import { redactExternalText } from "./external-context/redact";
 import { getActiveProfileNameSync } from "./utils";
 import {
@@ -943,6 +944,7 @@ app.whenReady().then(() => {
   setSshTunnelStatusBroadcaster(reportRemoteGatewayHealth);
   setStreamOpenProvider(() => activeChatAborts.size > 0);
   setGatewayReadyNotifier((profile) => {
+    ensureSpsTaskProposalSkill(profile);
     void refreshEngineCapabilities(profile).catch((err) => {
       log.warn("engine-capabilities", {
         msg: "gateway-ready refresh failed",
@@ -961,6 +963,7 @@ app.whenReady().then(() => {
 
   // Start background routines scheduler and control server
   startScheduler();
+  ensureSpsTaskProposalSkill(getActiveProfileNameSync());
   void syncOwnerDailyBriefCron(getActiveProfileNameSync()).catch((err) => {
     log.warn("owner-daily-brief", {
       msg: "startup cron sync failed",

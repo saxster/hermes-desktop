@@ -133,7 +133,11 @@ vi.mock("../src/main/self-healing", () => ({
   triggerSelfHealing: () => {},
 }));
 
-import { manageLaunchAgent, renderCronScript } from "../src/main/control-server";
+import {
+  manageLaunchAgent,
+  renderCronScript,
+  renderTaskProposalHelperScript,
+} from "../src/main/control-server";
 import { runJobHeadless } from "../src/main/scheduler";
 
 describe("launchd Daemon & File-based Single Flight Locking", () => {
@@ -207,6 +211,16 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     expect(script).toContain("detached: true");
     expect(script).toContain("shell: false");
     expect(script).not.toContain("exec(");
+  });
+
+  it("generated task helper writes one atomic review proposal without touching the vault", () => {
+    const script = renderTaskProposalHelperScript();
+
+    expect(script).toContain("task-proposals', 'inbox'");
+    expect(script).toContain("source-message-id");
+    expect(script).toContain("pending-approval");
+    expect(script).toContain("fs.renameSync(temporary, target)");
+    expect(script).not.toContain("vault/tasks");
   });
 
   it("should prevent duplicate runs when a live lock is held", async () => {

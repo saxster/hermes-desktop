@@ -48,6 +48,15 @@ async function commitOperation(
   options: CommitVaultProposalOptions,
 ): Promise<void> {
   const api = window.hermesAPI;
+  if (operation.kind === "create-task") {
+    await api.spsExportRow?.(
+      "tasks",
+      operation.rowId,
+      operation.markdown,
+      options.profile,
+    );
+    return;
+  }
   if (
     operation.kind === "upsert-page" ||
     operation.kind === "create-base-page"
