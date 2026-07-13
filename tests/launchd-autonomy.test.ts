@@ -196,6 +196,19 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     expect(script).not.toContain("open ${");
   });
 
+  it("generated cron helper supervises the gateway only while the app is closed", () => {
+    const script = renderCronScript();
+
+    expect(script).toContain("desktopAppOwnsGateway()");
+    expect(script).toContain("gateway-supervision.json");
+    expect(script).toContain("/health");
+    expect(script).toContain("nowMs - lastAttempt < 120000");
+    expect(script).toContain("spawn(pythonPath, args");
+    expect(script).toContain("detached: true");
+    expect(script).toContain("shell: false");
+    expect(script).not.toContain("exec(");
+  });
+
   it("should prevent duplicate runs when a live lock is held", async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "darwin" });

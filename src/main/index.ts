@@ -107,6 +107,7 @@ import { startControlServer, stopControlServer } from "./control-server";
 import { setMainWindowGetter } from "./self-healing";
 import { formatLogError, log } from "./log";
 import { refreshEngineCapabilities } from "./engine-capabilities";
+import { recordGatewaySupervisionHealth } from "./gateway-supervision-state";
 import { redactExternalText } from "./external-context/redact";
 import {
   isRendererMediaRequestAllowed,
@@ -918,9 +919,12 @@ app.whenReady().then(() => {
   setMainWindowGetter(() => mainWindow);
   // Phase 1.1 — let the gateway supervisor push health transitions to the renderer
   // and know when an interactive stream is in-flight (so it never restarts mid-turn).
-  setGatewayHealthBroadcaster((status) =>
-    mainWindow?.webContents.send("gateway-health-changed", { status }),
-  );
+  setGatewayHealthBroadcaster((status) => {
+    mainWindow?.webContents.send("gateway-health-changed", { status });
+    if (getConnectionConfig().mode === "local") {
+      recordGatewaySupervisionHealth(status);
+    }
+  });
   setSshTunnelStatusBroadcaster(reportRemoteGatewayHealth);
   setStreamOpenProvider(() => activeChatAborts.size > 0);
   setGatewayReadyNotifier((profile) => {

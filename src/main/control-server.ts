@@ -37,6 +37,7 @@ import {
   readPageMarkdownFrom,
 } from "./sps-vault";
 import { buildContextPack } from "./context-packs";
+import { getProfilePort } from "./gateway-ports";
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
 let currentPort = 8645;
@@ -665,6 +666,17 @@ function listenOnPort(port: number, maxAttempts = 10): Promise<number> {
       // Save port and token back to desktop.json so external clients can auto-discover it
       const config = readDesktopConfig();
       config.controlServerPort = port;
+      const activeProfile = getActiveProfileNameSync() || "default";
+      const connectionMode = getConnectionConfig().mode;
+      config.gatewaySupervisor = {
+        enabled: connectionMode === "local",
+        mode: connectionMode,
+        profile: activeProfile,
+        port:
+          connectionMode === "local"
+            ? getProfilePort(activeProfile)
+            : null,
+      };
       writeDesktopConfig(config);
 
       writeShellHelper(port, authToken);
@@ -836,7 +848,7 @@ export function renderCronScript(): string {
   return `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const os = require('os');
 
 const home = os.homedir();
@@ -869,10 +881,11 @@ function writeCronLog(level, payload) {
   } catch (err) {}
 }
 
+let desktopConfig = {};
 let activeProfile = 'default';
 if (fs.existsSync(desktopJsonPath)) {
   try {
-    const desktopConfig = JSON.parse(fs.readFileSync(desktopJsonPath, 'utf-8'));
+    desktopConfig = JSON.parse(fs.readFileSync(desktopJsonPath, 'utf-8'));
     if (desktopConfig.activeProfile) {
       activeProfile = desktopConfig.activeProfile;
     }
@@ -885,6 +898,137 @@ const appLaunchProfileDir = activeProfile && activeProfile !== 'default'
   ? path.join(hermesHome, 'profiles', activeProfile)
   : hermesHome;
 const appLauncherPath = path.join(appLaunchProfileDir, 'sps-agent', 'app-launcher.json');
+const gatewaySupervisionPath = path.join(hermesHome, 'gateway-supervision.json');
+
+function readGatewaySupervisionState() {
+  try {
+    if (fs.existsSync(gatewaySupervisionPath)) {
+      return JSON.parse(fs.readFileSync(gatewaySupervisionPath, 'utf-8'));
+    }
+  } catch (err) {}
+  return {};
+}
+
+function saveGatewaySupervisionState(state) {
+  const temporaryPath = gatewaySupervisionPath + '.tmp-' + process.pid;
+  fs.writeFileSync(temporaryPath, JSON.stringify(state, null, 2), 'utf-8');
+  fs.renameSync(temporaryPath, gatewaySupervisionPath);
+}
+
+function curlHealthy(url, token) {
+  const args = ['--silent', '--show-error', '--fail', '--max-time', '2'];
+  if (token) args.push('-H', 'Authorization: Bearer ' + token);
+  args.push(url);
+  const result = spawnSync('/usr/bin/curl', args, {
+    shell: false,
+    stdio: 'ignore'
+  });
+  return !result.error && result.status === 0;
+}
+
+function desktopAppOwnsGateway() {
+  const port = Number(desktopConfig.controlServerPort);
+  if (!Number.isInteger(port) || port <= 0) return false;
+  const tokenPath = path.join(hermesHome, 'control-server.token');
+  let token = '';
+  try {
+    token = fs.readFileSync(tokenPath, 'utf-8').trim();
+  } catch (err) {}
+  if (!token) return false;
+  return curlHealthy('http://127.0.0.1:' + port + '/state', token);
+}
+
+function superviseGateway(nowMs) {
+  const config = desktopConfig.gatewaySupervisor || {};
+  if (config.enabled !== true || config.mode !== 'local') return;
+  if (desktopAppOwnsGateway()) return;
+
+  const port = Number(config.port);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) return;
+
+  const state = readGatewaySupervisionState();
+  state.lastCheckAt = nowMs;
+  state.profile = config.profile || 'default';
+  state.port = port;
+
+  if (curlHealthy('http://127.0.0.1:' + port + '/health')) {
+    state.lastHealthyAt = nowMs;
+    state.status = 'healthy';
+    if (state.outageStartedAt) {
+      state.recoveredAt = nowMs;
+      state.lastOutageDurationMs = Math.max(0, nowMs - state.outageStartedAt);
+      delete state.outageStartedAt;
+      writeCronLog('warn', {
+        msg: 'closed-app gateway recovered',
+        outageDurationMs: state.lastOutageDurationMs,
+        restartAttempts: state.restartAttempts || 0
+      });
+    }
+    saveGatewaySupervisionState(state);
+    return;
+  }
+
+  state.status = 'outage';
+  if (!state.outageStartedAt) {
+    state.outageStartedAt = nowMs;
+    state.restartAttempts = 0;
+    writeCronLog('error', {
+      msg: 'closed-app gateway outage detected',
+      profile: state.profile,
+      port
+    });
+  }
+
+  const lastAttempt = Number(state.lastRestartAttemptAt) || 0;
+  if (nowMs - lastAttempt < 120000) {
+    saveGatewaySupervisionState(state);
+    return;
+  }
+
+  const pythonPath = process.platform === 'win32'
+    ? path.join(hermesHome, 'venv', 'Scripts', 'python.exe')
+    : path.join(hermesHome, 'venv', 'bin', 'python');
+  const repoPath = path.join(hermesHome, 'hermes-agent');
+  const args = ['-m', 'hermes_agent'];
+  if (state.profile && state.profile !== 'default') {
+    args.push('--profile', state.profile);
+  }
+  args.push('gateway', 'run');
+
+  state.lastRestartAttemptAt = nowMs;
+  state.restartAttempts = (Number(state.restartAttempts) || 0) + 1;
+  try {
+    const child = spawn(pythonPath, args, {
+      cwd: repoPath,
+      env: {
+        ...process.env,
+        HERMES_HOME: hermesHome,
+        HOME: home,
+        API_SERVER_ENABLED: 'true',
+        API_SERVER_PORT: String(port),
+        FAZM_HEADLESS: '1'
+      },
+      detached: true,
+      stdio: 'ignore',
+      shell: false
+    });
+    child.unref();
+    delete state.lastError;
+    writeCronLog('warn', {
+      msg: 'closed-app gateway restart attempted',
+      profile: state.profile,
+      attempt: state.restartAttempts
+    });
+  } catch (err) {
+    state.lastError = formatCronError(err);
+    writeCronLog('error', {
+      msg: 'closed-app gateway restart failed',
+      profile: state.profile,
+      error: state.lastError
+    });
+  }
+  saveGatewaySupervisionState(state);
+}
 
 function writeAuditLog(action, command) {
   try {
@@ -1087,7 +1231,9 @@ try {
 }
 }
 
-runAppLaunchSchedules(Date.now());
+const tickNow = Date.now();
+superviseGateway(tickNow);
+runAppLaunchSchedules(tickNow);
 `;
 }
 

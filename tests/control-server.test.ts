@@ -31,6 +31,8 @@ vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),
   writeDesktopConfig: (c: unknown) => mockWriteDesktopConfig(c),
   getConnectionConfig: () => ({ mode: "local" }),
+  getConfigValue: () => "8643",
+  setConfigValue: vi.fn(),
 }));
 
 vi.mock("../src/main/hermes", () => ({
@@ -50,6 +52,8 @@ vi.mock("../src/main/note-index", () => ({
 
 vi.mock("../src/main/utils", () => ({
   getActiveProfileNameSync: () => "test-profile",
+  normalizeProfileName: (profile?: string) =>
+    !profile || profile === "default" ? undefined : profile,
   safeWriteFile: (path: string, content: string) =>
     mockWriteFileSync(path, content, "utf-8"),
 }));
