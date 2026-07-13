@@ -31,7 +31,6 @@ export const IPC_ARGUMENT_CONTRACTS: Readonly<
   "remove-mcp-server": [{ kind: "string" }, optionalString],
   "revoke-pairing": [{ kind: "string" }, optionalString],
   "run-hermes-import": [{ kind: "string" }, optionalString],
-  "set-active-profile": [{ kind: "string" }],
   "set-app-zoom-factor": [{ kind: "number" }],
   "set-env": [
     { kind: "string" },

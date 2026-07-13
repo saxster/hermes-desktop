@@ -69,14 +69,10 @@ jobs:
       - name: Test
         run: npm test
 
-      # Lint remains informational on PRs while the formatting backlog is
-      # reduced. Release verification gates on eslint errors with --quiet.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
   verify-smoke:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

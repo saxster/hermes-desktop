@@ -45,7 +45,6 @@ import {
   testRemoteConnection,
   setSshRemoteApiKey,
   clearSshRemoteApiKey,
-  notifyProfileSwitched,
   respondRunApproval,
 } from "../hermes";
 import {
@@ -85,7 +84,6 @@ import {
   listProfiles,
   createProfile,
   deleteProfile,
-  setActiveProfile,
 } from "../profiles";
 import { listModels, addModel, removeModel, updateModel } from "../models";
 import {
@@ -416,17 +414,6 @@ export function registerConfigIpc(): void {
   registerDualHandler("list-profiles", listProfiles, sshListProfiles);
   registerDualHandler("create-profile", createProfile, sshCreateProfile);
   registerDualHandler("delete-profile", deleteProfile, sshDeleteProfile);
-  safeHandle("set-active-profile", (_event, name: string) => {
-    if (getConnectionConfig().mode !== "ssh") {
-      setActiveProfile(name);
-      notifyProfileSwitched();
-      if (!isRemoteMode() && !isGatewayRunning(name)) {
-        startGateway(name);
-      }
-    }
-    return true;
-  });
-
   // Credential Pool
   safeHandle("get-credential-pool", (_event, profile?: string) =>
     getCredentialPool(profile),

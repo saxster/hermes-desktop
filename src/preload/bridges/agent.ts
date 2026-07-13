@@ -96,9 +96,6 @@ export const agentBridge = {
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("delete-profile", name),
 
-  setActiveProfile: (name: string): Promise<boolean> =>
-    ipcRenderer.invoke("set-active-profile", name),
-
   // Memory
   readMemory: (profile?: string): Promise<MemoryInfo> =>
     ipcRenderer.invoke("read-memory", profile),

@@ -1,15 +1,5 @@
 export default {
   title: "Settings",
-  // Tabbed sub-navigation groups.
-  tabGeneral: "General",
-  tabConnection: "Remote Access",
-  tabAgentHealth: "Troubleshooting",
-  tabData: "Data",
-  tabAdvanced: "Advanced",
-  // Memory moved to its own nav item; Settings keeps a link.
-  openMemory: "Open Memory →",
-  memoryMovedHint:
-    "My Assistant's memory now has its own place in the sidebar.",
   sections: {
     hermesAgent: "SPS",
     appearance: "Appearance",
@@ -21,16 +11,6 @@ export default {
     system: "System",
     light: "Light",
     dark: "Dark",
-  },
-  language: {
-    label: "Language",
-    english: "English",
-    indonesian: "Bahasa Indonesia",
-    japanese: "日本語",
-    spanish: "Español",
-    chinese: "中文",
-    portuguese: "Portuguese",
-    hint: "Choose the interface language",
   },
   analytics: {
     label: "Send anonymous usage analytics",
@@ -47,7 +27,6 @@ export default {
     },
   },
   notDetected: "Not detected",
-  updatedSuccessfully: "Updated successfully!",
   updateSuccess: "SPS updated successfully.",
   updateFailed: "Update failed.",
   version: "v{{version}}",

@@ -115,11 +115,7 @@ describe("getConfigValue — dotted paths (issue #247)", () => {
     expect(getConfigValue("agent.service_tier")).toBeNull();
   });
 
-  // Skipped: getYamlValue is currently permissive on grandchildren and
-  // flat-key column-0 enforcement.  The strictness these cases document is
-  // desired but not yet present; tracked as a follow-up against
-  // `yaml-utils.ts` (the live parser; the old `yaml-path.ts` was removed).
-  it.skip("ignores grandchildren — agent.service_tier matches only direct child", async () => {
+  it("ignores grandchildren — agent.service_tier matches only direct child", async () => {
     writeFileSync(
       join(TEST_DIR, "config.yaml"),
       [
@@ -150,10 +146,7 @@ describe("getConfigValue — flat keys pinned to top level", () => {
     expect(getConfigValue("timezone")).toBe("America/New_York");
   });
 
-  // Skipped: see note on the grandchildren test above — `getYamlPath`
-  // currently falls through to nested matches when called with a flat
-  // key.  Desired behavior is column-0 enforcement; tracked separately.
-  it.skip("does NOT match a nested occurrence when called with a flat key", async () => {
+  it("does NOT match a nested occurrence when called with a flat key", async () => {
     writeFileSync(
       join(TEST_DIR, "config.yaml"),
       ["agent:", "  service_tier: fast", "  max_turns: 60", ""].join("\n"),
@@ -163,7 +156,7 @@ describe("getConfigValue — flat keys pinned to top level", () => {
     expect(getConfigValue("service_tier")).toBeNull();
   });
 
-  it.skip("does NOT pick the first nested occurrence across siblings", async () => {
+  it("does NOT pick the first nested occurrence across siblings", async () => {
     writeFileSync(
       join(TEST_DIR, "config.yaml"),
       [

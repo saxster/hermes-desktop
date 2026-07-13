@@ -98,8 +98,6 @@ export interface AgentBridgeApi {
     name: string,
   ) => Promise<{ success: boolean; error?: string }>;
 
-  setActiveProfile: (name: string) => Promise<boolean>;
-
   // Memory
 
   readMemory: (profile?: string) => Promise<Api.MemoryInfo>;

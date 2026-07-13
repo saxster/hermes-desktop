@@ -16,9 +16,6 @@ export default {
   advanced: "Advanced",
   // Admin overlay title + nav group headers (task-based IA).
   controlCenterTitle: "SPS Control Center",
-  groupAgents: "Assistants",
-  groupConnectivity: "Connectivity",
-  groupSystem: "System",
   groupStart: "Start",
   groupWorkspace: "Workspace",
   groupPowerUser: "Power User",

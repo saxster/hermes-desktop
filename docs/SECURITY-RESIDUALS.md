@@ -39,7 +39,12 @@ bundled runtime needs:
 
 - `script-src 'self' 'wasm-unsafe-eval' blob:` for packaged renderer/runtime
   behavior.
+- `worker-src 'self' blob:` for bundled web-worker code.
 - `font-src 'self' data:` for bundled/local font loading.
+- `img-src` and `media-src` allow `data:`, `blob:`, and the app-owned
+  `sps-asset:` protocol for local workspace assets.
+- `connect-src 'self' data: blob: sps-asset:` for same-origin renderer traffic
+  and app-owned local asset reads.
 
 These exceptions should not be broadened unless a focused change proves the new
 source is required.

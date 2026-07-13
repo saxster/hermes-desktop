@@ -352,11 +352,11 @@ describe("full-document round-trip", () => {
     expect(out).toEqual([bare(blk("p", "real"))]);
   });
 
-  it("round-trips the real seed Home document (sans empty paragraphs)", () => {
-    const content = HOME_BLOCKS.filter(
-      (b) => !(b.type === "p" && !b.text.trim()),
-    );
-    expectRoundTrip(content);
+  it("serializes the intentionally blank seed Home document", () => {
+    expect(HOME_BLOCKS).toEqual([
+      expect.objectContaining({ type: "p", text: "" }),
+    ]);
+    expect(blocksToMarkdown(HOME_BLOCKS)).toBe("");
   });
 });
 

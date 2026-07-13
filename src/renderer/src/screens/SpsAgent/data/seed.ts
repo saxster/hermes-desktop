@@ -47,33 +47,9 @@ export const PRIO: Record<PrioKey, PrioDef> = {
 export const TASKS: Task[] = [];
 
 // ---- sidebar page tree seed ----
-export const FAVORITES: SeedTreeNode[] = [
-  { id: "home", emoji: "🏠", label: "Home" },
-];
-
 export const TREE: SeedTreeNode[] = [
   { id: "home", emoji: "🏠", label: "Home" },
 ];
-
-// ---- suggested assistant prompts ----
-export const SUGGESTIONS = [
-  { id: "summary", icon: "sparkle", label: "Summarize this page" },
-  { id: "nextsteps", icon: "wand", label: "Draft next steps" },
-  { id: "tasks", icon: "board", label: "Pull action items into tasks" },
-  { id: "tighten", icon: "text", label: "Tighten this writing" },
-] as const;
-
-/** Flatten a seed tree into a flat node list (for mention/palette listings). */
-export function flattenTree(
-  nodes: SeedTreeNode[],
-  acc: SeedTreeNode[] = [],
-): SeedTreeNode[] {
-  for (const n of nodes) {
-    acc.push(n);
-    if (n.children) flattenTree(n.children, acc);
-  }
-  return acc;
-}
 
 // ---- initial blank workspace ----
 function treeFromSeed(nodes: SeedTreeNode[]): TreeNode[] {

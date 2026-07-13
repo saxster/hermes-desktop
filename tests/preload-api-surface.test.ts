@@ -351,7 +351,6 @@ describe("Legacy APIs preserved (backward compat)", () => {
     "listProfiles",
     "createProfile",
     "deleteProfile",
-    "setActiveProfile",
     // Memory
     "readMemory",
     "addMemoryEntry",
