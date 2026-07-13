@@ -19,7 +19,7 @@
 // on-demand expression indexes.
 import Database from "better-sqlite3";
 import type { Dirent } from "fs";
-import { mkdir, readdir, readFile, stat } from "fs/promises";
+import { mkdir, readdir, readFile, rm, stat } from "fs/promises";
 import {
   basename,
   extname,
@@ -116,6 +116,22 @@ function extractInlineTags(body: string): string[] {
   return [...tags];
 }
 const INDEX_DB_FILE = ".note-index.db";
+
+function isRecoverableSqliteCorruption(error: unknown): boolean {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  return code === "SQLITE_NOTADB" || code.startsWith("SQLITE_CORRUPT");
+}
+
+async function removeDerivedIndexFiles(dbPath: string): Promise<void> {
+  await Promise.all(
+    [dbPath, `${dbPath}-wal`, `${dbPath}-shm`].map((path) =>
+      rm(path, { force: true }),
+    ),
+  );
+}
 
 // Wiki META pages (Karpathy LLM-Wiki): the LLM-maintained catalog, the
 // append-only evolution log, and the schema. They are intentionally link-free
@@ -303,12 +319,23 @@ export class NoteIndex {
     public readonly root: string,
     dbPath: string,
   ) {
-    this.db = new Database(dbPath);
-    this.db.pragma("journal_mode = WAL");
-    this.db.pragma("synchronous = NORMAL");
-    this.ensureSchema();
-    this.prepareStatements();
-    this.loadExistingPropIndexes();
+    let db: Database.Database | null = null;
+    try {
+      db = new Database(dbPath);
+      this.db = db;
+      this.db.pragma("journal_mode = WAL");
+      this.db.pragma("synchronous = NORMAL");
+      this.ensureSchema();
+      this.prepareStatements();
+      this.loadExistingPropIndexes();
+    } catch (error) {
+      try {
+        db?.close();
+      } catch {
+        // Preserve the original open/schema error.
+      }
+      throw error;
+    }
   }
 
   private prepareStatements(): void {
@@ -387,10 +414,26 @@ export class NoteIndex {
 
   /** Open (or create) the index for a workspace root and do an initial scan. */
   static async open(root: string): Promise<NoteIndex> {
-    const idx = new NoteIndex(root, join(root, INDEX_DB_FILE));
-    const count = idx.count("notes");
-    if (count === 0) await idx.rebuild();
-    return idx;
+    const dbPath = join(root, INDEX_DB_FILE);
+    const openOnce = async (): Promise<NoteIndex> => {
+      const idx = new NoteIndex(root, dbPath);
+      const count = idx.count("notes");
+      if (count === 0) await idx.rebuild();
+      return idx;
+    };
+
+    try {
+      return await openOnce();
+    } catch (error) {
+      if (!isRecoverableSqliteCorruption(error)) throw error;
+      log.warn("note-index", {
+        msg: "rebuilding corrupt derived index",
+        root,
+        error: formatLogError(error),
+      });
+      await removeDerivedIndexFiles(dbPath);
+      return openOnce();
+    }
   }
 
   private ensureSchema(): void {

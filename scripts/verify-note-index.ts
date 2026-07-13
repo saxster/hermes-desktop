@@ -1,7 +1,7 @@
 // Standalone runtime proof for the S1 note indexer. Runs under Electron's node
 // (ELECTRON_RUN_AS_NODE=1) so the Electron-ABI better-sqlite3 binary loads.
 // Bundled via esbuild and executed by scripts/verify-note-index.sh.
-import { mkdtemp, rm, writeFile, mkdir } from "fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, stat } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -101,6 +101,40 @@ async function main(): Promise<void> {
     retried.status().notes === 0,
     "evicts a rejected cached open so the root can recover without restart",
   );
+
+  const corruptRoot = await mkdtemp(join(tmpdir(), "note-index-corrupt-"));
+  await writeFile(join(corruptRoot, "truth.md"), "# Recovered from markdown\n");
+  await writeFile(join(corruptRoot, ".note-index.db"), "not a sqlite database");
+  await writeFile(join(corruptRoot, ".note-index.db-wal"), "stale wal");
+  await writeFile(join(corruptRoot, ".note-index.db-shm"), "stale shm");
+  const recovered = await NoteIndex.open(corruptRoot);
+  assert(
+    recovered.search("markdown").some((hit) => hit.path === "truth.md"),
+    "rebuilds a corrupt derived database and sidecars from markdown",
+  );
+  await recovered.close();
+  await rm(corruptRoot, { recursive: true, force: true });
+
+  const nonCorruptRoot = await mkdtemp(
+    join(tmpdir(), "note-index-non-corrupt-"),
+  );
+  await mkdir(join(nonCorruptRoot, ".note-index.db"), { recursive: true });
+  let nonCorruptFailureSurfaced = false;
+  try {
+    await NoteIndex.open(nonCorruptRoot);
+  } catch {
+    nonCorruptFailureSurfaced = true;
+  }
+  assert(
+    nonCorruptFailureSurfaced,
+    "does not delete or disguise non-corruption index open failures",
+  );
+  const blockingEntry = await stat(join(nonCorruptRoot, ".note-index.db"));
+  assert(
+    blockingEntry.isDirectory(),
+    "preserves the filesystem entry that caused a non-corruption failure",
+  );
+  await rm(nonCorruptRoot, { recursive: true, force: true });
 
   const hits = index.search("brown").map((h) => h.path);
   assert(hits.includes("alpha.md"), "FTS search finds body text");
