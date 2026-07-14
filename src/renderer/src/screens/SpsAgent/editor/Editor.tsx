@@ -11,6 +11,7 @@ import {
 import { Icon } from "../components/Icon";
 import { MentionMenu } from "../components/pickers/MentionMenu";
 import { blk, uid } from "../lib/ids";
+import { sanitizeHtml } from "../lib/sanitize";
 import { useStore } from "../store";
 import { selectCurrentBlocks } from "../store/selectors";
 import { BlockInner } from "./BlockInner";
@@ -20,14 +21,21 @@ import { SlashMenu, type SlashItem } from "./SlashMenu";
 import { detectMarkdown } from "./markdown";
 import {
   caretRect,
+  editableSelectionFragments,
   insertMentionChip,
   mentionQuery,
+  placeCaretAtTextOffset,
   placeCaretEnd,
   type MentionItem,
 } from "./selection";
+import {
+  createStructuralHistory,
+  mergeBlockBackward,
+  orderedListNumber,
+  pasteBlocksAtCaret,
+  splitBlockAtCaret,
+} from "./blockEditing";
 import type { Block, BlockType, DbView, Task } from "../types";
-
-const CARRY: BlockType[] = ["todo", "li", "numli"];
 
 interface MenuState {
   blockId: string;
@@ -55,6 +63,11 @@ export function Editor() {
   const runWork = useStore((s) => s.runWork);
   const pageMeta = useStore((s) => s.meta);
   const page = useStore((s) => s.page);
+  const historyRef = useRef(createStructuralHistory());
+
+  useEffect(() => {
+    historyRef.current.clear();
+  }, [page]);
 
   // Copy an Obsidian block ref and mark the block so markdown keeps its ^id.
   const copyBlockLink = (id: string): void => {
@@ -107,6 +120,17 @@ export function Editor() {
       const el = refs.current[id]?.current;
       if (el) el.focus();
     });
+
+  const focusAtOffsetSoon = (id: string, offset: number) =>
+    requestAnimationFrame(() => {
+      const el = refs.current[id]?.current;
+      if (!el) return;
+      el.focus();
+      placeCaretAtTextOffset(el, offset);
+    });
+
+  const commitStructure = (update: (current: Block[]) => Block[]) =>
+    setBlocks((current) => historyRef.current.apply(current, update));
 
   const insertAfter = (id: string, nb: Block) =>
     setBlocks((bs) => {
@@ -167,33 +191,46 @@ export function Editor() {
     } else if (mention) setMention(null);
   };
 
-  const onEnter = (id: string) => {
-    const cur = blocks.find((b) => b.id === id);
-    if (cur?.type === "toggle") {
-      const nb = blk("p", "");
-      nb.indent = (cur.indent || 0) + 1;
-      insertAfter(id, nb);
-      focusSoon(nb.id);
-      return;
-    }
-    const carry = cur && CARRY.includes(cur.type) && cur.text ? cur.type : "p";
-    const nb = blk(carry, "", carry === "todo" ? { done: false } : {});
-    nb.indent = cur?.indent || 0;
-    insertAfter(id, nb);
-    focusSoon(nb.id);
+  const onEnter = (id: string, el: HTMLElement) => {
+    const fragments = editableSelectionFragments(el);
+    const newId = uid("b");
+    commitStructure((current) => {
+      const index = current.findIndex((block) => block.id === id);
+      if (index < 0) return current;
+      const split = splitBlockAtCaret(
+        current[index],
+        fragments.before,
+        fragments.after,
+        newId,
+      );
+      const next = [...current];
+      next.splice(index, 1, ...split);
+      return next;
+    });
+    focusAtOffsetSoon(newId, 0);
   };
 
   const onBackspaceEmpty = (id: string) => {
     const cur = blocks.find((b) => b.id === id);
     if (cur && (cur.indent || 0) > 0) {
-      setType(id, { indent: (cur.indent || 0) - 1 });
+      commitStructure((current) =>
+        current.map((block) =>
+          block.id === id
+            ? { ...block, indent: (block.indent || 0) - 1 }
+            : block,
+        ),
+      );
       return;
     }
     if (cur && cur.type !== "p") {
-      setType(id, { type: "p" });
+      commitStructure((current) =>
+        current.map((block) =>
+          block.id === id ? { ...block, type: "p" } : block,
+        ),
+      );
       return;
     }
-    setBlocks((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       if (i <= 0) return bs;
       const prev = bs[i - 1];
@@ -208,8 +245,15 @@ export function Editor() {
     });
   };
 
+  const onBackspaceAtStart = (id: string) => {
+    const merged = mergeBlockBackward(blocks, id);
+    if (!merged) return;
+    commitStructure(() => merged.blocks);
+    focusAtOffsetSoon(merged.focus.id, merged.focus.offset);
+  };
+
   const onIndent = (id: string, dir: number) =>
-    setBlocks((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       const maxIndent = i > 0 ? (bs[i - 1].indent || 0) + 1 : 0;
       const cur = Math.max(
@@ -218,6 +262,46 @@ export function Editor() {
       );
       return bs.map((b) => (b.id === id ? { ...b, indent: cur } : b));
     });
+
+  const onPasteBlocks = (id: string, el: HTMLElement, pasted: Block[]) => {
+    if (pasted.length === 0) return;
+    const fragments = editableSelectionFragments(el);
+    const focusId = pasted.length > 1 ? pasted[pasted.length - 1].id : id;
+    const focusOffset =
+      pasted.length > 1
+        ? pasted[pasted.length - 1].text.length
+        : fragments.before.text.length + pasted[0].text.length;
+    commitStructure((current) =>
+      pasteBlocksAtCaret(
+        current,
+        id,
+        fragments.before,
+        fragments.after,
+        pasted,
+      ),
+    );
+    focusAtOffsetSoon(focusId, focusOffset);
+  };
+
+  const onUndoStructure = (): boolean => {
+    let handled = false;
+    setBlocks((current) => {
+      const restored = historyRef.current.undo(current);
+      handled = restored !== null;
+      return restored ?? current;
+    });
+    return handled;
+  };
+
+  const onRedoStructure = (): boolean => {
+    let handled = false;
+    setBlocks((current) => {
+      const restored = historyRef.current.redo(current);
+      handled = restored !== null;
+      return restored ?? current;
+    });
+    return handled;
+  };
 
   const onArrow = (id: string, dir: number): boolean => {
     const i = blocks.findIndex((b) => b.id === id);
@@ -326,7 +410,11 @@ export function Editor() {
     setBlocks((bs) =>
       bs.map((b) =>
         b.id === id
-          ? { ...b, html: node.innerHTML, text: node.textContent || "" }
+          ? {
+              ...b,
+              html: sanitizeHtml(node.innerHTML),
+              text: node.textContent || "",
+            }
           : b,
       ),
     );
@@ -378,11 +466,18 @@ export function Editor() {
   const setView = (id: string, view: DbView) => setType(id, { view });
 
   const turnInto = (id: string, type: BlockType) =>
-    setType(id, {
-      type,
-      done: type === "todo" ? false : undefined,
-      collapsed: type === "toggle" ? false : undefined,
-    });
+    commitStructure((current) =>
+      current.map((block) =>
+        block.id === id
+          ? {
+              ...block,
+              type,
+              done: type === "todo" ? false : undefined,
+              collapsed: type === "toggle" ? false : undefined,
+            }
+          : block,
+      ),
+    );
   const colorBlock = (
     id: string,
     patch: { color?: string | null; bg?: string | null },
@@ -399,7 +494,7 @@ export function Editor() {
       ),
     );
   const duplicate = (id: string) =>
-    setBlocks((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       const copy = { ...bs[i], id: uid("b") };
       const n = [...bs];
@@ -407,7 +502,7 @@ export function Editor() {
       return n;
     });
   const removeBlock = (id: string) =>
-    setBlocks((bs) => bs.filter((b) => b.id !== id));
+    commitStructure((bs) => bs.filter((b) => b.id !== id));
 
   const onDrop = (targetId: string) => {
     if (!dragId || dragId === targetId) {
@@ -415,7 +510,7 @@ export function Editor() {
       setOverId(null);
       return;
     }
-    setBlocks((bs) => {
+    commitStructure((bs) => {
       const from = bs.findIndex((b) => b.id === dragId);
       const to = bs.findIndex((b) => b.id === targetId);
       const n = [...bs];
@@ -473,7 +568,11 @@ export function Editor() {
     updateBlock,
     onEnter,
     onBackspaceEmpty,
+    onBackspaceAtStart,
     onIndent,
+    onPasteBlocks,
+    onUndoStructure,
+    onRedoStructure,
     onArrow,
     toggleTodo,
     toggleCollapse,
@@ -513,7 +612,11 @@ export function Editor() {
               })
             }
           >
-            <BlockInner block={row.block} {...innerProps} />
+            <BlockInner
+              block={row.block}
+              listNumber={orderedListNumber(blocks, row.block.id)}
+              {...innerProps}
+            />
           </BlockRow>
         ) : (
           <div

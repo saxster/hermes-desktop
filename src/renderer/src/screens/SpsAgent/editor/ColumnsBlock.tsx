@@ -10,19 +10,28 @@
 // nest another columns block (no recursion) or a database/media block.
 import { useCallback, useRef, type RefObject } from "react";
 import { Icon } from "../components/Icon";
-import { blk, uid } from "../lib/ids";
+import { uid } from "../lib/ids";
 import { stripHtml } from "../lib/html";
+import { sanitizeHtml } from "../lib/sanitize";
 import { detectMarkdown } from "./markdown";
-import { placeCaretEnd } from "./selection";
+import {
+  editableSelectionFragments,
+  placeCaretAtTextOffset,
+  placeCaretEnd,
+} from "./selection";
 import { BlockInner } from "./BlockInner";
+import {
+  createStructuralHistory,
+  mergeBlockBackward,
+  orderedListNumber,
+  pasteBlocksAtCaret,
+  splitBlockAtCaret,
+} from "./blockEditing";
 import { useStore } from "../store";
 import type { Block } from "../types";
 
 const MIN_COLS = 1;
 const MAX_COLS = 3;
-// List-ish types carry their type onto the next block when you press Enter.
-const CARRY = new Set<Block["type"]>(["todo", "li", "numli"]);
-
 interface Props {
   block: Block;
   setType: (id: string, patch: Partial<Block>) => void;
@@ -118,15 +127,25 @@ function ColumnEditor({
   onChange: (blocks: Block[]) => void;
 }) {
   const refs = useRef<Record<string, RefObject<HTMLDivElement | null>>>({});
+  const historyRef = useRef(createStructuralHistory());
   const pageMeta = useStore((s) => s.meta);
   const selectPage = useStore((s) => s.selectPage);
 
   const set = (updater: (bs: Block[]) => Block[]): void =>
     onChange(updater(blocks));
+  const commitStructure = (updater: (bs: Block[]) => Block[]): void =>
+    onChange(historyRef.current.apply(blocks, updater));
   const setType = (id: string, patch: Partial<Block>): void =>
     set((bs) => bs.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   const focusSoon = (id: string): void =>
     void requestAnimationFrame(() => refs.current[id]?.current?.focus());
+  const focusAtOffsetSoon = (id: string, offset: number): void =>
+    void requestAnimationFrame(() => {
+      const el = refs.current[id]?.current;
+      if (!el) return;
+      el.focus();
+      placeCaretAtTextOffset(el, offset);
+    });
 
   const registerRef = useCallback(
     (id: string, r: RefObject<HTMLDivElement | null>) => {
@@ -175,32 +194,45 @@ function ColumnEditor({
     }
   };
 
-  const onEnter = (id: string): void => {
-    const cur = blocks.find((b) => b.id === id);
-    if (cur?.type === "toggle") {
-      const nb = { ...emptyBlock(), indent: (cur.indent || 0) + 1 };
-      insertAfter(id, nb);
-      focusSoon(nb.id);
-      return;
-    }
-    const carry = cur && CARRY.has(cur.type) && cur.text ? cur.type : "p";
-    const extra = carry === "todo" ? { done: false } : {};
-    const nb = blk(carry, "", { ...extra, indent: cur?.indent || 0 });
-    insertAfter(id, nb);
-    focusSoon(nb.id);
+  const onEnter = (id: string, el: HTMLElement): void => {
+    const fragments = editableSelectionFragments(el);
+    const newId = uid("b");
+    commitStructure((current) => {
+      const index = current.findIndex((item) => item.id === id);
+      if (index < 0) return current;
+      const next = [...current];
+      next.splice(
+        index,
+        1,
+        ...splitBlockAtCaret(
+          current[index],
+          fragments.before,
+          fragments.after,
+          newId,
+        ),
+      );
+      return next;
+    });
+    focusAtOffsetSoon(newId, 0);
   };
 
   const onBackspaceEmpty = (id: string): void => {
     const cur = blocks.find((b) => b.id === id);
     if (cur && (cur.indent || 0) > 0) {
-      setType(id, { indent: (cur.indent || 0) - 1 });
+      commitStructure((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, indent: (item.indent || 0) - 1 } : item,
+        ),
+      );
       return;
     }
     if (cur && cur.type !== "p") {
-      setType(id, { type: "p" });
+      commitStructure((current) =>
+        current.map((item) => (item.id === id ? { ...item, type: "p" } : item)),
+      );
       return;
     }
-    set((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       if (i <= 0) return bs; // keep the column's first block — never empties out
       const prev = bs[i - 1];
@@ -215,8 +247,39 @@ function ColumnEditor({
     });
   };
 
+  const onBackspaceAtStart = (id: string): void => {
+    const merged = mergeBlockBackward(blocks, id);
+    if (!merged) return;
+    commitStructure(() => merged.blocks);
+    focusAtOffsetSoon(merged.focus.id, merged.focus.offset);
+  };
+
+  const onPasteBlocks = (
+    id: string,
+    el: HTMLElement,
+    pasted: Block[],
+  ): void => {
+    if (pasted.length === 0) return;
+    const fragments = editableSelectionFragments(el);
+    const focusId = pasted.length > 1 ? pasted[pasted.length - 1].id : id;
+    const focusOffset =
+      pasted.length > 1
+        ? pasted[pasted.length - 1].text.length
+        : fragments.before.text.length + pasted[0].text.length;
+    commitStructure((current) =>
+      pasteBlocksAtCaret(
+        current,
+        id,
+        fragments.before,
+        fragments.after,
+        pasted,
+      ),
+    );
+    focusAtOffsetSoon(focusId, focusOffset);
+  };
+
   const onIndent = (id: string, dir: number): void =>
-    set((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       const maxIndent = i > 0 ? (bs[i - 1].indent || 0) + 1 : 0;
       const cur = Math.max(
@@ -225,6 +288,20 @@ function ColumnEditor({
       );
       return bs.map((b) => (b.id === id ? { ...b, indent: cur } : b));
     });
+
+  const onUndoStructure = (): boolean => {
+    const restored = historyRef.current.undo(blocks);
+    if (!restored) return false;
+    onChange(restored);
+    return true;
+  };
+
+  const onRedoStructure = (): boolean => {
+    const restored = historyRef.current.redo(blocks);
+    if (!restored) return false;
+    onChange(restored);
+    return true;
+  };
 
   const onArrow = (id: string, dir: number): boolean => {
     const i = blocks.findIndex((b) => b.id === id);
@@ -244,7 +321,11 @@ function ColumnEditor({
     set((bs) =>
       bs.map((b) =>
         b.id === id
-          ? { ...b, html: node.innerHTML, text: node.textContent || "" }
+          ? {
+              ...b,
+              html: sanitizeHtml(node.innerHTML),
+              text: node.textContent || "",
+            }
           : b,
       ),
     );
@@ -263,7 +344,11 @@ function ColumnEditor({
             updateBlock={updateBlock}
             onEnter={onEnter}
             onBackspaceEmpty={onBackspaceEmpty}
+            onBackspaceAtStart={onBackspaceAtStart}
             onIndent={onIndent}
+            onPasteBlocks={onPasteBlocks}
+            onUndoStructure={onUndoStructure}
+            onRedoStructure={onRedoStructure}
             onArrow={onArrow}
             toggleTodo={(id) =>
               set((bs) =>
@@ -285,6 +370,7 @@ function ColumnEditor({
             onDecision={() => {}}
             onOpenPage={selectPage}
             pageMeta={pageMeta}
+            listNumber={orderedListNumber(blocks, b.id)}
           />
         </div>
       ))}

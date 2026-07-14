@@ -40,6 +40,29 @@ export function sanitizeHtml(html: string): string {
   });
 }
 
+const PASTE_STRUCTURE_TAGS = [
+  ...ALLOWED_TAGS,
+  "p",
+  "div",
+  "h1",
+  "h2",
+  "h3",
+  "blockquote",
+  "pre",
+  "ul",
+  "ol",
+  "li",
+];
+
+/** Keep prose structure from the clipboard while dropping executable content. */
+export function sanitizePastedHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: PASTE_STRUCTURE_TAGS,
+    ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: true,
+  });
+}
+
 export function sanitizeSvg(svg: string | null | undefined): string {
   if (typeof svg !== "string" || svg.length === 0) return "";
   return DOMPurify.sanitize(svg, {

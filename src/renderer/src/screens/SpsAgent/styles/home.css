@@ -1125,6 +1125,10 @@
   min-width: 1.4em;
   text-align: right;
 }
+.sps-scope .b-li .num::before {
+  counter-increment: sps-numli;
+  content: counter(sps-numli) ".";
+}
 .sps-scope .b-li .block {
   padding-top: 0;
   padding-bottom: 0;

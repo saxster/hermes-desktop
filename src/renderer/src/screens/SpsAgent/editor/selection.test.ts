@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { safeCssColor } from "./selection";
+import {
+  editableSelectionFragments,
+  isCaretAtStart,
+  safeCssColor,
+} from "./selection";
 
 describe("safeCssColor", () => {
   it("accepts hex, rgb, and named colors", () => {
@@ -17,5 +21,26 @@ describe("safeCssColor", () => {
     expect(safeCssColor("expression(alert(1))")).toBeUndefined();
     expect(safeCssColor("")).toBeUndefined();
     expect(safeCssColor(undefined)).toBeUndefined();
+  });
+});
+
+describe("editable selection helpers", () => {
+  it("splits nested inline markup at the current caret", () => {
+    const editor = document.createElement("div");
+    editor.innerHTML = "<strong>Alpha beta</strong> tail";
+    document.body.appendChild(editor);
+    const text = editor.querySelector("strong")?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, 5);
+    range.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+
+    expect(editableSelectionFragments(editor)).toEqual({
+      before: { html: "<strong>Alpha</strong>", text: "Alpha" },
+      after: { html: "<strong> beta</strong> tail", text: " beta tail" },
+    });
+    expect(isCaretAtStart(editor)).toBe(false);
+    editor.remove();
   });
 });

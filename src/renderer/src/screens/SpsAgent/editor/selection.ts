@@ -9,6 +9,11 @@ export interface MentionItem {
   emoji?: string;
 }
 
+export interface EditableSelectionFragments {
+  before: { html: string; text: string };
+  after: { html: string; text: string };
+}
+
 /** Allow only simple CSS color tokens for mention chips (no url()/expression). */
 export function safeCssColor(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -101,4 +106,78 @@ export function placeCaretEnd(el: HTMLElement): void {
   if (!s) return;
   s.removeAllRanges();
   s.addRange(r);
+}
+
+function fragmentContent(fragment: DocumentFragment): {
+  html: string;
+  text: string;
+} {
+  const host = document.createElement("div");
+  host.appendChild(fragment);
+  return { html: host.innerHTML, text: host.textContent || "" };
+}
+
+export function editableSelectionFragments(
+  el: HTMLElement,
+): EditableSelectionFragments {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) {
+    return {
+      before: { html: el.innerHTML, text: el.textContent || "" },
+      after: { html: "", text: "" },
+    };
+  }
+  const range = selection.getRangeAt(0);
+  if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) {
+    return {
+      before: { html: el.innerHTML, text: el.textContent || "" },
+      after: { html: "", text: "" },
+    };
+  }
+  const before = document.createRange();
+  before.selectNodeContents(el);
+  before.setEnd(range.startContainer, range.startOffset);
+  const after = document.createRange();
+  after.selectNodeContents(el);
+  after.setStart(range.endContainer, range.endOffset);
+  return {
+    before: fragmentContent(before.cloneContents()),
+    after: fragmentContent(after.cloneContents()),
+  };
+}
+
+export function isCaretAtStart(el: HTMLElement): boolean {
+  const selection = window.getSelection();
+  if (!selection?.isCollapsed || !selection.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  if (!el.contains(range.startContainer)) return false;
+  const before = document.createRange();
+  before.selectNodeContents(el);
+  before.setEnd(range.startContainer, range.startOffset);
+  return (before.cloneContents().textContent || "").length === 0;
+}
+
+export function placeCaretAtTextOffset(
+  el: HTMLElement,
+  requestedOffset: number,
+): void {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, requestedOffset);
+  let node = walker.nextNode();
+  while (node) {
+    const length = node.textContent?.length || 0;
+    if (remaining <= length) {
+      const range = document.createRange();
+      range.setStart(node, remaining);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
+    }
+    remaining -= length;
+    node = walker.nextNode();
+  }
+  placeCaretEnd(el);
 }

@@ -24,7 +24,11 @@ export interface BlockInnerProps {
   updateBlock: (id: string, html: string, text: string) => void;
   onEnter: (id: string, el: HTMLElement) => void;
   onBackspaceEmpty: (id: string) => void;
+  onBackspaceAtStart?: (id: string) => void;
   onIndent: (id: string, dir: number) => void;
+  onPasteBlocks?: (id: string, el: HTMLElement, blocks: Block[]) => void;
+  onUndoStructure?: () => boolean;
+  onRedoStructure?: () => boolean;
   onArrow: (id: string, dir: number, el: HTMLElement) => boolean;
   toggleTodo: (id: string) => void;
   toggleCollapse: (id: string) => void;
@@ -36,6 +40,7 @@ export interface BlockInnerProps {
   onDecision: (proposalId: string, accept: boolean) => void;
   onOpenPage?: (id: string) => void;
   pageMeta?: Record<string, PageMeta>;
+  listNumber?: number | null;
 }
 
 export function BlockInner(props: BlockInnerProps) {
@@ -48,7 +53,11 @@ export function BlockInner(props: BlockInnerProps) {
     onInput: props.updateBlock,
     onEnter: props.onEnter,
     onBackspaceEmpty: props.onBackspaceEmpty,
+    onBackspaceAtStart: props.onBackspaceAtStart,
     onIndent: props.onIndent,
+    onPasteBlocks: props.onPasteBlocks,
+    onUndoStructure: props.onUndoStructure,
+    onRedoStructure: props.onRedoStructure,
     onArrow: props.onArrow,
     registerRef: props.registerRef,
     color: block.color,
@@ -112,7 +121,12 @@ export function BlockInner(props: BlockInnerProps) {
     case "numli":
       return (
         <div className="b-li">
-          <span className="marker num">1.</span>
+          <span
+            className="marker num"
+            style={{
+              counterReset: `sps-numli ${Math.max(0, (props.listNumber || 1) - 1)}`,
+            }}
+          />
           <Editable {...common} cls="" placeholder="List item" />
         </div>
       );
