@@ -9,6 +9,7 @@ import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import { SpsModal } from "./SpsModal";
 import { commitChangeset } from "../inbox/ingestApply";
+import { flushSpsStorePersistence } from "../store/lifecycle";
 import { AppLaunchSection } from "./app-launcher/AppLaunchSection";
 import {
   CADENCES,
@@ -319,6 +320,7 @@ export function ScheduledModal() {
     setBusyId(p.id);
     try {
       await commitChangeset(p.changeset, ingestCommitPage);
+      await flushSpsStorePersistence();
       // Log the wiki evolution under the originating schedule's kind so a digest
       // commit isn't mislabelled "research".
       const sched = schedules.find((s) => s.id === p.scheduleId);
@@ -328,6 +330,10 @@ export function ScheduledModal() {
       await refresh();
       selectPage(p.pageId);
       flash(`Applied "${p.topic}" to your Knowledge Base`);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Update was not saved", {
+        tone: "warn",
+      });
     } finally {
       setBusyId(null);
     }

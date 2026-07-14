@@ -6,6 +6,7 @@ import { join } from "path";
 import {
   listSnapshotsIn,
   restoreSnapshotFrom,
+  restoreWorkspaceSnapshot,
   selectSnapshotIdsToPrune,
   snapshotWorkspaceTo,
 } from "./sps-backups";
@@ -31,6 +32,7 @@ async function seedWorkspace(): Promise<void> {
   await fs.mkdir(join(p.vaultDir, "_inbox"), { recursive: true });
   await fs.mkdir(join(p.vaultDir, ".obsidian"), { recursive: true });
   await fs.mkdir(join(p.vaultDir, "_assets"), { recursive: true });
+  await fs.mkdir(join(p.vaultDir, "assets", "PAGE1"), { recursive: true });
   await fs.writeFile(p.workspaceJson, JSON.stringify({ __rev: 3, docs: {} }));
   await fs.writeFile(p.manifestJson, JSON.stringify({ tree: [] }));
   await fs.writeFile(join(p.vaultDir, "PAGE1.md"), "# Page one\n");
@@ -38,6 +40,10 @@ async function seedWorkspace(): Promise<void> {
   await fs.writeFile(join(p.vaultDir, ".note-index.db"), "sqlite-bytes");
   await fs.writeFile(join(p.vaultDir, ".obsidian", "hidden.md"), "hidden\n");
   await fs.writeFile(join(p.vaultDir, "_assets", "img.png"), "png-bytes");
+  await fs.writeFile(
+    join(p.vaultDir, "assets", "PAGE1", "sketch.excalidraw"),
+    "scene-bytes",
+  );
 }
 
 beforeEach(async () => {
@@ -54,8 +60,8 @@ describe("snapshotWorkspaceTo", () => {
     const dest = join(root, "sps-agent", "backups", "1700000000000");
     const { fileCount } = await snapshotWorkspaceTo(paths(), dest);
 
-    // workspace.json + _manifest.json + 2 markdown pages.
-    expect(fileCount).toBe(4);
+    // workspace.json + manifest + 2 markdown pages + both asset stores.
+    expect(fileCount).toBe(6);
     await expect(
       fs.readFile(join(dest, "workspace.json"), "utf-8"),
     ).resolves.toContain('"__rev":3');
@@ -68,12 +74,20 @@ describe("snapshotWorkspaceTo", () => {
     await expect(
       fs.readFile(join(dest, "vault", "_inbox", "cap_1.md"), "utf-8"),
     ).resolves.toBe("capture\n");
-    // Derived index, dot-dirs, and binary assets are excluded.
+    await expect(
+      fs.readFile(join(dest, "vault", "_assets", "img.png"), "utf-8"),
+    ).resolves.toBe("png-bytes");
+    await expect(
+      fs.readFile(
+        join(dest, "vault", "assets", "PAGE1", "sketch.excalidraw"),
+        "utf-8",
+      ),
+    ).resolves.toBe("scene-bytes");
+    // Derived index and dot-dirs are excluded.
     await expect(
       fs.access(join(dest, "vault", ".note-index.db")),
     ).rejects.toThrow();
     await expect(fs.access(join(dest, "vault", ".obsidian"))).rejects.toThrow();
-    await expect(fs.access(join(dest, "vault", "_assets"))).rejects.toThrow();
   });
 
   it("never recurses into the backups directory itself", async () => {
@@ -103,7 +117,7 @@ describe("snapshotWorkspaceTo", () => {
 });
 
 describe("restoreSnapshotFrom", () => {
-  it("returns the workspace to exactly snapshot time, keeping assets", async () => {
+  it("returns the workspace and its assets to exactly snapshot time", async () => {
     const snapDir = join(root, "sps-agent", "backups", "1700000000000");
     await snapshotWorkspaceTo(paths(), snapDir);
 
@@ -113,6 +127,11 @@ describe("restoreSnapshotFrom", () => {
     await fs.writeFile(join(p.vaultDir, "PAGE1.md"), "# Rewritten\n");
     await fs.writeFile(join(p.vaultDir, "NEW-PAGE.md"), "# New page\n");
     await fs.rm(join(p.vaultDir, "_inbox", "cap_1.md"));
+    await fs.writeFile(join(p.vaultDir, "_assets", "img.png"), "changed");
+    await fs.writeFile(
+      join(p.vaultDir, "assets", "PAGE1", "sketch.excalidraw"),
+      "changed-scene",
+    );
 
     await restoreSnapshotFrom(snapDir, p);
 
@@ -127,10 +146,16 @@ describe("restoreSnapshotFrom", () => {
     ).resolves.toBe("capture\n");
     // Pages created after the snapshot are removed…
     await expect(fs.access(join(p.vaultDir, "NEW-PAGE.md"))).rejects.toThrow();
-    // …but non-markdown files (assets, derived index) are untouched.
+    // Snapshot-owned assets are restored; the derived index is untouched.
     await expect(
       fs.readFile(join(p.vaultDir, "_assets", "img.png"), "utf-8"),
     ).resolves.toBe("png-bytes");
+    await expect(
+      fs.readFile(
+        join(p.vaultDir, "assets", "PAGE1", "sketch.excalidraw"),
+        "utf-8",
+      ),
+    ).resolves.toBe("scene-bytes");
     await expect(
       fs.access(join(p.vaultDir, ".note-index.db")),
     ).resolves.toBeUndefined();
@@ -143,6 +168,83 @@ describe("restoreSnapshotFrom", () => {
       /empty or unreadable/i,
     );
   });
+
+  it("preserves unsnapshotted markdown in a repointed vault", async () => {
+    rmSync(join(root, "sps-agent"), { recursive: true, force: true });
+    const externalVault = join(root, "obsidian-vault");
+    const spsRoot = join(root, "sps-agent");
+    const p = {
+      workspaceJson: join(spsRoot, "workspace.json"),
+      manifestJson: join(externalVault, "_manifest.json"),
+      vaultDir: externalVault,
+      excludeDirs: [join(spsRoot, "backups")],
+    };
+    await fs.mkdir(externalVault, { recursive: true });
+    await fs.mkdir(spsRoot, { recursive: true });
+    await fs.writeFile(
+      join(spsRoot, "sps-storage.json"),
+      JSON.stringify({ vaultDir: externalVault }),
+    );
+    await fs.writeFile(p.workspaceJson, JSON.stringify({ __rev: 1 }));
+    await fs.writeFile(p.manifestJson, JSON.stringify({ tree: [] }));
+    await fs.writeFile(join(externalVault, "SPS-PAGE.md"), "before\n");
+    const id = "1700000000010";
+    await snapshotWorkspaceTo(p, join(spsRoot, "backups", id));
+    await fs.writeFile(join(externalVault, "SPS-PAGE.md"), "after\n");
+    await fs.writeFile(
+      join(externalVault, "personal-notes.md"),
+      "must survive\n",
+    );
+
+    const previousHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = root;
+    try {
+      await expect(restoreWorkspaceSnapshot(id)).resolves.toMatchObject({
+        ok: true,
+      });
+    } finally {
+      if (previousHome === undefined) delete process.env.HERMES_HOME;
+      else process.env.HERMES_HOME = previousHome;
+    }
+
+    await expect(
+      fs.readFile(join(externalVault, "personal-notes.md"), "utf-8"),
+    ).resolves.toBe("must survive\n");
+    await expect(
+      fs.readFile(join(externalVault, "SPS-PAGE.md"), "utf-8"),
+    ).resolves.toBe("before\n");
+  });
+
+  it("restores a snapshot when the current workspace is empty", async () => {
+    rmSync(join(root, "sps-agent"), { recursive: true, force: true });
+    const id = "1700000000011";
+    const snapDir = join(root, "sps-agent", "backups", id);
+    await fs.mkdir(join(snapDir, "vault"), { recursive: true });
+    await fs.writeFile(
+      join(snapDir, "workspace.json"),
+      JSON.stringify({ __rev: 4 }),
+    );
+    await fs.writeFile(join(snapDir, "_manifest.json"), '{"tree":[]}');
+    await fs.writeFile(join(snapDir, "vault", "RESTORED.md"), "restored\n");
+
+    const previousHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = root;
+    let result;
+    try {
+      result = await restoreWorkspaceSnapshot(id);
+    } finally {
+      if (previousHome === undefined) delete process.env.HERMES_HOME;
+      else process.env.HERMES_HOME = previousHome;
+    }
+
+    expect(result).toEqual({ ok: true });
+    await expect(
+      fs.readFile(join(root, "sps-agent", "workspace.json"), "utf-8"),
+    ).resolves.toContain('"__rev":4');
+    await expect(
+      fs.readFile(join(root, "sps-agent", "vault", "RESTORED.md"), "utf-8"),
+    ).resolves.toBe("restored\n");
+  });
 });
 
 describe("listSnapshotsIn / selectSnapshotIdsToPrune", () => {
@@ -154,7 +256,7 @@ describe("listSnapshotsIn / selectSnapshotIdsToPrune", () => {
 
     const infos = await listSnapshotsIn(backupsDir);
     expect(infos.map((i) => i.id)).toEqual(["1700000000005", "1700000000000"]);
-    expect(infos[0].fileCount).toBe(4);
+    expect(infos[0].fileCount).toBe(6);
     expect(infos[0].bytes).toBeGreaterThan(0);
   });
 

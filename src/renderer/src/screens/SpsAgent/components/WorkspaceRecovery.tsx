@@ -3,7 +3,13 @@ import type { WorkspaceBackupInfo } from "../types";
 import { retryWorkspaceHydration } from "../store/lifecycle";
 import { useStore } from "../store";
 
-export function WorkspaceRecovery() {
+interface WorkspaceRecoveryProps {
+  onWorkspaceReady: () => void;
+}
+
+export function WorkspaceRecovery({
+  onWorkspaceReady,
+}: WorkspaceRecoveryProps) {
   const issue = useStore((state) => state.workspaceLoadIssue);
   const [backups, setBackups] = useState<WorkspaceBackupInfo[]>([]);
   const [busy, setBusy] = useState(false);
@@ -24,6 +30,7 @@ export function WorkspaceRecovery() {
     setMessage("");
     try {
       await retryWorkspaceHydration();
+      if (!useStore.getState().workspaceLoadIssue) onWorkspaceReady();
     } finally {
       setBusy(false);
     }

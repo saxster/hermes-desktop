@@ -252,7 +252,16 @@ export const createWorkspaceSlice: StateCreator<
     }),
 
   makePage: (info, docBlocks, parentId) => {
-    const id = uid("pg");
+    let id = uid("pg");
+    let state = get();
+    while (
+      Object.prototype.hasOwnProperty.call(state.docs, id) ||
+      Object.prototype.hasOwnProperty.call(state.meta, id) ||
+      treeFind(state.tree, id)
+    ) {
+      id = uid("pg");
+      state = get();
+    }
     set((s) => ({
       docs: { ...s.docs, [id]: docBlocks },
       meta: {

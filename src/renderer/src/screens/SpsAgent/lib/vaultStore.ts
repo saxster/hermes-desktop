@@ -38,9 +38,12 @@ async function writeVaultSnapshot(
 /** Read the authoritative vault into a workspace, or null if not populated. */
 export async function readVaultWorkspace(): Promise<Workspace | null> {
   const api = window.hermesAPI;
-  if (!api?.spsVaultRead) return null;
+  if (!api?.spsVaultRead) throw new Error("Vault read is unavailable");
   const { pages, manifest } = await api.spsVaultRead();
-  if (!manifest || Object.keys(pages).length === 0) return null;
+  const pageCount = Object.keys(pages).length;
+  if (manifest === null && pageCount === 0) return null;
+  if (manifest === null) throw new Error("Vault manifest is missing");
+  if (pageCount === 0) throw new Error("Vault pages are missing");
   const snapshot: VaultSnapshot = { pages, manifest: JSON.parse(manifest) };
   return vaultToWorkspace(snapshot);
 }

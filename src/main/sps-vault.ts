@@ -244,30 +244,28 @@ export async function readVaultPages(
   let entries: Dirent[];
   try {
     entries = (await fs.readdir(vaultDir, { withFileTypes: true })) as Dirent[];
-  } catch {
-    return pages;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return pages;
+    throw error;
   }
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const pageId = entry.name.replace(/\.md$/, "");
     if (!isValidPageId(pageId)) continue;
-    try {
-      pages[pageId] = await fs.readFile(join(vaultDir, entry.name), "utf-8");
-    } catch {
-      /* skip unreadable file */
-    }
+    pages[pageId] = await fs.readFile(join(vaultDir, entry.name), "utf-8");
   }
   return pages;
 }
 
-/** Read the structure manifest JSON (or null if absent/unreadable). */
+/** Read the structure manifest JSON (or null only when absent). */
 export async function readVaultManifest(
   vaultDir: string,
 ): Promise<string | null> {
   try {
     return await fs.readFile(join(vaultDir, MANIFEST_FILE), "utf-8");
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
 }
 

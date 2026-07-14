@@ -3,7 +3,7 @@
 // the current Tweaks to it, and hydrates the persisted workspace from the main
 // process. Mount it only while the view is active (the zustand store is a module
 // singleton, so workspace state survives unmount/remount).
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 // Self-hosted fonts (Inter / JetBrains Mono / Source Serif 4) — same-origin so the
 // desktop CSP allows them; replaces the prototype's blocked Google-Fonts @import.
 import "@fontsource/inter/400.css";
@@ -33,26 +33,43 @@ import { skinToSpsVars } from "./lib/skin";
 import { getActiveSkinId } from "../../utils/skin";
 import { SystemThemeSync } from "./components/SystemThemeSync";
 import { WorkspaceRecovery } from "./components/WorkspaceRecovery";
+import { setStorageModeProfile } from "./lib/storageMode";
 
 export function SpsAgent() {
   const scopeRef = useRef<HTMLDivElement>(null);
+  const stopStoreLifecycleRef = useRef<(() => void) | null>(null);
   const workspaceLoadIssue = useStore((state) => state.workspaceLoadIssue);
+  const resumeStoreLifecycle = useCallback(() => {
+    stopStoreLifecycleRef.current ??= startSpsStoreLifecycle();
+    useStore.getState().ocrResume();
+  }, []);
   useEffect(() => {
-    let stopStoreLifecycle: (() => void) | null = null;
     let cancelled = false;
     setThemeScope(scopeRef.current);
     applyTweaks(useStore.getState().t);
     // Resume any OCR jobs persisted from a previous session once the workspace
     // is loaded (so OCR'd pages land in the real tree). No-op when idle.
-    hydrateWorkspace()
-      .then(() => {
-        if (cancelled || useStore.getState().workspaceLoadIssue) return;
-        stopStoreLifecycle = startSpsStoreLifecycle();
-        useStore.getState().ocrResume();
-      })
-      .catch((error: unknown) => {
-        console.error("Failed to hydrate the SPS workspace:", error);
-      });
+    (async () => {
+      // The main process defaults every SPS persistence API to the active
+      // Hermes profile. Resolve that same profile before choosing whether its
+      // blob or vault is authoritative; the mode itself is profile-scoped.
+      let storageProfile = "default";
+      try {
+        const profiles = await window.hermesAPI.listProfiles();
+        storageProfile =
+          profiles.find((profile) => profile.isActive)?.name ?? "default";
+      } catch {
+        // Profile discovery is advisory at startup. Preserve the historical
+        // default-profile path rather than leaving the workspace unhydrated.
+      }
+      if (cancelled) return;
+      setStorageModeProfile(storageProfile);
+      await hydrateWorkspace();
+      if (cancelled || useStore.getState().workspaceLoadIssue) return;
+      resumeStoreLifecycle();
+    })().catch((error: unknown) => {
+      console.error("Failed to initialize the SPS workspace:", error);
+    });
     // Apply the active skin onto the SPS scope (idea A6 — fixes the regression
     // where skins targeted document root with Hermes var names). No-op in the
     // standalone web app where window.hermesAPI is absent.
@@ -70,14 +87,19 @@ export function SpsAgent() {
     return () => {
       cancelled = true;
       useStore.getState().ocrStopScheduler();
-      stopStoreLifecycle?.();
+      stopStoreLifecycleRef.current?.();
+      stopStoreLifecycleRef.current = null;
       setThemeScope(null);
     };
-  }, []);
+  }, [resumeStoreLifecycle]);
   return (
     <div className="sps-scope" ref={scopeRef}>
       <SystemThemeSync />
-      {workspaceLoadIssue ? <WorkspaceRecovery /> : <App />}
+      {workspaceLoadIssue ? (
+        <WorkspaceRecovery onWorkspaceReady={resumeStoreLifecycle} />
+      ) : (
+        <App />
+      )}
     </div>
   );
 }

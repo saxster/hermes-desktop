@@ -818,6 +818,14 @@ export async function drainCronBriefs(
         if (!stalled) watermark = f.mtime;
         continue;
       }
+      if (item.kind !== "digest" && !hasUsableSources(brief)) {
+        const message = "No web sources returned.";
+        recordHistory(item.id, "no-sources", message, profile);
+        stampRunFailure(item.id, message, profile);
+        sendRunFailure(item, message, getWindow);
+        if (!stalled) watermark = f.mtime;
+        continue;
+      }
       try {
         const r = await mergeBriefAndQueue(item, brief, getWindow, profile);
         recordHistory(item.id, r.outcome, r.summary, profile);

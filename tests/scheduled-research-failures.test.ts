@@ -129,4 +129,27 @@ describe("scheduled research failure visibility", () => {
       lastError: "HTTP 503",
     });
   });
+
+  it("rejects app-closed cron briefs that have no fetched sources", async () => {
+    const schedule = item({ cronJobId: "cron_without_sources" });
+    seedRegistry(schedule);
+    const outputDir = join(home, "cron", "output", "cron_without_sources");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(
+      join(outputDir, "brief.md"),
+      "# Cron Job\n## Response\nA confident answer with no source section.",
+      "utf-8",
+    );
+    const { drainCronBriefs, listPending } =
+      await import("../src/main/scheduled-research");
+
+    await drainCronBriefs(undefined, "default");
+
+    expect(await listPending("default")).toEqual([]);
+    expect(mocks.gatewayChat).not.toHaveBeenCalled();
+    expect(readStored()).toMatchObject({
+      lastError: "No web sources returned.",
+      lastDrainedAt: expect.any(Number),
+    });
+  });
 });

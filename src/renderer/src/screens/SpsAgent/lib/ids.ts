@@ -1,11 +1,8 @@
 // ids.ts — id generation + block factory. Ported from data.jsx (uid, blk).
 import type { Block, BlockType } from "../types";
 
-let _id = 0;
-const _seed = Math.random().toString(36).slice(2, 6);
-
-/** Monotonic, per-session-unique id with a short prefix (matches prototype). */
-export const uid = (p = "b"): string => `${p}${_seed}${++_id}`;
+/** Cryptographically strong id with the caller's short type prefix. */
+export const uid = (p = "b"): string => `${p}${crypto.randomUUID()}`;
 
 /** Block factory. `extra` carries type-specific fields (done, emoji, view, …). */
 export const blk = (

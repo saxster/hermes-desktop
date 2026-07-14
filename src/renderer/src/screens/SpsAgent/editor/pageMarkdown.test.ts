@@ -91,6 +91,32 @@ describe("pageMarkdown frontmatter", () => {
     expect(roundTrip(meta, [blk("p", "x")]).meta).toEqual(meta);
   });
 
+  it("preserves block-style YAML from an external editor", () => {
+    const parsed = pageFromMarkdown(
+      [
+        "---",
+        "title: External note",
+        "tags:",
+        "  - research",
+        "  - hermes",
+        "summary: |",
+        "  First line",
+        "  Second line",
+        "---",
+        "Body",
+      ].join("\n"),
+    );
+
+    expect(parsed.meta).toEqual({
+      title: "External note",
+      tags: ["research", "hermes"],
+      properties: { summary: "First line\nSecond line\n" },
+    });
+    expect(
+      pageFromMarkdown(pageToMarkdown(parsed.meta, parsed.blocks)).meta,
+    ).toEqual(parsed.meta);
+  });
+
   it("preserves unknown frontmatter keys as page properties", () => {
     const parsed = pageFromMarkdown(
       [

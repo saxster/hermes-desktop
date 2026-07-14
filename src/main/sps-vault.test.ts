@@ -244,6 +244,15 @@ describe("database rows (S4)", () => {
 });
 
 describe("vault-as-authoritative I/O (S6)", () => {
+  it("does not disguise vault read errors as an empty vault", async () => {
+    const blocker = join(dir, "not-a-directory");
+    await writeFile(blocker, "x");
+    const unreadableVault = join(blocker, "vault");
+
+    await expect(readVaultPages(unreadableVault)).rejects.toThrow();
+    await expect(readVaultManifest(unreadableVault)).rejects.toThrow();
+  });
+
   it("reads root page files only (not db-row subfolders or the manifest)", async () => {
     await exportPageMarkdownTo(dir, "home", "# Home");
     await exportPageMarkdownTo(dir, "sub", "# Sub");

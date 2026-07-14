@@ -136,6 +136,32 @@ describe("read / write / rollback round-trip", () => {
     expect(await readVaultWorkspace()).toBeNull();
   });
 
+  it("does not treat an unavailable vault reader as an empty vault", async () => {
+    stubApi({});
+    await expect(readVaultWorkspace()).rejects.toThrow(
+      "Vault read is unavailable",
+    );
+  });
+
+  it("does not treat an empty manifest file as an empty vault", async () => {
+    stubApi({
+      spsVaultRead: vi.fn().mockResolvedValue({ pages: {}, manifest: "" }),
+    });
+    await expect(readVaultWorkspace()).rejects.toThrow();
+  });
+
+  it("does not treat populated pages with a missing manifest as an empty vault", async () => {
+    stubApi({
+      spsVaultRead: vi.fn().mockResolvedValue({
+        pages: { home: "# Home" },
+        manifest: null,
+      }),
+    });
+    await expect(readVaultWorkspace()).rejects.toThrow(
+      "Vault manifest is missing",
+    );
+  });
+
   it("does not disguise a corrupt vault manifest as an empty vault", async () => {
     stubApi({
       spsVaultRead: vi.fn().mockResolvedValue({

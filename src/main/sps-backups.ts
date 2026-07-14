@@ -1,7 +1,7 @@
 // sps-backups.ts — whole-workspace snapshot & restore (MED-11).
 //
-// A snapshot copies the three AUTHORITATIVE artifacts — workspace.json,
-// _manifest.json, and vault/**/*.md — into
+// A snapshot copies the authoritative artifacts — workspace.json,
+// _manifest.json, vault/**/*.md, and vault asset sidecars — into
 // <profileHome>/sps-agent/backups/<epochMs>/. The derived .note-index.db is
 // NEVER included (WAL-mode, locked, and fully rebuildable from the markdown);
 // after a restore the caller triggers an index rebuild instead.
@@ -11,13 +11,13 @@
 // be written the restore is refused, because a still-broken state beats an
 // unrecoverable one.
 //
-// The vault may be repointed at an external Obsidian folder, so only markdown
-// files are touched: dot-directories (.obsidian, .trash) and binary assets are
-// neither snapshotted nor deleted on restore.
+// The vault may be repointed at an external Obsidian folder. Dot-directories
+// (.obsidian, .trash) are never touched, and restore never deletes markdown
+// created after a snapshot from a repointed vault.
 import { promises as fs } from "fs";
 import { dirname, join, relative } from "path";
 import { profileHome, getActiveProfileNameSync } from "./utils";
-import { resolveSpsVaultDir } from "./sps-storage";
+import { getVaultLocation } from "./sps-storage";
 import type {
   WorkspaceBackupInfo,
   WorkspaceRestoreResult,
@@ -36,6 +36,8 @@ interface WorkspacePaths {
   vaultDir: string;
   /** Never walk into these (guards against a vault that contains backups/). */
   excludeDirs?: string[];
+  /** Built-in vaults are SPS-owned and can be pruned to snapshot time. */
+  pruneUnsnapshottedMarkdown?: boolean;
 }
 
 function sanitizeProfile(profile?: string): string {
@@ -49,13 +51,15 @@ export function workspaceBackupsDir(profile?: string): string {
 function workspacePaths(profile?: string): WorkspacePaths {
   const base = join(profileHome(sanitizeProfile(profile)), "sps-agent");
   // The manifest lives INSIDE the (possibly repointed) vault directory —
-  // always resolve via resolveSpsVaultDir, never assume the default layout.
-  const vaultDir = resolveSpsVaultDir(profile);
+  // always resolve the configured location, never assume the default layout.
+  const location = getVaultLocation(profile);
+  const vaultDir = location.dir;
   return {
     workspaceJson: join(base, "workspace.json"),
     manifestJson: join(vaultDir, "_manifest.json"),
     vaultDir,
     excludeDirs: [workspaceBackupsDir(profile)],
+    pruneUnsnapshottedMarkdown: location.isDefault,
   };
 }
 
@@ -97,6 +101,37 @@ async function collectMarkdownFiles(
   return found;
 }
 
+/** Recursively collect every regular file below a reserved asset directory. */
+async function collectFiles(root: string, dir = root): Promise<string[]> {
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const found: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...(await collectFiles(root, full)));
+    } else if (entry.isFile()) {
+      found.push(relative(root, full));
+    }
+  }
+  return found;
+}
+
+async function collectAssetFiles(vaultDir: string): Promise<string[]> {
+  const roots = ["_assets", "assets"];
+  const found: string[] = [];
+  for (const root of roots) {
+    const files = await collectFiles(join(vaultDir, root));
+    found.push(...files.map((file) => join(root, file)));
+  }
+  return found;
+}
+
 async function copyInto(src: string, dest: string): Promise<number> {
   await fs.mkdir(dirname(dest), { recursive: true });
   await fs.copyFile(src, dest);
@@ -117,9 +152,11 @@ export async function snapshotWorkspaceTo(
     paths.vaultDir,
     paths.excludeDirs ?? [],
   );
+  const assetFiles = await collectAssetFiles(paths.vaultDir);
+  const backedUpVaultFiles = [...new Set([...vaultFiles, ...assetFiles])];
   const haveWorkspace = await exists(paths.workspaceJson);
   const haveManifest = await exists(paths.manifestJson);
-  if (!haveWorkspace && !haveManifest && vaultFiles.length === 0) {
+  if (!haveWorkspace && !haveManifest && backedUpVaultFiles.length === 0) {
     throw new Error("Nothing to back up — no workspace artifacts found.");
   }
 
@@ -140,7 +177,7 @@ export async function snapshotWorkspaceTo(
     );
     fileCount += 1;
   }
-  for (const rel of vaultFiles) {
+  for (const rel of backedUpVaultFiles) {
     bytes += await copyInto(
       join(paths.vaultDir, rel),
       join(destDir, "vault", rel),
@@ -153,7 +190,9 @@ export async function snapshotWorkspaceTo(
 /**
  * Core restore: replace the authoritative artifacts with the snapshot's.
  * Markdown files present now but absent from the snapshot are deleted so the
- * vault returns to exactly snapshot time; non-markdown files are untouched.
+ * built-in vault returns to exactly snapshot time. Repointed vaults preserve
+ * unsnapshotted markdown because SPS cannot prove that those files are ours.
+ * Snapshot-owned asset files are restored without pruning newer assets.
  */
 export async function restoreSnapshotFrom(
   snapDir: string,
@@ -163,9 +202,15 @@ export async function restoreSnapshotFrom(
   const snapWorkspace = join(snapDir, "workspace.json");
   const snapManifest = join(snapDir, "_manifest.json");
   const snapFiles = await collectMarkdownFiles(snapVaultDir);
+  const snapAssetFiles = await collectAssetFiles(snapVaultDir);
   const haveWorkspace = await exists(snapWorkspace);
   const haveManifest = await exists(snapManifest);
-  if (!haveWorkspace && !haveManifest && snapFiles.length === 0) {
+  if (
+    !haveWorkspace &&
+    !haveManifest &&
+    snapFiles.length === 0 &&
+    snapAssetFiles.length === 0
+  ) {
     throw new Error("Snapshot is empty or unreadable.");
   }
 
@@ -178,19 +223,35 @@ export async function restoreSnapshotFrom(
     await fs.rm(paths.manifestJson, { force: true });
   }
 
-  const currentFiles = await collectMarkdownFiles(
-    paths.vaultDir,
-    paths.excludeDirs ?? [],
-  );
-  const inSnapshot = new Set(snapFiles);
-  for (const rel of currentFiles) {
-    if (!inSnapshot.has(rel)) {
-      await fs.rm(join(paths.vaultDir, rel), { force: true });
+  if (paths.pruneUnsnapshottedMarkdown !== false) {
+    const currentFiles = await collectMarkdownFiles(
+      paths.vaultDir,
+      paths.excludeDirs ?? [],
+    );
+    const inSnapshot = new Set(snapFiles);
+    for (const rel of currentFiles) {
+      if (!inSnapshot.has(rel)) {
+        await fs.rm(join(paths.vaultDir, rel), { force: true });
+      }
     }
   }
   for (const rel of snapFiles) {
     await copyInto(join(snapVaultDir, rel), join(paths.vaultDir, rel));
   }
+  for (const rel of snapAssetFiles) {
+    await copyInto(join(snapVaultDir, rel), join(paths.vaultDir, rel));
+  }
+}
+
+async function workspaceHasArtifacts(paths: WorkspacePaths): Promise<boolean> {
+  if (await exists(paths.workspaceJson)) return true;
+  if (await exists(paths.manifestJson)) return true;
+  const markdown = await collectMarkdownFiles(
+    paths.vaultDir,
+    paths.excludeDirs ?? [],
+  );
+  if (markdown.length > 0) return true;
+  return (await collectAssetFiles(paths.vaultDir)).length > 0;
 }
 
 export async function listSnapshotsIn(
@@ -309,23 +370,28 @@ export async function restoreWorkspaceSnapshot(
   if (!(await exists(snapDir))) {
     return { ok: false, error: "Snapshot not found." };
   }
-  // Safety snapshot of the current state first — refuse to restore without it.
-  const safety = await createWorkspaceSnapshot(profile);
-  if (!safety) {
-    return {
-      ok: false,
-      error:
-        "Refused: could not write a safety backup of the current state first.",
-    };
+  // Safety snapshot of the current state first. A truly empty workspace has
+  // nothing to preserve, so it can restore without manufacturing a backup.
+  const paths = workspacePaths(profile);
+  let safety: WorkspaceBackupInfo | null = null;
+  if (await workspaceHasArtifacts(paths)) {
+    safety = await createWorkspaceSnapshot(profile);
+    if (!safety) {
+      return {
+        ok: false,
+        error:
+          "Refused: could not write a safety backup of the current state first.",
+      };
+    }
   }
   try {
-    await restoreSnapshotFrom(snapDir, workspacePaths(profile));
-    return { ok: true, safetySnapshotId: safety.id };
+    await restoreSnapshotFrom(snapDir, paths);
+    return safety ? { ok: true, safetySnapshotId: safety.id } : { ok: true };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
-      safetySnapshotId: safety.id,
+      ...(safety ? { safetySnapshotId: safety.id } : {}),
     };
   }
 }

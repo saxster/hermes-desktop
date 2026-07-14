@@ -43,9 +43,10 @@ Everything lives under the active profile's home directory
 
 ## Storage modes (the `storageMode` flag)
 
-`lib/storageMode.ts`, persisted in `localStorage` under
-`sps-agent-storage-mode-v1`. Default **`blob`** — nothing changes until the user
-explicitly migrates.
+`lib/storageMode.ts`, persisted per Hermes profile in `localStorage`. The
+default profile keeps the legacy `sps-agent-storage-mode-v1` key; named profiles
+use a profile-suffixed key. Default **`blob`** — nothing changes until the user
+explicitly migrates that profile.
 
 - **`blob`** (default): `workspace.json` is authoritative. The vault is an
   **additive mirror** — SPS edits are also written to `vault/<pageId>.md` so the

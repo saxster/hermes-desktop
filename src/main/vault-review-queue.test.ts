@@ -71,4 +71,35 @@ describe("vault review queue", () => {
     expect(dismissed?.status).toBe("dismissed");
     expect((await listVaultProposalsIn(root))[0]?.status).toBe("dismissed");
   });
+
+  it("preserves concurrent proposal creates without losing either write", async () => {
+    const root = tempRoot();
+    const input = (
+      title: string,
+    ): Parameters<typeof createVaultProposalIn>[1] => ({
+      source: "inbox" as const,
+      title,
+      summary: `Create ${title}`,
+      operations: [
+        {
+          id: `op-${title}`,
+          kind: "upsert-page" as const,
+          pageId: title,
+          title,
+          markdown: `# ${title}`,
+        },
+      ],
+    });
+
+    await Promise.all([
+      createVaultProposalIn(root, input("Alpha")),
+      createVaultProposalIn(root, input("Beta")),
+    ]);
+
+    const proposals = await listVaultProposalsIn(root);
+    expect(proposals.map((proposal) => proposal.title).sort()).toEqual([
+      "Alpha",
+      "Beta",
+    ]);
+  });
 });

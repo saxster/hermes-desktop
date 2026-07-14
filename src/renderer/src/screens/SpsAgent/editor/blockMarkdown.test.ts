@@ -96,6 +96,20 @@ describe("tier-1 block round-trips", () => {
     expectRoundTrip([blk("p", "bold", { html: "<strong>bold</strong>" })]));
   it("preserves literal markdown characters in plain text", () =>
     expectRoundTrip([blk("p", "use 2 * 3 and a_b and [x]")]));
+
+  it.each(["# heading text", "- bullet text", "1. numbered text"])(
+    "preserves paragraph text that begins with block syntax: %s",
+    (text) => expectRoundTrip([blk("p", text)]),
+  );
+
+  it("round-trips code containing an embedded triple-backtick fence", () => {
+    const source = "before\n```js\ninside\n```\nafter";
+    const block = blk("code", source);
+    const markdown = blocksToMarkdown([block]);
+
+    expect(markdown).toMatch(/^````\n/);
+    expectRoundTrip([block]);
+  });
 });
 
 describe("tier-2 lossless fallback (metadata comment)", () => {
@@ -151,6 +165,14 @@ describe("tier-2 lossless fallback (metadata comment)", () => {
         agentPrompt: "Review this against our SOPs and flag gaps.",
       }),
     ]));
+
+  it("keeps an undecodable tier-2 comment as visible text", () => {
+    const raw = "<!-- sps:bm90LWpzb24= -->";
+    const blocks = markdownToBlocks(raw);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ type: "p", text: raw });
+  });
 });
 
 describe("Obsidian-native callouts (> [!type])", () => {

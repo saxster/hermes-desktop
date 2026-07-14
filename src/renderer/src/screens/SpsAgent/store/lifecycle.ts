@@ -76,7 +76,7 @@ function mirrorChangedPages(s: Store): void {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lifecycleUsers = 0;
 let stopSubscriptions: Unsubscribe | null = null;
-let vaultSaveQueue: Promise<void> = Promise.resolve();
+let vaultSaveQueue: Promise<boolean> = Promise.resolve(true);
 let workspacePersistenceBlocked = true;
 
 function changedPageIds(s: Store): string[] {
@@ -87,46 +87,73 @@ function changedPageIds(s: Store): string[] {
   );
 }
 
-function persistVaultWorkspace(s: Store, ws: Workspace): void {
+function persistVaultWorkspace(s: Store, ws: Workspace): Promise<boolean> {
   const pageIds = changedPageIds(s);
   const removed = Object.keys(mirroredDocs).filter((id) => !(id in s.docs));
-  vaultSaveQueue = vaultSaveQueue.then(async () => {
-    const result = await saveVaultPages(ws, pageIds);
-    useStore.getState().reportSaveResult(result);
-    if (!result.ok) return;
-    for (const pageId of pageIds) {
-      mirroredDocs[pageId] = ws.docs[pageId];
-      mirroredMeta[pageId] = ws.meta[pageId];
-    }
-    if (removed.length) {
-      await deleteVaultPages(removed);
-      for (const pageId of removed) {
-        delete mirroredDocs[pageId];
-        delete mirroredMeta[pageId];
+  vaultSaveQueue = vaultSaveQueue
+    .catch(() => false)
+    .then(async () => {
+      const result = await saveVaultPages(ws, pageIds);
+      useStore.getState().reportSaveResult(result);
+      if (!result.ok) return false;
+      for (const pageId of pageIds) {
+        mirroredDocs[pageId] = ws.docs[pageId];
+        mirroredMeta[pageId] = ws.meta[pageId];
       }
-    }
-  });
+      if (removed.length) {
+        await deleteVaultPages(removed);
+        for (const pageId of removed) {
+          delete mirroredDocs[pageId];
+          delete mirroredMeta[pageId];
+        }
+      }
+      return true;
+    });
+  return vaultSaveQueue;
 }
 
-function persistCurrentWorkspace(): void {
-  if (workspacePersistenceBlocked) return;
+async function persistBlobWorkspace(ws: Workspace): Promise<boolean> {
+  const result = await saveWorkspace(ws);
+  useStore.getState().reportSaveResult(result);
+  if (result.ok && result.merged) {
+    workspacePersistenceBlocked = true;
+    await loadAndApplyWorkspace();
+  }
+  return result.ok;
+}
+
+function persistCurrentWorkspace(): Promise<boolean> {
+  if (workspacePersistenceBlocked) return Promise.resolve(false);
   const s = useStore.getState();
   const ws = snapshotWorkspace(s);
   if (getStorageMode() === "vault") {
     // Vault is authoritative (S6): write every changed page + the manifest.
     // The blob remains untouched as the rollback safety net.
-    persistVaultWorkspace(s, ws);
-    return;
+    return persistVaultWorkspace(s, ws);
   }
-  saveWorkspace(ws)
-    .then((res) => useStore.getState().reportSaveResult(res))
-    .catch((error: unknown) => {
-      console.error("[SPS lifecycle] Workspace save failed:", error);
-      useStore.getState().flash("Workspace changes were not saved", {
-        tone: "warn",
-      });
-    });
   mirrorChangedPages(s);
+  return persistBlobWorkspace(ws);
+}
+
+function reportPersistenceError(error: unknown): void {
+  console.error("[SPS lifecycle] Workspace save failed:", error);
+  useStore.getState().flash("Workspace changes were not saved", {
+    tone: "warn",
+  });
+}
+
+/** Force and await the current authoritative workspace write. */
+export async function flushSpsStorePersistence(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  const saved = await persistCurrentWorkspace();
+  if (!saved) {
+    throw new Error(
+      useStore.getState().saveError ?? "Workspace persistence is blocked",
+    );
+  }
 }
 
 function subscribeToStore(): Unsubscribe {
@@ -154,10 +181,11 @@ function subscribeToStore(): Unsubscribe {
     useStore.subscribe(
       (s) => [s.tree, s.meta, s.docs, s.comments, s.trash, s.page] as const,
       () => {
+        if (workspacePersistenceBlocked) return;
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
           saveTimer = null;
-          persistCurrentWorkspace();
+          void persistCurrentWorkspace().catch(reportPersistenceError);
         }, 350);
       },
       { equalityFn: (a, b) => a.every((v, i) => v === b[i]) },
@@ -169,7 +197,7 @@ function subscribeToStore(): Unsubscribe {
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
-      persistCurrentWorkspace();
+      void persistCurrentWorkspace().catch(reportPersistenceError);
     }
   };
 }

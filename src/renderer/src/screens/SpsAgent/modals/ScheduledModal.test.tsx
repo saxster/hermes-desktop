@@ -39,8 +39,16 @@ const api = vi.hoisted(() => ({
   appLaunchRunScheduleNow: vi.fn(),
 }));
 
+const persistence = vi.hoisted(() => ({
+  flush: vi.fn(),
+}));
+
 vi.mock("../store", () => ({
   useStore: (selector: (s: typeof store) => unknown) => selector(store),
+}));
+
+vi.mock("../store/lifecycle", () => ({
+  flushSpsStorePersistence: persistence.flush,
 }));
 
 const telegramDocsUrl =
@@ -76,9 +84,81 @@ beforeEach(() => {
   api.appLaunchUpdateSchedule.mockResolvedValue({ ok: true });
   api.appLaunchDeleteSchedule.mockResolvedValue({ ok: true });
   api.appLaunchRunScheduleNow.mockResolvedValue({ ok: true });
+  persistence.flush.mockResolvedValue(undefined);
 });
 
 describe("ScheduledModal Telegram delivery UX", () => {
+  it("keeps a pending update until the committed workspace is durable", async () => {
+    let resolveFlush!: () => void;
+    persistence.flush.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFlush = resolve;
+        }),
+    );
+    api.srListPending.mockResolvedValue([
+      {
+        id: "pending_1",
+        scheduleId: "sr_1",
+        topic: "Agent reliability",
+        pageId: "agent-reliability",
+        ts: 1,
+        summary: "Updated reliability notes",
+        changeset: {
+          summary: "Updated reliability notes",
+          pages: [
+            {
+              op: "create",
+              pageId: "agent-reliability",
+              title: "Agent reliability",
+              markdown: "# Agent reliability",
+            },
+          ],
+          captures: [],
+          memory: [],
+        },
+      },
+    ]);
+
+    render(<ScheduledModal />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(persistence.flush).toHaveBeenCalled());
+
+    expect(api.srRemovePending).not.toHaveBeenCalled();
+    resolveFlush();
+    await waitFor(() =>
+      expect(api.srRemovePending).toHaveBeenCalledWith("pending_1"),
+    );
+  });
+
+  it("retains the pending update when durable persistence fails", async () => {
+    persistence.flush.mockRejectedValueOnce(new Error("disk full"));
+    api.srListPending.mockResolvedValue([
+      {
+        id: "pending_2",
+        scheduleId: "sr_1",
+        topic: "Agent reliability",
+        pageId: "agent-reliability",
+        ts: 1,
+        summary: "Updated reliability notes",
+        changeset: {
+          summary: "Updated reliability notes",
+          pages: [],
+          captures: [],
+          memory: [],
+        },
+      },
+    ]);
+
+    render(<ScheduledModal />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+
+    await waitFor(() =>
+      expect(store.flash).toHaveBeenCalledWith("disk full", { tone: "warn" }),
+    );
+    expect(api.srRemovePending).not.toHaveBeenCalled();
+  });
+
   it("surfaces schedule and source failures until a successful run", async () => {
     api.srList.mockResolvedValue([
       {

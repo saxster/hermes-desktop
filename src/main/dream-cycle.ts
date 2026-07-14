@@ -1,13 +1,95 @@
 import { join } from "path";
-import { writeFile, readFile } from "fs/promises";
+import { mkdir, open, readFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { getSpsNoteIndex, parseFrontmatter } from "./note-index";
 import { resolveSpsVaultDir } from "./sps-storage";
 import { chatCompletionOnce } from "./hermes/chat-client";
-import { getActiveProfileNameSync } from "./utils";
+import {
+  getActiveProfileNameSync,
+  pidIsAlive,
+  profileHome,
+  safeWriteFileAsync,
+} from "./utils";
 import { buildDailyBriefMarkdown, dailyBriefFileName } from "./daily-brief";
 import { formatLogError, log } from "./log";
+import {
+  decideLockAcquisition,
+  parseLockRecord,
+  serializeLockRecord,
+  type LockRecord,
+} from "./scheduler-lock";
 import YAML from "yaml";
+
+const DREAM_CYCLE_LOCK_TIMEOUT_MS = 6 * 60 * 60 * 1_000;
+
+interface DreamCycleLock {
+  path: string;
+  record: LockRecord;
+}
+
+async function acquireDreamCycleLock(
+  profile: string,
+): Promise<DreamCycleLock | null> {
+  const lockDir = join(profileHome(profile), "locks");
+  const lockPath = join(lockDir, "dream-cycle.lock");
+  await mkdir(lockDir, { recursive: true });
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const record: LockRecord = { pid: process.pid, startedAt: Date.now() };
+    try {
+      const handle = await open(lockPath, "wx", 0o600);
+      try {
+        await handle.writeFile(serializeLockRecord(record), "utf8");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      return { path: lockPath, record };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+
+      let existing: LockRecord | null = null;
+      try {
+        existing = parseLockRecord(await readFile(lockPath, "utf8"));
+      } catch (readErr) {
+        if ((readErr as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw readErr;
+      }
+
+      const decision = decideLockAcquisition(
+        existing,
+        Date.now(),
+        DREAM_CYCLE_LOCK_TIMEOUT_MS,
+        pidIsAlive,
+      );
+      if (decision.type === "blocked") return null;
+
+      try {
+        await unlink(lockPath);
+      } catch (unlinkErr) {
+        if ((unlinkErr as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw unlinkErr;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+async function releaseDreamCycleLock(lock: DreamCycleLock): Promise<void> {
+  try {
+    const existing = parseLockRecord(await readFile(lock.path, "utf8"));
+    if (
+      existing?.pid === lock.record.pid &&
+      existing.startedAt === lock.record.startedAt
+    ) {
+      await unlink(lock.path);
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+}
 
 /**
  * Summarizes a note's raw markdown text using the local LLM.
@@ -41,6 +123,27 @@ ${content}`;
 export async function runDreamCycle(profile?: string): Promise<void> {
   const activeProfile = profile ?? getActiveProfileNameSync();
   const vaultDir = resolveSpsVaultDir(activeProfile);
+  let cycleLock: DreamCycleLock | null = null;
+
+  try {
+    cycleLock = await acquireDreamCycleLock(activeProfile);
+  } catch (err) {
+    log.error("dream-cycle", {
+      msg: "failed to acquire Dream Cycle lock; skipping unguarded run",
+      profile: activeProfile,
+      error: formatLogError(err),
+    });
+    return;
+  }
+
+  if (!cycleLock) {
+    log.info("dream-cycle", {
+      msg: "Dream Cycle already running; skipping",
+      profile: activeProfile,
+    });
+    return;
+  }
+
   log.info("dream-cycle", {
     msg: "starting Dream Cycle",
     vaultDir,
@@ -81,7 +184,7 @@ export async function runDreamCycle(profile?: string): Promise<void> {
           // Serialize back to file
           const yamlStr = YAML.stringify(props).trim();
           const updatedContent = `---\n${yamlStr}\n---\n${body.startsWith("\n") ? body : "\n" + body}`;
-          await writeFile(absPath, updatedContent, "utf8");
+          await safeWriteFileAsync(absPath, updatedContent);
           log.info("dream-cycle", {
             msg: "saved summary to frontmatter",
             path: note.path,
@@ -157,10 +260,9 @@ Do not include any extra text outside the Markdown content.`;
     const reportName = dailyBriefFileName(today);
     const reportPath = join(vaultDir, reportName);
 
-    await writeFile(
+    await safeWriteFileAsync(
       reportPath,
       buildDailyBriefMarkdown({ date: today, body: res.content }),
-      "utf8",
     );
     log.info("dream-cycle", {
       msg: "daily Brief saved",
@@ -176,5 +278,15 @@ Do not include any extra text outside the Markdown content.`;
       profile: activeProfile,
       error: formatLogError(err),
     });
+  } finally {
+    try {
+      await releaseDreamCycleLock(cycleLock);
+    } catch (err) {
+      log.error("dream-cycle", {
+        msg: "failed to release Dream Cycle lock",
+        profile: activeProfile,
+        error: formatLogError(err),
+      });
+    }
   }
 }

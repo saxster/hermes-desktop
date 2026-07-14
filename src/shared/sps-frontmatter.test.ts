@@ -26,6 +26,17 @@ describe("sps-frontmatter", () => {
     ).toEqual({ title: "Task", prio: 1, tags: ["a"] });
   });
 
+  it("preserves externally-authored block-style YAML values", () => {
+    expect(
+      parseJsonScalarFrontmatter(
+        "tags:\n  - research\n  - hermes\nsummary: |\n  First line\n  Second line\n",
+      ),
+    ).toEqual({
+      tags: ["research", "hermes"],
+      summary: "First line\nSecond line\n",
+    });
+  });
+
   it("wraps explicit frontmatter lines without reordering them", () => {
     expect(
       wrapFrontmatterLines(

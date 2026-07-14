@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync } from "fs";
-import { writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { randomBytes } from "crypto";
 import type {
@@ -9,9 +8,10 @@ import type {
   VaultProposalInput,
   VaultProposalStatus,
 } from "../shared/sps-types";
-import { profileHome, safeWriteFile } from "./utils";
+import { profileHome, safeWriteFile, safeWriteFileAsync } from "./utils";
 
 const STORE_FILE = "vault-review-queue.json";
+const storeWriteQueues = new Map<string, Promise<void>>();
 
 function storePathFromRoot(profileRoot: string): string {
   return join(profileRoot, "sps-agent", STORE_FILE);
@@ -69,7 +69,25 @@ async function writeStore(
   path: string,
   proposals: VaultProposal[],
 ): Promise<void> {
-  await writeFile(path, JSON.stringify(proposals, null, 2), "utf-8");
+  await safeWriteFileAsync(path, JSON.stringify(proposals, null, 2));
+}
+
+async function enqueueStoreMutation<T>(
+  path: string,
+  mutation: () => Promise<T>,
+): Promise<T> {
+  const previous = storeWriteQueues.get(path) ?? Promise.resolve();
+  const queued = previous.then(mutation, mutation);
+  const tail = queued.then(
+    () => undefined,
+    () => undefined,
+  );
+  storeWriteQueues.set(path, tail);
+  try {
+    return await queued;
+  } finally {
+    if (storeWriteQueues.get(path) === tail) storeWriteQueues.delete(path);
+  }
 }
 
 export async function listVaultProposalsIn(
@@ -83,12 +101,14 @@ export async function createVaultProposalIn(
   input: VaultProposalInput,
 ): Promise<VaultProposal> {
   const path = storePathFromRoot(profileRoot);
-  mkdirSync(dirname(path), { recursive: true });
-  const proposals = readStore(path);
-  const proposal = normalizeProposal(input);
-  proposals.push(proposal);
-  await writeStore(path, proposals);
-  return proposal;
+  return enqueueStoreMutation(path, async () => {
+    mkdirSync(dirname(path), { recursive: true });
+    const proposals = readStore(path);
+    const proposal = normalizeProposal(input);
+    proposals.push(proposal);
+    await writeStore(path, proposals);
+    return proposal;
+  });
 }
 
 export async function dismissVaultProposalIn(
@@ -105,21 +125,23 @@ export async function updateProposalStatusIn(
   operationIds?: string[],
 ): Promise<VaultProposal | null> {
   const path = storePathFromRoot(profileRoot);
-  const proposals = readStore(path);
-  const proposal = proposals.find((p) => p.id === id);
-  if (!proposal) return null;
-  const selected = operationIds ? new Set(operationIds) : null;
-  proposal.status = status;
-  proposal.updatedAt = Date.now();
-  if (status === "committed") {
-    proposal.operations = proposal.operations.map((op) =>
-      selected && !selected.has(op.id)
-        ? ({ ...op, operationStatus: "skipped" } as VaultOperation)
-        : ({ ...op, operationStatus: "committed" } as VaultOperation),
-    );
-  }
-  await writeStore(path, proposals);
-  return proposal;
+  return enqueueStoreMutation(path, async () => {
+    const proposals = readStore(path);
+    const proposal = proposals.find((p) => p.id === id);
+    if (!proposal) return null;
+    const selected = operationIds ? new Set(operationIds) : null;
+    proposal.status = status;
+    proposal.updatedAt = Date.now();
+    if (status === "committed") {
+      proposal.operations = proposal.operations.map((op) =>
+        selected && !selected.has(op.id)
+          ? ({ ...op, operationStatus: "skipped" } as VaultOperation)
+          : ({ ...op, operationStatus: "committed" } as VaultOperation),
+      );
+    }
+    await writeStore(path, proposals);
+    return proposal;
+  });
 }
 
 export async function listVaultProposals(

@@ -24,13 +24,20 @@ export function wrapFrontmatterLines(
   return `---\n${lines.join("\n")}\n---${afterMarker}${body}`;
 }
 
-// INTENTIONAL (audit 2026-07-06, A3): the editor serializes frontmatter values
-// as JSON scalars (this parser) while the note-index reads them as YAML — the
-// two value grammars deliberately coexist; reconciling them is a substrate-
-// format decision deferred to its own pass.
+// SPS emits JSON-style scalars, which are valid YAML. Parse the complete YAML
+// mapping so externally-authored block sequences and block scalars survive too.
 export function parseJsonScalarFrontmatter(
   frontmatter: string,
 ): Record<string, unknown> {
+  try {
+    const parsed = YAML.parse(frontmatter);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Fall through to the tolerant legacy line parser for malformed files.
+  }
+
   const props: Record<string, unknown> = {};
   for (const line of frontmatter.split("\n")) {
     const sep = line.indexOf(":");

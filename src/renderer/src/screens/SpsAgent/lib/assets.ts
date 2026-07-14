@@ -67,6 +67,9 @@ export function referencedAssets(blocks: Block[]): string[] {
   const out: string[] = [];
   for (const b of blocks) {
     if (b.assetPath) out.push(b.assetPath);
+    for (const column of b.columns ?? []) {
+      out.push(...referencedAssets(column));
+    }
   }
   return out;
 }
@@ -78,7 +81,7 @@ export function referencedAssetsInDocs(
 ): string[] {
   const set = new Set<string>();
   for (const blocks of Object.values(docs)) {
-    for (const b of blocks) if (b.assetPath) set.add(b.assetPath);
+    for (const asset of referencedAssets(blocks)) set.add(asset);
   }
   return [...set];
 }

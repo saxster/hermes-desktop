@@ -4,13 +4,15 @@ import type { Workspace } from "../types";
 const mocks = vi.hoisted(() => ({
   readVaultWorkspace: vi.fn(),
   saveVaultPages: vi.fn(),
+  loadWorkspace: vi.fn(),
+  mirrorAllPages: vi.fn(),
 }));
 
 vi.mock("../lib/persistence", () => ({
-  loadWorkspace: vi.fn(),
+  loadWorkspace: mocks.loadWorkspace,
   saveWorkspace: vi.fn(),
   mirrorPage: vi.fn(),
-  mirrorAllPages: vi.fn(),
+  mirrorAllPages: mocks.mirrorAllPages,
 }));
 vi.mock("../lib/storageMode", () => ({ getStorageMode: () => "vault" }));
 vi.mock("../lib/vaultStore", () => ({
@@ -20,7 +22,11 @@ vi.mock("../lib/vaultStore", () => ({
 }));
 vi.mock("../lib/assets", () => ({ gcOrphanAssets: vi.fn() }));
 
-import { hydrateWorkspace, startSpsStoreLifecycle } from "./lifecycle";
+import {
+  hydrateWorkspace,
+  retryWorkspaceHydration,
+  startSpsStoreLifecycle,
+} from "./lifecycle";
 import { useStore } from "./index";
 
 const workspace: Workspace = {
@@ -71,5 +77,20 @@ describe("SPS vault lifecycle", () => {
     expect(mocks.saveVaultPages.mock.calls[0][1]).toEqual(["background"]);
 
     stop();
+  });
+
+  it("does not fall back to and mirror the blob after a vault read error", async () => {
+    mocks.readVaultWorkspace.mockRejectedValueOnce(
+      new Error("transient vault read failure"),
+    );
+
+    await retryWorkspaceHydration();
+
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled();
+    expect(mocks.mirrorAllPages).not.toHaveBeenCalled();
+    expect(useStore.getState().workspaceLoadIssue).toEqual({
+      kind: "error",
+      error: "transient vault read failure",
+    });
   });
 });

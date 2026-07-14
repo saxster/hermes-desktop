@@ -91,6 +91,14 @@ function escapeInlinePreservingWikilinks(s: string): string {
   return out + escapeInline(s.slice(pos));
 }
 
+/** Keep paragraph text from being reinterpreted as a structural block. */
+function escapeParagraphMarker(md: string): string {
+  if (/^#{1,3}\s/.test(md) || /^[-*]\s/.test(md) || md === "---") {
+    return `\\${md}`;
+  }
+  return md.replace(/^(\d+)\.(\s)/, "$1\\.$2");
+}
+
 interface InlineMd {
   md: string;
   clean: boolean;
@@ -170,7 +178,7 @@ const WIKI_CLOSE = String.fromCharCode(0xe005);
 export function parseInline(md: string): { text: string; html?: string } {
   // 1. Protect backslash-escaped chars so they don't trigger mark regexes.
   const escapes: string[] = [];
-  let s = md.replace(/\\([\\*_~=`[\]<>])/g, (_m, ch) => {
+  let s = md.replace(/\\([\\*_~=`[\]<>#.-])/g, (_m, ch) => {
     escapes.push(ch);
     return ESC_OPEN + (escapes.length - 1) + ESC_CLOSE;
   });
@@ -422,9 +430,9 @@ function cleanBlockLine(block: Block): string {
     case "divider":
       return "---";
     case "code":
-      return "```\n" + (block.text || "") + "\n```";
+      return fencedBlock(block.text || "");
     case "mermaid":
-      return "```mermaid\n" + (block.text || "") + "\n```";
+      return fencedBlock(block.text || "", "mermaid");
     case "excalidraw":
       // Renders as a clean image; the `.excalidraw.svg` suffix on the path is
       // what tells the parser to reconstruct an excalidraw block.
@@ -457,8 +465,17 @@ function cleanBlockLine(block: Block): string {
     case "embed":
       return blockWikilink(block, "embed");
     default:
-      return renderInline(block); // paragraph
+      return escapeParagraphMarker(renderInline(block)); // paragraph
   }
+}
+
+function fencedBlock(source: string, info = ""): string {
+  let longestRun = 0;
+  for (const match of source.matchAll(/`+/g)) {
+    longestRun = Math.max(longestRun, match[0].length);
+  }
+  const fence = "`".repeat(Math.max(3, longestRun + 1));
+  return `${fence}${info}\n${source}\n${fence}`;
 }
 
 function blockToMarkdown(block: Block, anchored = false): string {
@@ -520,22 +537,24 @@ export function markdownToBlocks(md: string): Block[] {
     const meta = META_RE.exec(raw.trim());
     if (meta) {
       const block = decodeMeta(meta[1]);
-      if (block) blocks.push(block);
+      blocks.push(block ?? { id: uid(), type: "p", text: raw });
       i++;
       continue;
     }
 
-    if (raw.trimStart().startsWith("```")) {
+    const openingFence = /^(`{3,})([^`]*)$/.exec(raw.trimStart());
+    if (openingFence) {
       // The info-string after the opening fence selects the block type:
       // ```mermaid → a mermaid diagram, anything else → a plain code block.
-      const lang = raw.trim().slice(3).trim().toLowerCase();
+      const fence = openingFence[1];
+      const lang = openingFence[2].trim().toLowerCase();
       const body: string[] = [];
       i++;
-      while (i < lines.length && !lines[i].trimStart().startsWith("```")) {
+      while (i < lines.length && lines[i].trim() !== fence) {
         body.push(lines[i]);
         i++;
       }
-      i++; // consume closing fence
+      if (i < lines.length) i++; // consume closing fence
       const type: BlockType = lang === "mermaid" ? "mermaid" : "code";
       blocks.push({ id: uid(), type, text: body.join("\n") });
       continue;
