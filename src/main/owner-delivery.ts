@@ -1,4 +1,6 @@
 import { Notification } from "electron";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import type {
   OwnerDeliveryAttempt,
   OwnerDeliveryChannel,
@@ -9,12 +11,26 @@ import type {
 import { readDesktopConfig, writeDesktopConfig } from "./config";
 import { runHermesCli } from "./hermes-cli-runner";
 import { log } from "./log";
-import { normalizeProfileName } from "./utils";
+import { normalizeProfileName, profileHome, safeWriteFile } from "./utils";
 
 const SETTINGS_KEY = "ownerDeliveryByProfile";
 const ATTEMPTS_KEY = "ownerDeliveryAttemptsByProfile";
 const CHANNELS: OwnerDeliveryChannel[] = ["macos", "telegram", "email"];
 const MAX_ATTEMPT_HISTORY = 500;
+const DELIVERY_QUEUE_FILE = "owner-delivery-queue.json";
+const EVENT_KINDS = new Set<OwnerDeliveryEvent["kind"]>([
+  "daily-brief",
+  "scheduled-research",
+  "gateway-outage",
+  "follow-up",
+  "task-proposal",
+]);
+
+interface QueuedOwnerDelivery {
+  event: OwnerDeliveryEvent;
+  channel: OwnerDeliveryChannel;
+  queuedAt: number;
+}
 
 export const DEFAULT_OWNER_DELIVERY_SETTINGS: OwnerDeliverySettings = {
   channels: { macos: true, telegram: false, email: false },
@@ -30,7 +46,7 @@ export const DEFAULT_OWNER_DELIVERY_SETTINGS: OwnerDeliverySettings = {
   maxPerHour: 6,
 };
 
-interface OwnerDeliveryDependencies {
+export interface OwnerDeliveryDependencies {
   notify: (title: string, body: string) => Promise<boolean>;
   send: (
     channel: Exclude<OwnerDeliveryChannel, "macos">,
@@ -38,6 +54,27 @@ interface OwnerDeliveryDependencies {
     profile?: string,
   ) => Promise<boolean>;
   now: () => Date;
+}
+
+const deliveryMutationTails = new Map<string, Promise<void>>();
+
+function inDeliveryMutationLane<T>(
+  profile: string | undefined,
+  mutation: () => Promise<T>,
+): Promise<T> {
+  const key = profileKey(profile);
+  const previous = deliveryMutationTails.get(key) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(mutation);
+  const holder: { tail?: Promise<void> } = {};
+  const clearTail = (): void => {
+    if (holder.tail && deliveryMutationTails.get(key) === holder.tail) {
+      deliveryMutationTails.delete(key);
+    }
+  };
+  const tail = run.then(clearTail, clearTail);
+  holder.tail = tail;
+  deliveryMutationTails.set(key, tail);
+  return run;
 }
 
 function profileKey(profile?: string): string {
@@ -179,6 +216,61 @@ function saveAttempts(
   writeDesktopConfig(config);
 }
 
+function queuePath(profile?: string): string {
+  return join(profileHome(profile), DELIVERY_QUEUE_FILE);
+}
+
+function isQueuedOwnerDelivery(value: unknown): value is QueuedOwnerDelivery {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<QueuedOwnerDelivery>;
+  const event = candidate.event;
+  return (
+    !!event &&
+    typeof event === "object" &&
+    typeof event.id === "string" &&
+    EVENT_KINDS.has(event.kind) &&
+    typeof event.title === "string" &&
+    typeof event.body === "string" &&
+    typeof candidate.channel === "string" &&
+    CHANNELS.includes(candidate.channel as OwnerDeliveryChannel) &&
+    typeof candidate.queuedAt === "number" &&
+    Number.isFinite(candidate.queuedAt)
+  );
+}
+
+function readQueuedDeliveries(profile?: string): QueuedOwnerDelivery[] {
+  const path = queuePath(profile);
+  if (!existsSync(path)) return [];
+  const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  if (!Array.isArray(parsed) || !parsed.every(isQueuedOwnerDelivery)) {
+    throw new Error(`Invalid owner delivery queue: ${path}`);
+  }
+  return parsed;
+}
+
+function saveQueuedDeliveries(
+  queue: QueuedOwnerDelivery[],
+  profile?: string,
+): void {
+  safeWriteFile(queuePath(profile), `${JSON.stringify(queue, null, 2)}\n`);
+}
+
+function queueDelivery(
+  queue: QueuedOwnerDelivery[],
+  event: OwnerDeliveryEvent,
+  channel: OwnerDeliveryChannel,
+  queuedAt: number,
+): void {
+  const existing = queue.find(
+    (item) => item.event.id === event.id && item.channel === channel,
+  );
+  if (existing) {
+    existing.event = event;
+    return;
+  }
+  queue.push({ event, channel, queuedAt });
+}
+
 export function ownerDeliverySkipReason(
   channel: OwnerDeliveryChannel,
   event: OwnerDeliveryEvent,
@@ -243,7 +335,7 @@ const defaultDependencies: OwnerDeliveryDependencies = {
   now: () => new Date(),
 };
 
-export async function deliverOwnerEvent(
+async function deliverOwnerEventInLane(
   event: OwnerDeliveryEvent,
   profile?: string,
   dependencies: OwnerDeliveryDependencies = defaultDependencies,
@@ -252,6 +344,8 @@ export async function deliverOwnerEvent(
   const attempts = attemptsForProfile(profile);
   const now = dependencies.now();
   const result: OwnerDeliveryResult = { delivered: [], skipped: [] };
+  const queue = readQueuedDeliveries(profile);
+  let queueChanged = false;
 
   for (const channel of CHANNELS) {
     const reason = ownerDeliverySkipReason(
@@ -263,6 +357,10 @@ export async function deliverOwnerEvent(
     );
     if (reason) {
       result.skipped.push({ channel, reason });
+      if (reason === "quiet-hours" || reason === "rate-limit") {
+        queueDelivery(queue, event, channel, now.getTime());
+        queueChanged = true;
+      }
       continue;
     }
     const delivered =
@@ -288,5 +386,79 @@ export async function deliverOwnerEvent(
   }
 
   if (result.delivered.length > 0) saveAttempts(attempts, profile);
+  if (queueChanged) saveQueuedDeliveries(queue, profile);
   return result;
+}
+
+export function deliverOwnerEvent(
+  event: OwnerDeliveryEvent,
+  profile?: string,
+  dependencies: OwnerDeliveryDependencies = defaultDependencies,
+): Promise<OwnerDeliveryResult> {
+  return inDeliveryMutationLane(profile, () =>
+    deliverOwnerEventInLane(event, profile, dependencies),
+  );
+}
+
+async function retryQueuedOwnerDeliveriesInLane(
+  profile?: string,
+  dependencies: OwnerDeliveryDependencies = defaultDependencies,
+): Promise<OwnerDeliveryResult> {
+  const queue = readQueuedDeliveries(profile);
+  const settings = getOwnerDeliverySettings(profile);
+  const attempts = attemptsForProfile(profile);
+  const now = dependencies.now();
+  const result: OwnerDeliveryResult = { delivered: [], skipped: [] };
+  const remaining: QueuedOwnerDelivery[] = [];
+
+  for (const item of queue) {
+    const reason = ownerDeliverySkipReason(
+      item.channel,
+      item.event,
+      settings,
+      attempts,
+      now,
+    );
+    if (reason === "quiet-hours" || reason === "rate-limit") {
+      result.skipped.push({ channel: item.channel, reason });
+      remaining.push(item);
+      continue;
+    }
+    if (reason) {
+      result.skipped.push({ channel: item.channel, reason });
+      continue;
+    }
+
+    const delivered =
+      item.channel === "macos"
+        ? await dependencies.notify(item.event.title, item.event.body)
+        : await dependencies.send(item.channel, item.event, profile);
+    if (!delivered) {
+      result.skipped.push({ channel: item.channel, reason: "failed" });
+      remaining.push(item);
+      continue;
+    }
+    attempts.push({
+      eventId: item.event.id,
+      channel: item.channel,
+      deliveredAt: now.getTime(),
+    });
+    // Persist the dedupe marker before removing the durable queue item. A crash
+    // can therefore leave an already-delivered item queued, but the next retry
+    // will discard it as a duplicate instead of sending it twice.
+    saveAttempts(attempts, profile);
+    result.delivered.push(item.channel);
+  }
+
+  if (queue.length > 0) saveQueuedDeliveries(remaining, profile);
+  return result;
+}
+
+export function retryQueuedOwnerDeliveries(
+  profile?: string,
+  dependencies: OwnerDeliveryDependencies = defaultDependencies,
+): Promise<OwnerDeliveryResult> {
+  return inDeliveryMutationLane(profile, () =>
+    retryQueuedOwnerDeliveriesInLane(profile, dependencies),
+  );
 }

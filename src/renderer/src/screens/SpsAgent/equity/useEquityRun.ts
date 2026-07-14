@@ -11,6 +11,7 @@ import {
   parseCalibrationScorecard,
   type CalibrationScorecard,
 } from "./calibrationContract";
+import { uid } from "../lib/ids";
 
 export type RunStatus = "idle" | "running" | "done" | "error";
 
@@ -60,19 +61,25 @@ export function useEquityRun(): EquityRunState {
   const [toolProgress, setToolProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bufferRef = useRef("");
+  const activeRunIdRef = useRef<string | null>(null);
 
   const { delegationTree } = useChatSignals(PROFILE);
 
   // Subscribe to the streamed chat signals for the lifetime of the surface.
   useEffect(() => {
-    const offChunk = window.hermesAPI.onChatChunk((chunk: string) => {
+    const offChunk = window.hermesAPI.onChatChunk((chunk: string, runId) => {
+      if (runId !== activeRunIdRef.current) return;
       bufferRef.current += chunk;
       setTranscript(bufferRef.current);
     });
-    const offTool = window.hermesAPI.onChatToolProgress((tool: string) => {
-      setToolProgress(tool);
-    });
-    const offDone = window.hermesAPI.onChatDone(() => {
+    const offTool = window.hermesAPI.onChatToolProgress(
+      (tool: string, runId) => {
+        if (runId !== activeRunIdRef.current) return;
+        setToolProgress(tool);
+      },
+    );
+    const offDone = window.hermesAPI.onChatDone((_sessionId, runId) => {
+      if (runId !== activeRunIdRef.current) return;
       setStatus("done");
       setToolProgress(null);
     });
@@ -87,6 +94,8 @@ export function useEquityRun(): EquityRunState {
     (nextTicker: string, depth: "full" | "quick" = "full") => {
       const symbol = nextTicker.trim().toUpperCase();
       if (!symbol) return;
+      const runId = uid("equity-run");
+      activeRunIdRef.current = runId;
       bufferRef.current = "";
       setTranscript("");
       setError(null);
@@ -106,7 +115,17 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
           ? `Operate strictly per the india-equity-research skill below.\n\n${skillMd}\n\n---\n\n${directive}`
           : `Use the india-equity-research skill. ${directive}`;
         try {
-          const res = await window.hermesAPI.sendMessage(prompt, PROFILE);
+          const res = await window.hermesAPI.sendMessage(
+            prompt,
+            PROFILE,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            runId,
+          );
+          if (activeRunIdRef.current !== runId) return;
           // Final response also carries the full text; prefer it if longer.
           if (res?.response && res.response.length > bufferRef.current.length) {
             bufferRef.current = res.response;
@@ -114,10 +133,12 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
           }
           setStatus("done");
         } catch (e) {
+          if (activeRunIdRef.current !== runId) return;
           setError(String(e));
           setStatus("error");
         }
       })().catch((error: unknown) => {
+        if (activeRunIdRef.current !== runId) return;
         setError(String(error));
         setStatus("error");
       });
@@ -131,6 +152,8 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
         .map((t) => t.trim().toUpperCase())
         .filter(Boolean);
       if (symbols.length === 0) return;
+      const runId = uid("equity-run");
+      activeRunIdRef.current = runId;
       bufferRef.current = "";
       setTranscript("");
       setError(null);
@@ -147,8 +170,18 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
       const list = symbols.join(", ");
       const prompt = `Use the india-equity-research skill in basket mode to rank ${list} (NSE) as basket "${name}" (id ${id}). Pull Phase 0 shared context once, run the single-stock pass per name, then call basket_run.run to build the ranking board. Return the canonical basket board markdown.`;
       void window.hermesAPI
-        .sendMessage(prompt, PROFILE)
+        .sendMessage(
+          prompt,
+          PROFILE,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          runId,
+        )
         .then((res) => {
+          if (activeRunIdRef.current !== runId) return;
           if (res?.response && res.response.length > bufferRef.current.length) {
             bufferRef.current = res.response;
             setTranscript(res.response);
@@ -156,6 +189,7 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
           setStatus("done");
         })
         .catch((e: unknown) => {
+          if (activeRunIdRef.current !== runId) return;
           setError(String(e));
           setStatus("error");
         });
@@ -164,6 +198,8 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
   );
 
   const startCalibration = useCallback((horizonDays = 90) => {
+    const runId = uid("equity-run");
+    activeRunIdRef.current = runId;
     bufferRef.current = "";
     setTranscript("");
     setError(null);
@@ -173,8 +209,18 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
 
     const prompt = `Use the india-equity-research skill's calibration script to compute my thesis hit-rate scorecard over a ${horizonDays}-day horizon (call calibration.run). Do NOT persist — return the canonical calibration scorecard markdown so I can review and choose to save.`;
     void window.hermesAPI
-      .sendMessage(prompt, PROFILE)
+      .sendMessage(
+        prompt,
+        PROFILE,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        runId,
+      )
       .then((res) => {
+        if (activeRunIdRef.current !== runId) return;
         if (res?.response && res.response.length > bufferRef.current.length) {
           bufferRef.current = res.response;
           setTranscript(res.response);
@@ -182,6 +228,7 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
         setStatus("done");
       })
       .catch((e: unknown) => {
+        if (activeRunIdRef.current !== runId) return;
         setError(String(e));
         setStatus("error");
       });

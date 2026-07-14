@@ -83,6 +83,7 @@ vi.mock("../log", () => ({
 
 import {
   __resetGatewayProcessForTests,
+  __runGatewaySupervisorTickForTests,
   __setGatewayProcessRuntimeForTests,
   isGatewayRunning,
   restartGateway,
@@ -92,6 +93,7 @@ import {
   setGatewayReadyNotifier,
   startGateway,
   startGatewayWithRecovery,
+  stopGateway,
   type GatewayProcessRuntime,
 } from "./gateway-process";
 
@@ -253,5 +255,36 @@ describe("gateway process lifecycle", () => {
     expect(harness.children).toHaveLength(2);
     expect(harness.lifecycleEvents).toEqual(["spawn:1", "spawn:2"]);
     expect(isGatewayRunning("work")).toBe(true);
+  });
+
+  it("automatically restarts an app-started gateway after it crashes", async () => {
+    expect(startGateway()).toBe(true);
+
+    harness.children[0].crash(1);
+    expect(isGatewayRunning()).toBe(false);
+
+    harness.healthStatuses.push(503, 503, 503, 503, 200, 200);
+    await __runGatewaySupervisorTickForTests();
+    await __runGatewaySupervisorTickForTests();
+    await __runGatewaySupervisorTickForTests();
+
+    await vi.waitFor(() => {
+      expect(harness.children).toHaveLength(2);
+    });
+    expect(harness.lifecycleEvents).toEqual(["spawn:1", "spawn:2"]);
+  });
+
+  it("does not restart a gateway after an explicit stop", async () => {
+    expect(startGateway()).toBe(true);
+
+    stopGateway(undefined, true);
+
+    harness.healthStatuses.push(503, 503, 503);
+    await __runGatewaySupervisorTickForTests();
+    await __runGatewaySupervisorTickForTests();
+    await __runGatewaySupervisorTickForTests();
+
+    expect(harness.children).toHaveLength(1);
+    expect(harness.children[0].killed).toBe(true);
   });
 });

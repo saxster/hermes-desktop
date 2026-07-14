@@ -147,6 +147,7 @@ export const createAssistantSlice: StateCreator<
       });
       maybeTitle(convId, displayText ?? prompt);
       setConvThinking(convId, true);
+      const targetPageId = s.page;
       const blocks = s.docs[s.page] || [];
       const pageTitle = (s.meta[s.page] || { title: "Untitled" }).title;
       // Private notes the user pinned to text on this page (unarchived). Fed to
@@ -189,8 +190,10 @@ export const createAssistantSlice: StateCreator<
           if (resp.kind === "diff") {
             const pid = uid("prop");
             let any = false;
-            get().setBlocks((bs) =>
-              bs.map((b) => {
+            const targetBlocks = get().docs[targetPageId] || [];
+            get().setPageDoc(
+              targetPageId,
+              targetBlocks.map((b) => {
                 const hit = resp.edits.find(
                   (e) =>
                     b.text &&
@@ -222,7 +225,8 @@ export const createAssistantSlice: StateCreator<
               diff: true,
               context: resp.context,
             });
-            requestAnimationFrame(() => scrollToProposal(pid));
+            if (get().page === targetPageId)
+              requestAnimationFrame(() => scrollToProposal(pid));
             return;
           }
           if (resp.kind === "append") {
@@ -233,21 +237,20 @@ export const createAssistantSlice: StateCreator<
               proposalId: pid,
               proposalLabel: resp.label,
             }));
-            get().setBlocks((bs) => {
-              const next = [...bs];
-              if (resp.at === "top") next.splice(1, 0, ...tagged);
-              else {
-                let idx = next.length;
-                if (
-                  next[idx - 1] &&
-                  next[idx - 1].type === "p" &&
-                  !next[idx - 1].text
-                )
-                  idx -= 1;
-                next.splice(idx, 0, ...tagged);
-              }
-              return next;
-            });
+            const targetBlocks = get().docs[targetPageId] || [];
+            const next = [...targetBlocks];
+            if (resp.at === "top") next.splice(1, 0, ...tagged);
+            else {
+              let idx = next.length;
+              if (
+                next[idx - 1] &&
+                next[idx - 1].type === "p" &&
+                !next[idx - 1].text
+              )
+                idx -= 1;
+              next.splice(idx, 0, ...tagged);
+            }
+            get().setPageDoc(targetPageId, next);
             addMsg(convId, {
               id: uid("m"),
               role: "bot",
@@ -257,7 +260,8 @@ export const createAssistantSlice: StateCreator<
               status: "pending",
               context: resp.context,
             });
-            requestAnimationFrame(() => scrollToProposal(pid));
+            if (get().page === targetPageId)
+              requestAnimationFrame(() => scrollToProposal(pid));
             return;
           }
           if (resp.kind === "page") {
@@ -566,8 +570,8 @@ export const createAssistantSlice: StateCreator<
                 title: action.title,
                 status: "todo" as const,
                 prio: "med" as const,
-                who: "maya",
-                due: "Jun 6",
+                who: "you",
+                due: "",
                 est: "1d",
               },
             ];

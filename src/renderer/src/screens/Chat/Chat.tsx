@@ -361,7 +361,7 @@ function Chat({
 
   const handleClear = useCallback(() => {
     if (isLoading) {
-      window.hermesAPI.abortChat();
+      window.hermesAPI.abortChat(hermesSessionId ?? sessionId ?? undefined);
       setIsLoading(false);
     }
     const idToDelete = hermesSessionId ?? sessionId;

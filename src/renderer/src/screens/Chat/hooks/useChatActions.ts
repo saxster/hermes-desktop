@@ -318,10 +318,10 @@ export function useChatActions({
   );
 
   const handleAbort = useCallback(() => {
-    window.hermesAPI.abortChat();
+    window.hermesAPI.abortChat(hermesSessionId ?? undefined);
     setIsLoading(false);
     setTimeout(() => chatInputRef.current?.focus(), 50);
-  }, [chatInputRef, setIsLoading]);
+  }, [chatInputRef, hermesSessionId, setIsLoading]);
 
   const handleApprove = useCallback(() => {
     chatInputRef.current?.clear();

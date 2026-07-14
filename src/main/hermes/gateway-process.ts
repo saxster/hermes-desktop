@@ -378,8 +378,8 @@ export function startGatewayDetailed(profile?: string): GatewayStartResult {
       error: formatLogError(err),
     });
     if (gatewayProcesses.get(key) === proc) gatewayProcesses.delete(key);
-    appStartedProfiles.delete(key);
     invalidateApiCacheFor(profile);
+    startHealthPolling();
   });
 
   proc.on("close", (code, signal) => {
@@ -393,7 +393,6 @@ export function startGatewayDetailed(profile?: string): GatewayStartResult {
       });
     }
     if (gatewayProcesses.get(key) === proc) gatewayProcesses.delete(key);
-    appStartedProfiles.delete(key);
     invalidateApiCacheFor(profile);
     startHealthPolling();
   });
@@ -472,6 +471,11 @@ export function stopGateway(profile?: string, force = false): void {
   const key = profileKey(profile);
   if (!force && !appStartedProfiles.has(key)) return;
 
+  // Clear supervision intent before signalling the child. Its `close` event may
+  // fire synchronously in tests (and quickly in production); an explicit stop
+  // must never be mistaken for a crash that should be auto-restarted.
+  appStartedProfiles.delete(key);
+
   const proc = gatewayProcesses.get(key);
   if (proc && isChildProcessAlive(proc)) {
     proc.kill("SIGTERM");
@@ -494,7 +498,6 @@ export function stopGateway(profile?: string, force = false): void {
       // best-effort
     }
   }
-  appStartedProfiles.delete(key);
   invalidateApiCacheFor(profile);
 }
 
@@ -588,7 +591,6 @@ function markGatewayRestartFailed(profile?: string): void {
     proc.kill("SIGTERM");
   }
   gatewayProcesses.delete(key);
-  appStartedProfiles.delete(key);
   invalidateApiCacheFor(profile);
   startHealthPolling();
 }
@@ -653,6 +655,11 @@ async function restartGatewayLocallyOnce(
     const previousPidEntry = readGatewayRuntimeEntry(profile);
 
     stopGateway(profile, true);
+    if (previousStartedByApp) {
+      // An internal restart is not a user stop. Preserve supervision intent so
+      // a failed replacement remains eligible for the bounded retry policy.
+      appStartedProfiles.add(key);
+    }
     const processStopped = await waitForGatewayProcessStopped(
       profile,
       stopTimeoutMs,
@@ -908,7 +915,8 @@ async function runSupervisorTick(): Promise<void> {
 
   // Nothing to supervise until a gateway has been started (or is running). Reset
   // to a clean baseline so a later start begins fresh.
-  const supervising = appStartedProfiles.size > 0 || isGatewayRunning();
+  const supervising =
+    appStartedProfiles.has(profileKey(undefined)) || isGatewayRunning();
   if (!supervising) {
     if (_supervisorState.status !== "healthy") {
       _supervisorState = initialSupervisorState();
@@ -945,6 +953,10 @@ async function runSupervisorTick(): Promise<void> {
     });
     scheduleSupervisedRestart(decision.action.backoffMs);
   }
+}
+
+export function __runGatewaySupervisorTickForTests(): Promise<void> {
+  return runSupervisorTick();
 }
 
 export function startHealthPolling(): void {

@@ -24,7 +24,11 @@ import { formatLogError, log } from "./log";
 import { getActiveProfileNameSync, profileHome, safeWriteFile } from "./utils";
 import { listCronJobs } from "./cronjobs";
 import { triggerSelfHealing } from "./self-healing";
-import { readDesktopConfig, writeDesktopConfig } from "./config";
+import {
+  getConnectionConfig,
+  readDesktopConfig,
+  writeDesktopConfig,
+} from "./config";
 import { runDreamCycle } from "./dream-cycle";
 import { maybeRunHermesAgentUpdateRoutine } from "./hermes-agent-updates";
 import { maybeRunHermesUpstreamWatchRoutine } from "./hermes-upstream-watch";
@@ -35,6 +39,7 @@ import { gatewayFetch } from "./security/network-policy";
 import { createLearningProposal } from "./learning-proposals";
 import { listInstalledSkills, getSkillContent } from "./skills";
 import { drainTaskProposalSpool } from "./task-proposal-bridge";
+import { retryQueuedOwnerDeliveries } from "./owner-delivery";
 
 export async function captureScreenshot(
   jobId: string,
@@ -394,6 +399,16 @@ export async function tickScheduler(profile?: string): Promise<void> {
     });
   }
 
+  try {
+    await retryQueuedOwnerDeliveries(activeProfile);
+  } catch (err) {
+    log.error("owner-delivery", {
+      msg: "failed to retry queued owner deliveries",
+      profile: activeProfile,
+      error: formatLogError(err),
+    });
+  }
+
   // Nag engine: chase overdue human tasks (throttled to ~60s).
   try {
     const nagNow = Date.now();
@@ -559,6 +574,17 @@ export async function runJobHeadless(
   jobName: string,
   profile: string,
 ): Promise<boolean> {
+  const connectionMode = getConnectionConfig().mode;
+  if (connectionMode !== "local") {
+    log.warn("scheduler", {
+      msg: "skipping local cron runner outside local connection mode",
+      jobId,
+      jobName,
+      profile,
+      connectionMode,
+    });
+    return false;
+  }
   if (activeRuns.has(jobId)) {
     log.warn("scheduler", {
       msg: "job is already running",
@@ -658,13 +684,14 @@ export async function runJobHeadless(
           FAZM_HEADLESS: "1", // Indicate headless environment
         },
       });
+      let runSettled = false;
 
       proc.stdout.on("data", (chunk) => {
-        logStream.write(chunk);
+        if (!runSettled) logStream.write(chunk);
       });
 
       proc.stderr.on("data", (chunk) => {
-        logStream.write(chunk);
+        if (!runSettled) logStream.write(chunk);
       });
 
       // Reap a wedged run: if the child never exits within the timeout, kill it,
@@ -672,6 +699,8 @@ export async function runJobHeadless(
       // lock until the next acquisition's stale-steal — this bounds the damage and
       // frees the OS process. Cleared the moment the child exits normally.
       const reapTimer = setTimeout(() => {
+        if (runSettled) return;
+        runSettled = true;
         log.warn("scheduler", {
           msg: "reaping wedged job",
           jobId,
@@ -703,6 +732,8 @@ export async function runJobHeadless(
       reapTimer.unref?.();
 
       const handleProcessClose = async (code: number | null): Promise<void> => {
+        if (runSettled) return;
+        runSettled = true;
         clearTimeout(reapTimer);
         const duration = Date.now() - startTime;
         logStream.write(
@@ -794,6 +825,8 @@ export async function runJobHeadless(
       });
 
       const handleProcessError = async (err: Error): Promise<void> => {
+        if (runSettled) return;
+        runSettled = true;
         clearTimeout(reapTimer);
         logStream.write(`\nProcess spawn error: ${err.message}\n`);
         logStream.end();

@@ -30,16 +30,32 @@ const mockMaybeRunHermesUpstreamWatchRoutine = vi.fn();
 const mockMaybeRunDesktopUpdateRoutine = vi.fn();
 const mockMaybeRunAppLaunchSchedules = vi.fn();
 const mockLogEnd = vi.fn();
+const mockLogWriteAfterEnd = vi.fn();
+const mockRetryQueuedOwnerDeliveries = vi.fn();
+const processHandlers = new Map<string, (...args: unknown[]) => void>();
+const outputHandlers = new Map<string, (chunk: unknown) => void>();
+let mockAutoClose = true;
+let mockConnectionMode: "local" | "remote" | "ssh" = "local";
 
 vi.mock("child_process", () => {
   const fns = {
     spawn: (...args: unknown[]) => {
       mockSpawn(...args);
       return {
-        stdout: { on: vi.fn() },
-        stderr: { on: vi.fn() },
+        stdout: {
+          on: (event: string, callback: (chunk: unknown) => void) => {
+            outputHandlers.set(`stdout:${event}`, callback);
+          },
+        },
+        stderr: {
+          on: (event: string, callback: (chunk: unknown) => void) => {
+            outputHandlers.set(`stderr:${event}`, callback);
+          },
+        },
+        kill: vi.fn(),
         on: (event: string, callback: (...args: unknown[]) => void) => {
-          if (event === "close") {
+          processHandlers.set(event, callback);
+          if (event === "close" && mockAutoClose) {
             setTimeout(() => callback(0), 10);
           }
         },
@@ -50,14 +66,23 @@ vi.mock("child_process", () => {
 });
 
 vi.mock("fs", () => {
-  const mockWrite = vi.fn();
+  let ended = false;
+  const mockWrite = vi.fn(() => {
+    if (ended) mockLogWriteAfterEnd();
+  });
   const fns = {
     existsSync: (p: string) => !p.endsWith(".lock"),
     mkdirSync: () => {},
-    createWriteStream: () => ({
-      write: mockWrite,
-      end: mockLogEnd,
-    }),
+    createWriteStream: () => {
+      ended = false;
+      return {
+        write: mockWrite,
+        end: () => {
+          ended = true;
+          mockLogEnd();
+        },
+      };
+    },
     readFileSync: () => "{}",
     writeFileSync: () => {},
   };
@@ -124,6 +149,12 @@ vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),
   writeDesktopConfig: (c: unknown) => mockWriteDesktopConfig(c),
   readEnv: () => ({}),
+  getConnectionConfig: () => ({ mode: mockConnectionMode }),
+}));
+
+vi.mock("../src/main/owner-delivery", () => ({
+  retryQueuedOwnerDeliveries: (profile?: string): Promise<unknown> =>
+    mockRetryQueuedOwnerDeliveries(profile),
 }));
 
 // The nag engine is its own unit (see scheduler-nag.test.ts); stub it here so
@@ -137,6 +168,7 @@ import {
   getSchedulerConfig,
   setSchedulerConfig,
   captureScreenshot,
+  runJobHeadless,
 } from "../src/main/scheduler";
 
 describe("Scheduler Service", () => {
@@ -146,6 +178,14 @@ describe("Scheduler Service", () => {
     mockMaybeRunHermesUpstreamWatchRoutine.mockResolvedValue(null);
     mockMaybeRunDesktopUpdateRoutine.mockResolvedValue(null);
     mockMaybeRunAppLaunchSchedules.mockResolvedValue([]);
+    mockRetryQueuedOwnerDeliveries.mockResolvedValue({
+      delivered: [],
+      skipped: [],
+    });
+    mockAutoClose = true;
+    mockConnectionMode = "local";
+    processHandlers.clear();
+    outputHandlers.clear();
   });
 
   it("should get default scheduler config", () => {
@@ -251,6 +291,43 @@ describe("Scheduler Service", () => {
       expect.any(Date),
       "test-profile",
     );
+  });
+
+  it("retries durable owner deliveries on scheduler ticks", async () => {
+    mockListCronJobs.mockResolvedValueOnce([]);
+
+    await tickScheduler("test-profile");
+
+    expect(mockRetryQueuedOwnerDeliveries).toHaveBeenCalledWith("test-profile");
+  });
+
+  it.each(["remote", "ssh"] as const)(
+    "does not spawn the local Hermes CLI in %s mode",
+    async (mode) => {
+      mockConnectionMode = mode;
+
+      await expect(
+        runJobHeadless("job-remote", "Remote job", "test-profile"),
+      ).resolves.toBe(false);
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not write to a cron log stream after a reaped child closes", async () => {
+    vi.useFakeTimers();
+    mockAutoClose = false;
+
+    const run = runJobHeadless("job-wedged", "Wedged job", "test-profile");
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1_000);
+    await expect(run).resolves.toBe(false);
+
+    outputHandlers.get("stdout:data")?.("late output");
+    processHandlers.get("close")?.(0);
+    await Promise.resolve();
+
+    expect(mockLogWriteAfterEnd).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   describe("captureScreenshot", () => {
