@@ -28,6 +28,7 @@ import {
   readDesktopConfig,
   writeDesktopConfig,
   getConnectionConfig,
+  getApiServerKey,
 } from "./config";
 import { isGatewayRunning, sendMessage } from "./hermes";
 import { runJobHeadless, tickScheduler } from "./scheduler";
@@ -44,6 +45,7 @@ import {
 } from "./sps-vault";
 import { buildContextPack } from "./context-packs";
 import { getProfilePort } from "./gateway-ports";
+import { syncHeadlessGatewayToken } from "./headless/gateway-token";
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
 let currentPort = 8645;
@@ -1058,6 +1060,7 @@ export function manageLaunchAgent(enabled: boolean): void {
     { shell: false },
     () => {
       if (!enabled) {
+        syncHeadlessGatewayToken("");
         try {
           if (existsSync(plistPath)) {
             unlinkSync(plistPath);
@@ -1067,6 +1070,10 @@ export function manageLaunchAgent(enabled: boolean): void {
         }
         return;
       }
+
+      syncHeadlessGatewayToken(
+        getApiServerKey(getActiveProfileNameSync() || "default"),
+      );
 
       const nodePath = findNodePath();
       const cronScriptPath = join(hermesHome, "bin", "hermes-cron.cjs");

@@ -113,6 +113,13 @@ function activeProfile(runtime, home) {
 function profileHome(home, profile) {
   return profile === "default" ? home : (0, import_node_path.join)(home, "profiles", profile);
 }
+function readHeadlessGatewayToken(runtime, home) {
+  try {
+    return runtime.readFileSync((0, import_node_path.join)(home, "headless-gateway.token")).trim();
+  } catch {
+    return "";
+  }
+}
 function appendJsonLine(runtime, file, payload) {
   try {
     runtime.mkdirSync((0, import_node_path.dirname)(file));
@@ -250,6 +257,7 @@ function superviseGateway(runtime, home, profile, desktopConfig, nowMs) {
     return;
   }
   const cli = canonicalCli(home, profile, ["gateway", "run"]);
+  const apiServerKey = readHeadlessGatewayToken(runtime, home);
   state.lastRestartAttemptAt = nowMs;
   state.restartAttempts = (Number(state.restartAttempts) || 0) + 1;
   try {
@@ -262,6 +270,7 @@ function superviseGateway(runtime, home, profile, desktopConfig, nowMs) {
         HOME: runtime.homedir(),
         API_SERVER_ENABLED: "true",
         API_SERVER_PORT: String(port),
+        ...apiServerKey ? { API_SERVER_KEY: apiServerKey } : {},
         FAZM_HEADLESS: "1"
       },
       shell: false,

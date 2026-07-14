@@ -45,3 +45,23 @@ describe("electron-builder mac.extendInfo", () => {
     );
   });
 });
+
+describe("electron-builder packaged files", () => {
+  const root = join(__dirname, "..");
+  const cfg = parseYaml(
+    readFileSync(join(root, "electron-builder.yml"), "utf8"),
+  );
+  const files = cfg?.files as string[];
+
+  it("uses a runtime allowlist instead of a source-tree denylist", () => {
+    expect(files).toEqual(
+      expect.arrayContaining(["out/**", "resources/**", "package.json"]),
+    );
+    expect(files.some((entry) => !entry.startsWith("!"))).toBe(true);
+    expect(files).not.toContain("!src/*");
+  });
+
+  it("does not include worktrees in the package input", () => {
+    expect(files).toContain("!.worktrees/**");
+  });
+});

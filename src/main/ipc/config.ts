@@ -62,6 +62,7 @@ import {
   stopSshTunnel,
   testSshConnection,
   isSshTunnelActive,
+  validateSshUsername,
 } from "../ssh-tunnel";
 import {
   sshReadEnv,
@@ -115,6 +116,7 @@ import {
 } from "../app-zoom";
 import type { CouncilConfig } from "../../shared/council";
 import { openExternalUrl } from "../external-navigation";
+import { syncHeadlessGatewayToken } from "../headless/gateway-token";
 
 function refreshEngineCapabilitiesForActiveProfile(): void {
   void refreshEngineCapabilities().catch((err) => {
@@ -317,6 +319,7 @@ export function registerConfigIpc(): void {
     const data = readDesktopConfig();
     data.apiServerKey = key;
     writeDesktopConfig(data);
+    syncHeadlessGatewayToken(key);
 
     setEnvValue("API_SERVER_KEY", "", profile);
     if (profile && profile !== "default") {
@@ -377,6 +380,7 @@ export function registerConfigIpc(): void {
       remotePort: number,
       localPort: number,
     ) => {
+      validateSshUsername(username);
       const current = getConnectionConfig();
       // Phase 1.4 — a new SSH target makes any cached key (fetched for the old
       // host) invalid; drop it so it is never sent to the new host.
@@ -404,15 +408,17 @@ export function registerConfigIpc(): void {
       username: string,
       keyPath: string,
       remotePort: number,
-    ) =>
-      testSshConnection({
+    ) => {
+      validateSshUsername(username);
+      return testSshConnection({
         host,
         port,
         username,
         keyPath,
         remotePort,
         localPort: 19642,
-      }),
+      });
+    },
   );
 
   safeHandle("start-ssh-tunnel", async () => {

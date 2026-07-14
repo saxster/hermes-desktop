@@ -163,6 +163,7 @@ describe("headless cron runner", () => {
     const runtime = runtimeFixture(
       {
         [`${home}/active_profile`]: "work",
+        [`${home}/headless-gateway.token`]: "desk-auth-token\n",
         [`${home}/desktop.json`]: JSON.stringify({
           gatewaySupervisor: {
             enabled: true,
@@ -184,6 +185,7 @@ describe("headless cron runner", () => {
       expect.objectContaining({
         cwd: `${home}/hermes-agent`,
         detached: true,
+        env: expect.objectContaining({ API_SERVER_KEY: "desk-auth-token" }),
         shell: false,
         stdio: "ignore",
       }),

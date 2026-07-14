@@ -12,8 +12,17 @@ const mockExecFile = vi.fn((...args: unknown[]) => {
 });
 const mockUnlinkSync = vi.fn();
 const mockHermesHome = vi.fn(() => "/tmp/hermes-test-home/.hermes");
+const mockGetApiServerKey = vi.fn(() => "desk-auth-token");
 
 const filesInMemory = new Map<string, string>();
+
+function launchAgentWrite(): [string, string] {
+  const call = mockWriteFileSync.mock.calls.find(([path]) =>
+    String(path).endsWith("com.nousresearch.hermes-scheduler.plist"),
+  );
+  if (!call) throw new Error("LaunchAgent plist was not written");
+  return [String(call[0]), String(call[1])];
+}
 
 // Phase 1.2 — the routine lock is now a JSON record at <HERMES_HOME>/locks/<id>.lock
 // rather than a bare-PID file in /tmp. These two knobs let a test stand in a lock
@@ -118,6 +127,7 @@ vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),
   writeDesktopConfig: (c: unknown) => mockWriteDesktopConfig(c),
   getConnectionConfig: () => ({ mode: "local" }),
+  getApiServerKey: () => mockGetApiServerKey(),
 }));
 
 vi.mock("../src/main/utils", async (importOriginal) => {
@@ -126,6 +136,10 @@ vi.mock("../src/main/utils", async (importOriginal) => {
     ...actual,
     getActiveProfileNameSync: () => "test-profile",
     profileHome: (p: string) => `/tmp/hermes-test-home/.hermes/${p}`,
+    safeWriteFile: (p: string, content: string) => {
+      filesInMemory.set(p, content);
+      mockWriteFileSync(p, content);
+    },
   };
 });
 
@@ -176,8 +190,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     manageLaunchAgent(true);
 
     expect(mockWriteFileSync).toHaveBeenCalled();
-    const plistPath = mockWriteFileSync.mock.calls[0][0];
-    const plistContent = mockWriteFileSync.mock.calls[0][1];
+    const [plistPath, plistContent] = launchAgentWrite();
 
     expect(plistPath).toContain(
       "/tmp/hermes-test-home/Library/LaunchAgents/com.nousresearch.hermes-scheduler.plist",
@@ -211,6 +224,21 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     Object.defineProperty(process, "platform", { value: originalPlatform });
   });
 
+  it("stores the resolved gateway key in a mode-0600 headless token file, not the plist", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "darwin" });
+
+    manageLaunchAgent(true);
+
+    expect(
+      filesInMemory.get("/tmp/hermes-test-home/.hermes/headless-gateway.token"),
+    ).toBe("desk-auth-token\n");
+    const [, plistContent] = launchAgentWrite();
+    expect(plistContent).not.toContain("desk-auth-token");
+
+    Object.defineProperty(process, "platform", { value: originalPlatform });
+  });
+
   it("always exports HERMES_HOME when launchd uses a standalone Node binary", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "darwin" });
@@ -221,7 +249,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
 
     manageLaunchAgent(true);
 
-    const plistContent = String(mockWriteFileSync.mock.calls[0][1]);
+    const [, plistContent] = launchAgentWrite();
     expect(plistContent).toContain("<string>/opt/homebrew/bin/node</string>");
     expect(plistContent).toContain("<key>HERMES_HOME</key>");
     expect(plistContent).toContain(
@@ -239,7 +267,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
 
     manageLaunchAgent(true);
 
-    const plistContent = String(mockWriteFileSync.mock.calls[0][1]);
+    const [, plistContent] = launchAgentWrite();
     const escapedHome =
       "/tmp/Hermes &amp; &lt;custom&gt; &apos;quoted&apos; &quot;home&quot;";
     expect(plistContent).toContain(`<string>${escapedHome}</string>`);

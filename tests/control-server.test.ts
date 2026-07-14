@@ -77,6 +77,7 @@ vi.mock("../src/main/config", () => ({
   readDesktopConfig: () => mockReadDesktopConfig(),
   writeDesktopConfig: (c: unknown) => mockWriteDesktopConfig(c),
   getConnectionConfig: () => ({ mode: "local" }),
+  getApiServerKey: () => "",
   getConfigValue: () => "8643",
   setConfigValue: vi.fn(),
 }));

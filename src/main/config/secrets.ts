@@ -25,17 +25,18 @@ export function isSecretEncryptionAvailable(): boolean {
 export function encryptSecret(secret: string): string {
   if (!secret) return "";
   const storage = getSafeStorage();
-  if (storage && storage.isEncryptionAvailable()) {
-    try {
-      return storage.encryptString(secret).toString("base64");
-    } catch (err) {
-      log.error("security", {
-        msg: "failed to encrypt secret",
-        error: formatLogError(err),
-      });
-    }
+  if (!storage || !storage.isEncryptionAvailable()) {
+    throw new Error("Secret encryption is unavailable; refusing plaintext.");
   }
-  return secret;
+  try {
+    return storage.encryptString(secret).toString("base64");
+  } catch (err) {
+    log.error("security", {
+      msg: "failed to encrypt secret",
+      error: formatLogError(err),
+    });
+    throw new Error("Secret encryption failed; refusing plaintext.");
+  }
 }
 
 export function canDecryptSecret(payload: string): boolean {

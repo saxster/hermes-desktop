@@ -18,6 +18,16 @@ export interface SshConfig {
   localPort: number;
 }
 
+const SSH_USERNAME_RE = /^[A-Za-z0-9._][A-Za-z0-9._-]{0,127}$/;
+
+export function validateSshUsername(username: string): void {
+  if (!SSH_USERNAME_RE.test(username)) {
+    throw new Error(
+      "Invalid SSH username. Use letters, numbers, dots, underscores, and hyphens; the first character cannot be a hyphen.",
+    );
+  }
+}
+
 export interface SshTunnelRuntime {
   spawn: typeof spawn;
   createServer: typeof net.createServer;
@@ -228,6 +238,7 @@ function waitForPort(port: number, timeoutMs: number): Promise<void> {
 }
 
 function buildSshArgs(config: SshConfig, localPort: number): string[] {
+  validateSshUsername(config.username);
   const keyPath = config.keyPath || join(homedir(), ".ssh", "id_rsa");
   return [
     "-N",
@@ -248,6 +259,7 @@ function buildSshArgs(config: SshConfig, localPort: number): string[] {
     "ServerAliveInterval=30",
     "-o",
     "ServerAliveCountMax=3",
+    "--",
     `${config.username}@${config.host}`,
   ];
 }

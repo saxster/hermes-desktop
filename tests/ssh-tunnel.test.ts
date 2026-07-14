@@ -174,6 +174,20 @@ describe("ssh tunnel lifecycle", () => {
       ]),
       expect.objectContaining({ stdio: "ignore", detached: false }),
     );
+    const args = vi.mocked(harness.runtime.spawn!).mock.calls[0][1];
+    expect(args.at(-2)).toBe("--");
+    expect(args.at(-1)).toBe("alice@example.test");
+  });
+
+  it("rejects an SSH username that could become an option", async () => {
+    await expect(
+      startSshTunnel({
+        ...config,
+        username: "-oProxyCommand=touch /tmp/pwned",
+      }),
+    ).rejects.toThrow(/invalid ssh username/i);
+
+    expect(harness.runtime.spawn).not.toHaveBeenCalled();
   });
 
   it("polls health until the tunnel becomes healthy during startup", async () => {

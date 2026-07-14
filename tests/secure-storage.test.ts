@@ -65,16 +65,17 @@ describe("config secure secret storage", () => {
     expect(result).toBe(legacyPlaintext);
   });
 
-  it("does not encrypt if safeStorage is unavailable", async () => {
+  it("refuses to return plaintext if safeStorage is unavailable", async () => {
     isEncryptionAvailableMock = false;
     const { encryptSecret, decryptSecret } = await import("../src/main/config");
 
     const plaintext = "some-key";
-    const encrypted = encryptSecret(plaintext);
-    expect(encrypted).toBe(plaintext);
-
-    const decrypted = decryptSecret(encrypted);
-    expect(decrypted).toBe(plaintext);
+    expect(() => encryptSecret(plaintext)).toThrow(
+      /secret encryption is unavailable/i,
+    );
+    // Reads remain backward-compatible so an existing plaintext value can be
+    // migrated once safeStorage becomes available again.
+    expect(decryptSecret(plaintext)).toBe(plaintext);
   });
 });
 
@@ -138,5 +139,17 @@ describe("desktop.json secret fields", () => {
     const raw = readFileSync(join(testDir, "desktop.json"), "utf-8");
     expect(raw).not.toContain("legacy-openalex-key");
     expect(readDesktopConfig().openalexApiKey).toBe("legacy-openalex-key");
+  });
+
+  it("does not write desktop secrets when safeStorage is unavailable", async () => {
+    isEncryptionAvailableMock = false;
+    const { writeDesktopConfig } = await freshConfig(testDir);
+
+    expect(() =>
+      writeDesktopConfig({ remoteApiKey: "must-not-hit-disk" }),
+    ).toThrow(/secret encryption is unavailable/i);
+    expect(() =>
+      readFileSync(join(testDir, "desktop.json"), "utf-8"),
+    ).toThrow();
   });
 });

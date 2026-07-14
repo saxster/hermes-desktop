@@ -827,7 +827,7 @@ function isWindowsUnsignedAutoUpdateBlocked(): boolean {
 // client) to attach and drive the UI without going through
 // screenshots / OCR. Off by default — no effect on normal dev or
 // production builds. See `scripts/README.md` for the harness workflow.
-if (process.env.ENABLE_CDP === "1") {
+if (!app.isPackaged && process.env.ENABLE_CDP === "1") {
   app.commandLine.appendSwitch(
     "remote-debugging-port",
     process.env.CDP_PORT || "9222",

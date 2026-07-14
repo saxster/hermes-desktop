@@ -6,6 +6,20 @@ import http from "http";
 import type { AddressInfo } from "net";
 
 let testHome: string;
+const safeStorageMock = {
+  isEncryptionAvailable: () => true,
+  encryptString: (secret: string) =>
+    Buffer.from(`encrypted:${secret}`, "utf-8"),
+  decryptString: (buffer: Buffer) => {
+    const value = buffer.toString("utf-8");
+    if (!value.startsWith("encrypted:")) throw new Error("Decryption failed");
+    return value.slice("encrypted:".length);
+  },
+};
+
+type SecureStorageTestGlobal = typeof globalThis & {
+  mockSafeStorage?: typeof safeStorageMock;
+};
 
 async function loadConnectionConfigModule(): Promise<
   typeof import("../src/main/config")
@@ -27,10 +41,12 @@ function listen(server: http.Server): Promise<string> {
 describe("connection config secret exposure", () => {
   beforeEach(() => {
     testHome = mkdtempSync(join(tmpdir(), "hermes-connection-config-"));
+    (globalThis as SecureStorageTestGlobal).mockSafeStorage = safeStorageMock;
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    delete (globalThis as SecureStorageTestGlobal).mockSafeStorage;
     rmSync(testHome, { recursive: true, force: true });
   });
 

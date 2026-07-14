@@ -62,6 +62,12 @@ describe("Electron main process hardening", () => {
     expect(preloadSrc).not.toContain("__HERMES_SMOKE_TRIGGER_TASK_CAPTURE__");
   });
 
+  it("never enables the CDP debug port in packaged builds", () => {
+    expect(mainSrc).toContain(
+      'if (!app.isPackaged && process.env.ENABLE_CDP === "1")',
+    );
+  });
+
   it("stops the semantic index helper during app shutdown", () => {
     expect(mainSrc).toContain(
       'import { semanticManager } from "./semantic-index"',
