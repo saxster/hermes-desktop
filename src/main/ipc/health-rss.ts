@@ -1,5 +1,6 @@
 import { getSharedDb } from "../db";
 import { safeHandle } from "./safe-handle";
+import { assertIpcNumber, assertIpcString } from "./validate";
 import { randomUUID } from "crypto";
 import {
   discoverSubstackFeed,
@@ -223,7 +224,7 @@ export function registerHealthRssIpc(): void {
 
   // Delete journal entry
   safeHandle("sps-health-delete-journal-entry", async (_event, ...args) => {
-    const entryId = args[0] as string;
+    const entryId = assertIpcString(args[0], "journal entry id");
     const db = getSharedDb(false);
     if (!db) return false;
     db.prepare("DELETE FROM journal_entries WHERE id = ?").run(entryId);
@@ -360,7 +361,7 @@ export function registerHealthRssIpc(): void {
   safeHandle(
     "sps-health-delete-medication-protocol",
     async (_event, ...args) => {
-      const protocolId = args[0] as string;
+      const protocolId = assertIpcString(args[0], "medication protocol id");
       const db = getSharedDb(false);
       if (!db) return false;
       db.prepare("DELETE FROM medication_protocols WHERE id = ?").run(
@@ -540,7 +541,7 @@ export function registerHealthRssIpc(): void {
 
   // Delete Medical Vault Doc
   safeHandle("sps-health-delete-medical-doc", async (_event, ...args) => {
-    const docId = args[0] as string;
+    const docId = assertIpcString(args[0], "medical doc id");
     const db = getSharedDb(false);
     if (!db) return false;
     db.prepare("DELETE FROM medical_vault_docs WHERE id = ?").run(docId);
@@ -570,7 +571,7 @@ export function registerHealthRssIpc(): void {
 
   // Delete Feed
   safeHandle("sps-rss-delete-feed", async (_event, ...args) => {
-    const feedId = args[0] as string;
+    const feedId = assertIpcString(args[0], "feed id");
     const db = getSharedDb(false);
     if (!db) return false;
     db.prepare("DELETE FROM rss_feeds WHERE id = ?").run(feedId);
@@ -636,8 +637,8 @@ export function registerHealthRssIpc(): void {
 
   // Mark Article Read
   safeHandle("sps-rss-mark-article-read", async (_event, ...args) => {
-    const articleId = args[0] as string;
-    const readStatus = args[1] as number;
+    const articleId = assertIpcString(args[0], "article id");
+    const readStatus = assertIpcNumber(args[1], "read status");
     const db = getSharedDb(false);
     if (!db) return false;
     db.prepare("UPDATE rss_articles SET read_status = ? WHERE id = ?").run(
@@ -649,8 +650,8 @@ export function registerHealthRssIpc(): void {
 
   // Star / Bookmark Article
   safeHandle("sps-rss-toggle-article-star", async (_event, ...args) => {
-    const articleId = args[0] as string;
-    const starStatus = args[1] as number;
+    const articleId = assertIpcString(args[0], "article id");
+    const starStatus = assertIpcNumber(args[1], "star status");
     const db = getSharedDb(false);
     if (!db) return false;
     db.prepare("UPDATE rss_articles SET star_status = ? WHERE id = ?").run(

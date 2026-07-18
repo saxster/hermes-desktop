@@ -16,6 +16,13 @@ export function normalizeIpcProfile(profile?: unknown): string | undefined {
   return normalizeProfileName(assertIpcString(profile, "profile"));
 }
 
+export function assertIpcNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number.`);
+  }
+  return value;
+}
+
 export function assertPathInside(
   root: string,
   relativePath: unknown,

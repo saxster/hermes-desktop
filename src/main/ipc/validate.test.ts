@@ -1,6 +1,7 @@
 import { join, resolve } from "path";
 import { describe, expect, it } from "vitest";
 import {
+  assertIpcNumber,
   assertIpcString,
   assertPathInside,
   normalizeIpcProfile,
@@ -16,6 +17,23 @@ describe("assertIpcString", () => {
   it("rejects null bytes", () => {
     expect(() => assertIpcString("home\u0000evil", "page id")).toThrow(
       /null byte/i,
+    );
+  });
+});
+
+describe("assertIpcNumber", () => {
+  it("accepts finite numbers and rejects non-numbers and non-finite values", () => {
+    expect(assertIpcNumber(0, "read status")).toBe(0);
+    expect(assertIpcNumber(3.5, "read status")).toBe(3.5);
+    expect(() => assertIpcNumber("1", "read status")).toThrow(/read status/i);
+    expect(() => assertIpcNumber(undefined, "read status")).toThrow(
+      /read status/i,
+    );
+    expect(() => assertIpcNumber(Number.NaN, "read status")).toThrow(
+      /read status/i,
+    );
+    expect(() => assertIpcNumber(Infinity, "read status")).toThrow(
+      /read status/i,
     );
   });
 });
