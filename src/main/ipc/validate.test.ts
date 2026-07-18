@@ -2,7 +2,9 @@ import { join, resolve } from "path";
 import { describe, expect, it } from "vitest";
 import {
   assertIpcNumber,
+  assertIpcRecord,
   assertIpcString,
+  assertOptionalIpcRecord,
   assertPathInside,
   normalizeIpcProfile,
 } from "./validate";
@@ -35,6 +37,23 @@ describe("assertIpcNumber", () => {
     expect(() => assertIpcNumber(Infinity, "read status")).toThrow(
       /read status/i,
     );
+  });
+});
+
+describe("assertIpcRecord", () => {
+  it("accepts plain objects and rejects arrays, null, and primitives", () => {
+    expect(assertIpcRecord({ a: 1 }, "payload")).toEqual({ a: 1 });
+    for (const bad of [null, [], "x", 42, true]) {
+      expect(() => assertIpcRecord(bad, "payload")).toThrow(/payload/i);
+    }
+  });
+});
+
+describe("assertOptionalIpcRecord", () => {
+  it("passes undefined through and guards present values", () => {
+    expect(assertOptionalIpcRecord(undefined, "payload")).toBeUndefined();
+    expect(assertOptionalIpcRecord({ a: 1 }, "payload")).toEqual({ a: 1 });
+    expect(() => assertOptionalIpcRecord([], "payload")).toThrow(/payload/i);
   });
 });
 

@@ -23,6 +23,24 @@ export function assertIpcNumber(value: unknown, label: string): number {
   return value;
 }
 
+export function assertIpcRecord(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+export function assertOptionalIpcRecord(
+  value: unknown,
+  label: string,
+): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined;
+  return assertIpcRecord(value, label);
+}
+
 export function assertPathInside(
   root: string,
   relativePath: unknown,

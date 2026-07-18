@@ -1,6 +1,11 @@
 import { getSharedDb } from "../db";
 import { safeHandle } from "./safe-handle";
-import { assertIpcNumber, assertIpcString } from "./validate";
+import {
+  assertIpcNumber,
+  assertIpcRecord,
+  assertIpcString,
+  assertOptionalIpcRecord,
+} from "./validate";
 import { randomUUID } from "crypto";
 import {
   discoverSubstackFeed,
@@ -133,7 +138,7 @@ export function registerHealthRssIpc(): void {
 
   // Save/Update health profile
   safeHandle("sps-health-save-profile", async (_event, ...args) => {
-    const profileData = args[0] as JsonRecord | undefined;
+    const profileData = assertOptionalIpcRecord(args[0], "health profile");
     const db = getSharedDb(false);
     if (!db) return false;
 
@@ -159,7 +164,7 @@ export function registerHealthRssIpc(): void {
 
   // Add/Update journal entry
   safeHandle("sps-health-add-journal-entry", async (_event, ...args) => {
-    const entry = args[0] as JsonRecord | undefined;
+    const entry = assertIpcRecord(args[0], "journal entry");
     const db = getSharedDb(false);
     if (!db) throw new Error("Database not available");
 
@@ -180,20 +185,31 @@ export function registerHealthRssIpc(): void {
          tags = excluded.tags`,
     ).run(id, timestamp, text_raw, voice_transcription, mood_score, tags);
 
-    // Handle media attachments if present
+    // Handle media attachments if present. Validate every item BEFORE the
+    // delete so a malformed payload can't wipe existing media rows and then
+    // fail mid-insert.
     if (Array.isArray(entry?.media)) {
+      const mediaItems = entry.media.map((m: unknown) => {
+        const item = assertIpcRecord(m, "journal media item");
+        return {
+          id: item.id || randomUUID(),
+          file_path: assertIpcString(item.file_path, "media file path"),
+          mime_type: item.mime_type || "image/png",
+          parsed_payload: item.parsed_payload || {},
+        };
+      });
       db.prepare("DELETE FROM journal_media WHERE entry_id = ?").run(id);
       const insertMedia = db.prepare(
         `INSERT INTO journal_media (id, entry_id, file_path, mime_type, parsed_payload)
          VALUES (?, ?, ?, ?, ?)`,
       );
-      for (const m of entry.media) {
+      for (const m of mediaItems) {
         insertMedia.run(
-          m.id || randomUUID(),
+          m.id,
           id,
           m.file_path,
-          m.mime_type || "image/png",
-          JSON.stringify(m.parsed_payload || {}),
+          m.mime_type,
+          JSON.stringify(m.parsed_payload),
         );
       }
     }
@@ -233,7 +249,7 @@ export function registerHealthRssIpc(): void {
 
   // Add biometric log
   safeHandle("sps-health-add-biometric-log", async (_event, ...args) => {
-    const logData = args[0] as JsonRecord | undefined;
+    const logData = assertIpcRecord(args[0], "biometric log");
     const db = getSharedDb(false);
     if (!db) throw new Error("Database not available");
 
@@ -299,12 +315,12 @@ export function registerHealthRssIpc(): void {
 
   // Save/Update Medication Protocol
   safeHandle("sps-health-save-medication-protocol", async (_event, ...args) => {
-    const protocol = args[0] as JsonRecord | undefined;
+    const protocol = assertIpcRecord(args[0], "medication protocol");
     const db = getSharedDb(false);
     if (!db) throw new Error("Database not available");
 
     const id = protocol?.id || randomUUID();
-    const name = protocol?.name;
+    const name = assertIpcString(protocol.name, "protocol name");
     const substance_type = protocol?.substance_type || "supplement";
     const vial_size_mg = protocol?.vial_size_mg || null;
     const diluent_ml = protocol?.diluent_ml || null;
@@ -373,14 +389,17 @@ export function registerHealthRssIpc(): void {
 
   // Add Medication Administration Log
   safeHandle("sps-health-add-medication-log", async (_event, ...args) => {
-    const mLog = args[0] as JsonRecord | undefined;
+    const mLog = assertIpcRecord(args[0], "medication log");
     const db = getSharedDb(false);
     if (!db) throw new Error("Database not available");
 
     const id = mLog?.id || randomUUID();
-    const protocol_id = mLog?.protocol_id;
+    const protocol_id = assertIpcString(mLog.protocol_id, "protocol id");
     const timestamp = mLog?.timestamp || Date.now();
-    const dose_administered = mLog?.dose_administered;
+    const dose_administered = assertIpcNumber(
+      mLog.dose_administered,
+      "dose administered",
+    );
     const injection_site = mLog?.injection_site || null;
     const side_effects = JSON.stringify(mLog?.side_effects || []);
 
@@ -428,13 +447,13 @@ export function registerHealthRssIpc(): void {
 
   // Add Medical Vault Document
   safeHandle("sps-health-add-medical-doc", async (_event, ...args) => {
-    const doc = args[0] as JsonRecord | undefined;
+    const doc = assertIpcRecord(args[0], "medical doc");
     const db = getSharedDb(false);
     if (!db) throw new Error("Database not available");
 
     const id = doc?.id || randomUUID();
-    const file_name = doc?.file_name;
-    const file_path = doc?.file_path;
+    const file_name = assertIpcString(doc.file_name, "file name");
+    const file_path = assertIpcString(doc.file_path, "file path");
     const uploaded_at = doc?.uploaded_at || Date.now();
     const doc_type = doc?.doc_type || "lab_report";
     const ocr_content_text = String(doc?.ocr_content_text || "");
@@ -565,8 +584,7 @@ export function registerHealthRssIpc(): void {
 
   // Add Feed
   safeHandle("sps-rss-add-feed", async (_event, ...args) => {
-    const feedData = args[0] as JsonRecord | undefined;
-    return addRssFeedRecord(feedData);
+    return addRssFeedRecord(assertIpcRecord(args[0], "feed"));
   });
 
   // Delete Feed
@@ -580,7 +598,22 @@ export function registerHealthRssIpc(): void {
 
   // Get Articles with FTS Search & filters
   safeHandle("sps-rss-get-articles", async (_event, ...args) => {
-    const query = args[0] as RssArticleQuery | undefined;
+    const rawQuery = assertOptionalIpcRecord(args[0], "article query");
+    const query: RssArticleQuery = {};
+    if (rawQuery) {
+      if (rawQuery.feedId !== undefined)
+        query.feedId = assertIpcString(rawQuery.feedId, "feed id");
+      if (rawQuery.readStatus !== undefined)
+        query.readStatus = assertIpcNumber(rawQuery.readStatus, "read status");
+      if (rawQuery.starStatus !== undefined)
+        query.starStatus = assertIpcNumber(rawQuery.starStatus, "star status");
+      if (rawQuery.search !== undefined)
+        query.search = assertIpcString(rawQuery.search, "search");
+      if (rawQuery.limit !== undefined)
+        query.limit = assertIpcNumber(rawQuery.limit, "limit");
+      if (rawQuery.offset !== undefined)
+        query.offset = assertIpcNumber(rawQuery.offset, "offset");
+    }
     const db = getSharedDb(true);
     if (!db) return [];
 
