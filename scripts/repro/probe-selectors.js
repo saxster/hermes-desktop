@@ -3,7 +3,7 @@
  * symptom repro scripts. Prints a small inventory of relevant DOM elements
  * so we don't have to guess class names / aria labels.
  */
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 
 (async () => {
   const { browser, page } = await attach();

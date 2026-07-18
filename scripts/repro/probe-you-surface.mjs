@@ -3,7 +3,7 @@
 // opens the You surface, adds a rule via a suggestion chip, and asserts the rule
 // round-trips into USER.md on disk as a managed `## Rules` block.
 //
-// Usage:  npm run build && node scripts/probe-you-surface.mjs
+// Usage:  npm run build && node scripts/repro/probe-you-surface.mjs
 import { _electron as electron } from "playwright";
 import {
   mkdtempSync,

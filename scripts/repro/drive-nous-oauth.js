@@ -9,7 +9,7 @@
  *   5. Watch for status to flip to "success" or "error".
  *   6. Snapshot auth.json before exiting.
  */
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");

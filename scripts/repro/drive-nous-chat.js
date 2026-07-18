@@ -10,7 +10,7 @@
  *   4. Wait for chat-done; capture the agent's reply.
  *   5. Restore the original model selection.
  */
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");

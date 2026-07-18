@@ -6,9 +6,9 @@ if [[ "$BRANCH" != "release" && "$BRANCH" != release/* ]]; then
 fi
 
 echo "→ [pre-commit] Release branch — running lint..."
-bun run lint || { echo "✗ Lint failed. Commit aborted."; exit 1; }
+npm run lint || { echo "✗ Lint failed. Commit aborted."; exit 1; }
 
 echo "→ [pre-commit] Running tests..."
-bun run test || { echo "✗ Tests failed. Commit aborted."; exit 1; }
+npm run test || { echo "✗ Tests failed. Commit aborted."; exit 1; }
 
 echo "✓ [pre-commit] Lint and tests passed."

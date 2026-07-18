@@ -104,8 +104,10 @@ One-line invariants; full failure signatures and fixes live in
 ## Related directories
 
 - `obsidian-bridge/` — a separate Obsidian plugin (localhost bridge so Hermes can call Obsidian).
-- `scripts/` — `repro-*.js` / `verify-*.js` / `probe-*.js` are Playwright/node repro harnesses for
-  specific issues (named by bug); `sps-smoke.mjs` is the UI smoke; `scope-sps-css.mjs` rescopes SPS CSS.
+- `scripts/` — `verify-*.js` / `*-smoke.mjs` are the current harnesses (`sps-smoke.mjs` is the UI
+  smoke; `scope-sps-css.mjs` rescopes SPS CSS). `scripts/repro/` holds one-off probe/drive repro
+  harnesses for specific historical issues (named by bug), referenced from nowhere — check git
+  history before trusting them.
 - **External Context Bridge** (`src/main/external-context/`, `src/mcp/external-context-server.ts`) — a
   local-first, opt-in, **redacted** index of OTHER AI tools' transcripts (Claude Code / Codex / Gemini
   / Grok) so Hermes is the cross-tool continuity layer. Source roots are env-overridable

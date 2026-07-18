@@ -21,7 +21,7 @@ const NM = join(ROOT, "node_modules");
 
 const COPIES = [
   ["tesseract.js/dist/worker.min.js", "worker.min.js"],
-  // ESM bundle — only used by scripts/ocr-probe to verify in isolation; the app
+  // ESM bundle — only used by scripts/repro/ocr-probe to verify in isolation; the app
   // imports tesseract.js from node_modules via the bundler.
   ["tesseract.js/dist/tesseract.esm.min.js", "tesseract.esm.min.js"],
   // SIMD core only (every CPU from the last decade has WASM SIMD); corePath is

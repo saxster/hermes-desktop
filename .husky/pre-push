@@ -6,6 +6,6 @@ if [[ "$BRANCH" != "release" && "$BRANCH" != release/* ]]; then
 fi
 
 echo "→ [pre-push] Release branch — running build..."
-bun run build || { echo "✗ Build failed. Push aborted."; exit 1; }
+npm run build || { echo "✗ Build failed. Push aborted."; exit 1; }
 
 echo "✓ [pre-push] Build passed."

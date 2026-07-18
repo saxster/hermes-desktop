@@ -5,7 +5,7 @@
  * Setup expectation: dev electron running with ENABLE_CDP=1, active
  * model is DeepSeek (which is the case after the prior repro scripts).
  */
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");

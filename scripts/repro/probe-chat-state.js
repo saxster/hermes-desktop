@@ -2,7 +2,7 @@
  * Probe current chat DOM state — selector inventory + message dump.
  * Run BEFORE / DURING / AFTER a chat to verify wait conditions.
  */
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 
 (async () => {
   const { browser, page } = await attach();

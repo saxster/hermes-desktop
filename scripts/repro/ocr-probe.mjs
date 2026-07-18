@@ -1,7 +1,7 @@
 // ocr-probe.mjs — de-risk: prove tesseract.js OCRs in the BUILT app's renderer
 // using the bundled offline assets (/tesseract/*) under the production CSP and
 // file:// origin. Renders known text to a canvas, OCRs it, checks the result.
-//   npm run build && node scripts/ocr-probe.mjs
+//   npm run build && node scripts/repro/ocr-probe.mjs
 import { _electron as electron } from "playwright";
 import { mkdtempSync } from "fs";
 import { tmpdir } from "os";

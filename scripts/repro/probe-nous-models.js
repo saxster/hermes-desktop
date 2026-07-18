@@ -1,7 +1,7 @@
 /**
  * Query Nous Portal's /v1/models via the gateway to find free models.
  */
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 
 (async () => {
   const { browser, page } = await attach();

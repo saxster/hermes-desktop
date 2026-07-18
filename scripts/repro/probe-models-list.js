@@ -1,4 +1,4 @@
-const { attach } = require("./e2e-attach");
+const { attach } = require("../e2e-attach");
 (async () => {
   const { browser, page } = await attach();
   // Make sure we're on Models tab

@@ -40,10 +40,9 @@ export default defineConfig(
       // They intentionally use require() because they run as one-off
       // `node scripts/*.js` invocations outside the TS build, and
       // they're not part of the shipped app. See scripts/README.md.
+      // One-off probe/drive repro harnesses live in scripts/repro/ (2026-07-18).
       "scripts/e2e-attach.js",
-      "scripts/repro-*.js",
-      "scripts/probe-*.js",
-      "scripts/drive-*.js",
+      "scripts/repro/",
       "scripts/verify-*.js",
       // One-off build utility (plain JS): scopes the SPS Agent CSS under .sps-scope.
       "scripts/scope-sps-css.mjs",
