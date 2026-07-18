@@ -8,7 +8,9 @@
 
 ---
 
-## Task 1: Decompose `Settings.tsx` (1631 ln, 50 `useState`)
+## Task 1: Decompose `Settings.tsx` (1631 ln, 50 `useState`) — ✅ DONE 2026-07-18
+
+Split into a thin router (`Settings.tsx`, ~60 ln) plus four section components owning their state and IPC loading: `SettingsTroubleshooting.tsx`, `SettingsDataPrivacy.tsx`, `SettingsPreferences.tsx`, `SettingsAdvanced.tsx`. The all-mounted / CSS-hidden `data-section-tab` mechanism is preserved so section switches never lose local UI state. Verified: `typecheck:web`, eslint, Settings-adjacent vitest.
 
 The child components already exist (`ConfigHealth`, `CapabilitySummary`, `McpServersManager`, `ResearchReachSummary`, `HealthSurface`); the parent's 50 pieces of coordination state are the remaining monolith. The screen already renders one `section` at a time (`preferences` / `dataPrivacy` / `troubleshooting` / `advanced` — see `settingsSections.ts`).
 
@@ -18,7 +20,9 @@ The child components already exist (`ConfigHealth`, `CapabilitySummary`, `McpSer
 - [ ] **Step 4:** After all four: `npm run build` + `node scripts/sps-smoke.mjs` (build first) to confirm the Control Center still navigates.
 - [ ] **Step 5 (follow-on, optional):** Apply the same pattern to `InboxSurface.tsx` (1718 ln), splitting list/detail/triage subcomponents.
 
-## Task 2: Minimal runtime validation at the IPC boundary
+## Task 2: Minimal runtime validation at the IPC boundary — ✅ core landed; adoption extended 2026-07-18
+
+`validate.ts` shipped with `assertIpcString`/`normalizeIpcProfile`/`assertPathInside` (Steps 1–2 done earlier: `notes`, `sps/capture`, `sps/vault`, `sps/learning`, `sps/actions`, `sps/deck`). 2026-07-18: added `assertIpcNumber` (+ tests) and guarded the 7 raw scalar casts in `health-rss.ts`. Remaining: `JsonRecord` payload bodies in `health-rss.ts` (field-level validation) and a sweep for path/profile handlers in the last uncovered modules.
 
 Handlers cast untrusted `ipcRenderer.invoke` payloads straight to TS interfaces; no path-sanitization helper exists in `src/main`. Keep it hand-rolled — do NOT add zod.
 
