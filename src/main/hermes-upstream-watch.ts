@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { profileHome, safeWriteFile } from "./utils";
+import { localDateKey, profileHome, safeWriteFile } from "./utils";
 import { publicFetch } from "./security/network-policy";
 import { getInstalledEngineSha } from "./installer";
 import { ENGINE_CONTRACT } from "../shared/engine-contract";
@@ -167,10 +167,6 @@ function emptyState(): HermesUpstreamWatchState {
     latestReportPath: null,
     classifiedCounts: {},
   };
-}
-
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 function isoDateKey(date: Date): string {

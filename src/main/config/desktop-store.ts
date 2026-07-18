@@ -1,7 +1,11 @@
 import { readFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { HERMES_HOME } from "../installer";
-import { getActiveProfileNameSync, safeWriteFile } from "../utils";
+import {
+  getActiveProfileNameSync,
+  localDateKey,
+  safeWriteFile,
+} from "../utils";
 import {
   canDecryptSecret,
   encryptSecret,
@@ -381,10 +385,6 @@ function localTimezone(): string {
   } catch {
     return "local";
   }
-}
-
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 function scheduledLocalForDate(date: Date, dayOffset = 0): Date {
