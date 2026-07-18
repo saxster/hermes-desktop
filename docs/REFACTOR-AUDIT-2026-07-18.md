@@ -34,10 +34,10 @@ This is a *disciplined* codebase (~180K lines `src/`, 926 source files), not a s
 
 ## 3. Incomplete rollouts & features (HIGH)
 
-1. **i18n is vestigial:** `i18next` + `react-i18next` are dependencies, but only **9 of 257 renderer .tsx files** use them. Decide: finish the rollout or remove the dependency + `src/shared/i18n` + locale plumbing. Current state is the worst of both.
+1. **i18n is vestigial:** `i18next` + `react-i18next` are dependencies, but only **9 of 257 renderer .tsx files** use them. **Decision (2026-07-18): keep the infrastructure, no big-bang either way.** Full removal churns working code (Settings alone has 75 `t()` calls, plus `src/shared/i18n`, `locale.ts`); a full rollout is weeks of low-value work for an English-first local app. Rule going forward: *new surfaces must use `t()`; existing surfaces migrate opportunistically when touched.*
 2. **KB Phase 2 / RLM (BACKLOG item 1):** query-expansion shipped and measured (synonym-miss recall 0→80%); the decided next step — vault-as-navigable-toolset (`vault_search`/`vault_read_page`/`vault_follow_wikilink`) + routing KB questions through the agentic chat path — is **not built**. Residual hard-gap recall (20%) is the measured trigger for embeddings-as-a-tool.
 3. **Remote/SSH grounding inconsistency (BACKLOG item 3):** chat path passes inline excerpts in remote mode, but `spsAssistant()` still gates grounding on `!isRemoteMode()` (`src/main/sps-agent.ts:451,467`). Two surfaces, two behaviors, decision deferred.
-4. **IPC payload validation half-adopted:** `src/main/ipc/validate.ts` exists but is imported by only **6 of ~28** ipc modules. Path/profile-taking handlers elsewhere still cast `unknown` → type. **(Extension started 2026-07-18.)**
+4. **IPC payload validation half-adopted:** `src/main/ipc/validate.ts` exists but is imported by only **6 of ~28** ipc modules. Path/profile-taking handlers elsewhere still cast `unknown` → type. **(Extension started 2026-07-18: `assertIpcNumber`/`assertIpcRecord`/`assertOptionalIpcRecord` added; `health-rss.ts` fully guarded — 7 scalar casts + 8 record payloads + media pre-validation before delete. Remaining: sweep for unguarded handlers in other modules.)**
 5. **Unexecuted 07-03 codebase-health plan:** Settings decomposition (Task 1) and `exhaustive-deps` suppression audit (Task 5; **9 suppressions** unaudited). Tasks 2–4 were done but the plan file never said so — docs drift.
 6. **Generate-from-repo large-repo heuristic** (BACKLOG item 5) and **per-button grounding / non-agent buttons** (item 6) — open.
 7. **Headless features with zero UI surface:** `dream-cycle.ts` and `nag-engine.ts` are referenced only by `scheduler.ts` — no preload bridge, no renderer visibility, no user control. Intentional (document it) or missed affordance.
@@ -53,7 +53,7 @@ This is a *disciplined* codebase (~180K lines `src/`, 926 source files), not a s
 
 ## 5. Release / process drift (MEDIUM)
 
-1. **Version confusion:** `package.json` = 0.5.4, `changelogs/` stops at 0.5.0, yet git tags up to **v0.7.0** exist while `git describe` on HEAD = `v0.5.4-580-g…`. Needs an owner decision: bump version, backfill changelogs, reconcile canonical tags.
+1. **Version confusion:** `package.json` = 0.5.4, `changelogs/` stops at 0.5.0, yet git tags up to **v0.7.0** exist. **Investigated 2026-07-18:** the v0.6.x–v0.7.0 tags are `release`-branch lineage ("Merge branch 'main' into release" → "Release v0.7.0"); v0.7.0 **is** an ancestor of `upstream/main` (fathah/hermes-desktop) but **not** of local `main`, which sits 580 commits past v0.5.4 without the release merges. So the release flow is healthy on the remote; *local* `main` has simply diverged from it. **Owner action required:** reconcile local `main` with `upstream/main` (merge or rebase) — do NOT hand-bump `package.json`; let the release flow own versions. Changelogs for 0.5.1+ presumably exist on `upstream/main` and will arrive with the reconcile.
 2. **Husky hooks called `bun run` in an npm project** (`.husky/pre-commit`, `pre-push`). **(Fixed 2026-07-18.)** Release-only gating is intentional per CLAUDE.md.
 3. **Stray root-level `sps-agent/node_modules` (200M, untracked)** — botched past install; delete after confirming nothing references it.
 4. **No changelog automation** tying `package.json` version → `changelogs/<v>.md`.
