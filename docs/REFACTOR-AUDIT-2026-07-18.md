@@ -11,8 +11,8 @@ This is a *disciplined* codebase (~180K lines `src/`, 926 source files), not a s
 | File | Lines | Note |
 |---|---|---|
 | `src/renderer/src/screens/SpsAgent/inbox/InboxSurface.tsx` | 2110 | Largest file in app; pure helpers (schema/feedback/changeset mapping) separable at top of file |
-| `src/renderer/src/screens/Settings/Settings.tsx` | 1666 | ~50 `useState`; decomposition plan existed since 07-03 (`superpowers/plans/2026-07-03-codebase-health.md` Task 1), never executed — file grew 1631→1666. **(Remediation started 2026-07-18.)** |
-| `src/renderer/src/screens/Providers/Providers.tsx` | 1510 | Same section-router pattern applies |
+| `src/renderer/src/screens/Settings/Settings.tsx` | 1666 | **(Decomposed 2026-07-18 → 60-line router + 4 sections.)** |
+| `src/renderer/src/screens/Providers/Providers.tsx` | 1510 | **(Decomposed 2026-07-18 → ~100-line root + 2 hooks + 4 sections.)** |
 | `SpsAgent/cockpit/CockpitSurface.tsx` | 1394 | |
 | `SpsAgent/modals/ResearchModal.tsx` | 1258 | |
 | `SpsAgent/health/PersonalHealthDashboard.tsx` | 1210 | |
@@ -80,3 +80,4 @@ Zero-TODO discipline, safeHandle uniformity, preload parity test, redacted loggi
 ## Remediation log
 
 - **2026-07-18** — Quick wins landed: unused deps removed, husky `bun`→`npm`, empty `archive/` + stray `sps-agent/node_modules` deleted, probe/drive scripts consolidated to `scripts/repro/`, `localDateKey` deduped into `src/main/utils.ts`, feature-status xlsx → `docs/feature-status/hermes-feature-status.md`. Deep remediation: Settings.tsx decomposed into section router + 4 section components (Task 1 of `2026-07-03-codebase-health.md`); `assertIpcNumber` added and `health-rss.ts` scalar casts guarded; InboxSurface slice 1 — pure helpers extracted to `inbox/inboxModel.ts` (2110→~1965 ln, 14 new tests) and byte-identical duplicates removed from `QuickCapture.tsx`. Committed as 6 scoped commits on `main` (`22ebb670`..`b2505299`).
+- **2026-07-18 (b)** — IPC record-payload validation completed for `health-rss.ts` (`assertIpcRecord`/`assertOptionalIpcRecord`; journal media validated before delete); all 9 `exhaustive-deps` suppressions audited + justified (none buggy — Task 5 done, closing the 07-03 plan); i18n and version-drift findings settled as documented decisions; **Providers.tsx decomposed** (1510 → ~100-ln root + `useModelConfig`/`useProviderEnv` hooks + 4 sections); **renderer data-access layer seeded** (`lib/api/connection.ts`, `lib/api/config.ts` — pass-through seam; first consumer `SettingsAdvanced.tsx`, 13 callsites). Commits `c45409b0`..`58f15c6d`.
