@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { buildCapture } from "../inbox/capture";
+import { CAPTURE_KINDS, schemaForCaptureKind } from "../inbox/inboxModel";
 import { Icon } from "../components/Icon";
 import { rowToMarkdown } from "../editor/rowMarkdown";
 import { TASKS_DB_FOLDER } from "../tasks/taskStorage";
-import type {
-  SpsCaptureKind,
-  SpsPageSchemaKey,
-} from "../../../../../shared/sps-types";
+import type { SpsCaptureKind } from "../../../../../shared/sps-types";
 import type {
   RouteTaskOutcome,
   TaskTriageResult,
@@ -23,23 +21,6 @@ import {
   visualCaptureTitle,
   type VisualCaptureOrigin,
 } from "../../../../../shared/visual-capture";
-
-const CAPTURE_KINDS: SpsCaptureKind[] = [
-  "note",
-  "source",
-  "project",
-  "person",
-  "decision",
-  "meeting",
-  "task",
-  "journal",
-];
-
-function schemaForCaptureKind(
-  kind: SpsCaptureKind,
-): SpsPageSchemaKey | undefined {
-  return kind === "note" ? undefined : kind;
-}
 
 // The folder-backed query database the ToDo page reads. A task capture writes a
 // row here (not the generic _inbox) so it shows up as an actual task.
