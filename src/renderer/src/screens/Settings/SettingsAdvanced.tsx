@@ -2,6 +2,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useI18n } from "../../components/useI18n";
 import { getDevMode, setDevMode } from "../../lib/devMode";
 import { LearningSurface } from "../SpsAgent/learning/LearningSurface";
+import {
+  generateApiServerKey,
+  getApiServerKeyStatus,
+  getConnectionConfig,
+  saveConnectionConfig,
+  saveSshConfig,
+  testRemoteConnection,
+  testSshConnection,
+} from "../../lib/api/connection";
+import { getConfigValue, setConfigValue } from "../../lib/api/config";
 
 // Build a mask string the same width as the stored API key so the
 // "saved" state of the input looks like a key, not a constant blob.
@@ -49,8 +59,8 @@ export function SettingsAdvanced({
   const loadConfig = useCallback(async (): Promise<void> => {
     // Load fast config first (cached in main process)
     const [conn, keyStatus] = await Promise.all([
-      window.hermesAPI.getConnectionConfig(),
-      window.hermesAPI.getApiServerKeyStatus(profile),
+      getConnectionConfig(),
+      getApiServerKeyStatus(profile),
     ]);
     setConnMode(conn.mode);
     setConnRemoteUrl(conn.remoteUrl);
@@ -67,10 +77,10 @@ export function SettingsAdvanced({
     connLoaded.current = true;
 
     // Load network settings from config.yaml
-    window.hermesAPI.getConfig("network.force_ipv4", profile).then((v) => {
+    getConfigValue("network.force_ipv4", profile).then((v) => {
       setForceIpv4(v === "true" || v === "True");
     });
-    window.hermesAPI.getConfig("network.proxy", profile).then((v) => {
+    getConfigValue("network.proxy", profile).then((v) => {
       setHttpProxy(v || "");
     });
   }, [profile]);
@@ -98,7 +108,7 @@ export function SettingsAdvanced({
 
   async function handleSaveConnection(): Promise<void> {
     if (connMode === "ssh") {
-      await window.hermesAPI.setSshConfig(
+      await saveSshConfig(
         sshHost.trim(),
         parseInt(sshPort, 10) || 22,
         sshUser.trim(),
@@ -108,11 +118,7 @@ export function SettingsAdvanced({
       );
     } else {
       const apiKey = getConnectionApiKeyForSave();
-      await window.hermesAPI.setConnectionConfig(
-        connMode,
-        connRemoteUrl,
-        apiKey,
-      );
+      await saveConnectionConfig(connMode, connRemoteUrl, apiKey);
       if (apiKey !== undefined) {
         const hasApiKey = apiKey.length > 0;
         setConnHasApiKey(hasApiKey);
@@ -137,7 +143,7 @@ export function SettingsAdvanced({
       }
       setConnTesting(true);
       setConnStatus(null);
-      const ok = await window.hermesAPI.testSshConnection(
+      const ok = await testSshConnection(
         sshHost.trim(),
         parseInt(sshPort, 10) || 22,
         sshUser.trim(),
@@ -154,10 +160,7 @@ export function SettingsAdvanced({
       }
       setConnTesting(true);
       setConnStatus(null);
-      const ok = await window.hermesAPI.testRemoteConnection(
-        url,
-        getConnectionApiKeyForSave(),
-      );
+      const ok = await testRemoteConnection(url, getConnectionApiKeyForSave());
       setConnTesting(false);
       setConnStatus(ok ? "Connected successfully!" : "Could not reach server");
     }
@@ -169,7 +172,7 @@ export function SettingsAdvanced({
     setConnApiKey("");
     setConnApiKeyMask("");
     setConnHasApiKey(false);
-    await window.hermesAPI.setConnectionConfig("local", "", "");
+    await saveConnectionConfig("local", "", "");
     setConnStatus(t("settings.switchedToLocal"));
     setTimeout(() => setConnStatus(null), 2000);
   }
@@ -244,8 +247,7 @@ export function SettingsAdvanced({
               disabled={generatingKey}
               onClick={() => {
                 setGeneratingKey(true);
-                window.hermesAPI
-                  .generateApiServerKey(profile)
+                generateApiServerKey(profile)
                   .then(() => {
                     setApiServerKeyMissing(false);
                     setConnStatus(
@@ -522,12 +524,11 @@ export function SettingsAdvanced({
                 onChange={(e) => {
                   const val = e.target.checked;
                   setForceIpv4(val);
-                  window.hermesAPI
-                    .setConfig(
-                      "network.force_ipv4",
-                      val ? "true" : "false",
-                      profile,
-                    )
+                  setConfigValue(
+                    "network.force_ipv4",
+                    val ? "true" : "false",
+                    profile,
+                  )
                     .then(() => {
                       setNetworkSaved(true);
                       setTimeout(() => setNetworkSaved(false), 2000);
@@ -555,8 +556,7 @@ export function SettingsAdvanced({
             value={httpProxy}
             onChange={(e) => setHttpProxy(e.target.value)}
             onBlur={() => {
-              window.hermesAPI
-                .setConfig("network.proxy", httpProxy.trim(), profile)
+              setConfigValue("network.proxy", httpProxy.trim(), profile)
                 .then(() => {
                   setNetworkSaved(true);
                   setTimeout(() => setNetworkSaved(false), 2000);
