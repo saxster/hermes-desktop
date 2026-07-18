@@ -62,6 +62,8 @@ export function useVaultQuery(
       .catch(() => {
         if (mounted.current) setRows([]);
       });
+    // key is the serialized scope/filters/sort — depending on it instead of
+    // the object identities is the point of the serialization above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   useEffect(() => {

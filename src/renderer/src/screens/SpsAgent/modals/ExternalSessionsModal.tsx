@@ -209,6 +209,8 @@ export function ExternalSessionsModal() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // onClose omitted: stable for the modal's lifetime; re-registering on
+    // [viewer] keeps the Escape handler fresh without listener churn.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer]);
 
@@ -274,6 +276,8 @@ export function ExternalSessionsModal() {
       console.error("Failed to open the requested external session:", error),
     );
     clearExternalSessionsTarget();
+    // One-shot target consumption: openViewer/setView are re-created every
+    // render; re-run only when a new target arrives, not on function identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalSessionsTarget]);
 

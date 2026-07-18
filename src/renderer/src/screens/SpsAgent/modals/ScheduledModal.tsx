@@ -186,6 +186,8 @@ export function ScheduledModal() {
     return () => {
       off();
     };
+    // Mount-only setup + push subscription: refresh is re-created each render
+    // and must not retrigger the effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

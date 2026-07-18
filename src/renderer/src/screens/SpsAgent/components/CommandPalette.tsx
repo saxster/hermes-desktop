@@ -743,6 +743,9 @@ export function CommandPalette() {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
+    // pick/onClose omitted: re-registering on [flat, sel] already refreshes the
+    // handler for every meaningful state change; function identities would
+    // churn the listener every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flat, sel]);
 

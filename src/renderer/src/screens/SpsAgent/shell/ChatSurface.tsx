@@ -80,6 +80,8 @@ export function ChatSurface() {
   // Clear the one-shot prompt from the store after we've captured it.
   useEffect(() => {
     if (pendingChatPrompt) setPendingChatPrompt(null);
+    // Run-once: consume the one-shot prompt on mount only — a prompt arriving
+    // after mount must not re-clear the composer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

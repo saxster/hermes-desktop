@@ -73,6 +73,8 @@ export function Editable({
 
   useEffect(() => {
     registerRef && registerRef(block.id, ref);
+    // Register only when the block id changes: registerRef's identity is
+    // unstable across renders but writes the same ref map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [block.id]);
 

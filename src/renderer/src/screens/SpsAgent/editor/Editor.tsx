@@ -109,6 +109,8 @@ export function Editor() {
       }
       setFocusReq(null);
     }
+    // refs is a stable ref container and setFocusReq is stable; only a new
+    // focusReq should trigger the focus one-shot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusReq]);
 

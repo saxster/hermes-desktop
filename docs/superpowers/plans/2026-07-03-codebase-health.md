@@ -47,7 +47,9 @@ Raw console calls bypass rotation and `redactExternalText` secret-scrubbing — 
 - [ ] **Step 2:** `docs/BACKLOG.md` KB Phase 2 entry: `buildRetrievalSystemMessage`/`parseQueryVariants`/`fuseRankings` live in `src/main/hermes/grounding.ts:190`, not `hermes.ts`.
 - [ ] **Step 3:** Spot-check the rest of CLAUDE.md's file references against the tree while in there; fix any other stale paths found.
 
-## Task 5: Small hygiene sweep
+## Task 5: Small hygiene sweep — ✅ DONE 2026-07-18
+
+All 9 `react-hooks/exhaustive-deps` suppressions audited: none hide stale-closure bugs (all are the run-once / serialized-deps / ref-registration patterns). Each now carries a one-line reason comment. The `sr-*` vs `sps-*` channel naming note (Step 2) remains a one-liner for CLAUDE.md conventions if desired.
 
 - [ ] **Step 1:** Spot-audit the 10 `react-hooks/exhaustive-deps` suppressions (`SpsAgent/shell/ChatSurface.tsx:81`, `SpsAgent/editor/Editable.tsx:50,55`, `SpsAgent/editor/Editor.tsx:99`, `SpsAgent/modals/ExternalSessionsModal.tsx:203,266`, + 4 more via grep). For each: either the suppression is correct (add a one-line reason comment) or it hides a stale-closure bug (fix it, with a test if reproducible).
 - [ ] **Step 2:** Decide `sr-*` vs `sps-*` IPC naming: do NOT rename existing channels (churn without payoff); add one line to CLAUDE.md conventions stating new channels use full-word kebab-case prefixes.
