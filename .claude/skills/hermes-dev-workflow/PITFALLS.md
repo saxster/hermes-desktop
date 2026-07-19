@@ -17,6 +17,7 @@ Each entry: **symptom → cause → fix**. These come from real incidents in thi
 
 **Cause:** the session's `TMPDIR` can be unwritable in some sandboxed environments.
 **Fix:** point it at a directory you can write, e.g. `TMPDIR=$(mktemp -d) npx vitest run …`.
+**Variant (2026-07-19):** the system temp became unwritable mid-session (`mktemp -d` succeeds but `touch` inside fails EPERM), so the fix above stops working. Verify with `touch "$(mktemp -d)/probe"`; if that fails, use an in-project dir instead: `mkdir -p node_modules/.cache/vitest-tmp && TMPDIR=$PWD/node_modules/.cache/vitest-tmp npx vitest run …` (node_modules is gitignored).
 
 ## Pre-existing test failures — don't chase them
 
