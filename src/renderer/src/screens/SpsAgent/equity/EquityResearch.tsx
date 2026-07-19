@@ -20,6 +20,7 @@ import { CalibrationView } from "./CalibrationView";
 import { landReportToDb, openRow, updateUserTags } from "./landReportToDb";
 import { deriveAutoTags, tickerSlug, type RunHistoryRow } from "./reportRow";
 import type { EquityReport } from "./reportContract";
+import { createCronJob } from "../../../lib/api/scheduler";
 
 const PROFILE = "default";
 
@@ -232,7 +233,7 @@ export function EquityResearch(): React.JSX.Element {
   const scheduleWeekly = async (): Promise<void> => {
     const symbol = (active?.ticker || input).trim().toUpperCase();
     if (!symbol) return;
-    const res = await window.hermesAPI.createCronJob(
+    const res = await createCronJob(
       "0 7 * * 1",
       `Use the india-equity-research skill to refresh the report for ${symbol} (NSE) and save it to the equity-research vault DB.`,
       `Equity refresh: ${symbol}`,

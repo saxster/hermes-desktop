@@ -30,11 +30,28 @@ import type {
   AppLaunchSchedule,
   AppLaunchTarget,
 } from "../../../../../shared/app-launcher";
+import {
+  getSchedulerSkips,
+  listCronJobs,
+  onScheduledResearchUpdate,
+  pauseCronJob,
+  removeCronJob,
+  resumeCronJob,
+  srCreate,
+  srDelete,
+  srDiscoverSources,
+  srList,
+  srListPending,
+  srRemovePending,
+  srRunNow,
+  srTelegramStatus,
+  srUpdate,
+  srUpdateSourcePlan,
+  triggerCronJob,
+} from "../../../lib/api/scheduler";
 
-type Schedule = Awaited<ReturnType<typeof window.hermesAPI.srList>>[number];
-type Pending = Awaited<
-  ReturnType<typeof window.hermesAPI.srListPending>
->[number];
+type Schedule = Awaited<ReturnType<typeof srList>>[number];
+type Pending = Awaited<ReturnType<typeof srListPending>>[number];
 type SkipInfo = { skipCount: number; lastSkipAt: number; lastReason: string };
 
 const SOURCE_INTENT_LABELS: Record<SourceIntent, string> = {
@@ -142,15 +159,11 @@ export function ScheduledModal() {
   const refresh = async () => {
     const [s, p, cron, sk, telegram, launchTargetsList, launchSchedulesList] =
       await Promise.all([
-        window.hermesAPI.srList(),
-        window.hermesAPI.srListPending(),
-        window.hermesAPI.listCronJobs(true).catch(() => [] as CronJob[]),
-        window.hermesAPI
-          .getSchedulerSkips()
-          .catch(() => ({}) as Record<string, SkipInfo>),
-        window.hermesAPI
-          .srTelegramStatus()
-          .catch(() => TELEGRAM_UNAVAILABLE_STATUS),
+        srList(),
+        srListPending(),
+        listCronJobs(true).catch(() => [] as CronJob[]),
+        getSchedulerSkips().catch(() => ({}) as Record<string, SkipInfo>),
+        srTelegramStatus().catch(() => TELEGRAM_UNAVAILABLE_STATUS),
         window.hermesAPI.appLaunchListTargets().catch(() => []),
         window.hermesAPI.appLaunchListSchedules().catch(() => []),
       ]);
@@ -161,7 +174,7 @@ export function ScheduledModal() {
     setLaunchSchedules(launchSchedulesList || []);
     const applied = await autoApplyPending(p || [], s || []);
     if (applied) {
-      const p2 = await window.hermesAPI.srListPending();
+      const p2 = await srListPending();
       setSchedules(s || []);
       setPending(p2 || []);
     } else {
@@ -176,7 +189,7 @@ export function ScheduledModal() {
       setError(err instanceof Error ? err.message : "Failed to load schedules"),
     );
     // A scheduled tick / Run now that produces a change pushes this event.
-    const off = window.hermesAPI.onScheduledResearchUpdate(() => {
+    const off = onScheduledResearchUpdate(() => {
       refresh().catch((err) =>
         setError(
           err instanceof Error ? err.message : "Failed to refresh schedules",
@@ -209,7 +222,7 @@ export function ScheduledModal() {
     setDiscovering(true);
     setError("");
     try {
-      const result = await window.hermesAPI.srDiscoverSources({
+      const result = await srDiscoverSources({
         topic: t,
         sourceIntent,
         existingPlan: sourcePlan,
@@ -251,7 +264,7 @@ export function ScheduledModal() {
         source.id === sourceId ? { ...source, status } : source,
       ),
     );
-    await window.hermesAPI.srUpdateSourcePlan(schedule.id, next);
+    await srUpdateSourcePlan(schedule.id, next);
     await refresh();
   };
 
@@ -262,7 +275,7 @@ export function ScheduledModal() {
     setCreating(true);
     setError("");
     try {
-      const res = await window.hermesAPI.srCreate({
+      const res = await srCreate({
         topic: t,
         cadence,
         hour,
@@ -292,7 +305,7 @@ export function ScheduledModal() {
   const onRunNow = async (id: string) => {
     setBusyId(id);
     try {
-      const res = await window.hermesAPI.srRunNow(id);
+      const res = await srRunNow(id);
       await refresh();
       if (res.outcome === "changed")
         flash("Found an update — see Pending below");
@@ -309,12 +322,12 @@ export function ScheduledModal() {
   };
 
   const onToggle = async (s: Schedule) => {
-    await window.hermesAPI.srUpdate(s.id, { enabled: !s.enabled });
+    await srUpdate(s.id, { enabled: !s.enabled });
     await refresh();
   };
 
   const onDelete = async (id: string) => {
-    await window.hermesAPI.srDelete(id);
+    await srDelete(id);
     await refresh();
   };
 
@@ -328,7 +341,7 @@ export function ScheduledModal() {
       const sched = schedules.find((s) => s.id === p.scheduleId);
       const op = sched?.kind === "digest" ? "digest" : "research";
       await window.hermesAPI.spsAppendWikiLog?.(op, p.summary);
-      await window.hermesAPI.srRemovePending(p.id);
+      await srRemovePending(p.id);
       await refresh();
       selectPage(p.pageId);
       flash(`Applied "${p.topic}" to your Knowledge Base`);
@@ -342,7 +355,7 @@ export function ScheduledModal() {
   };
 
   const onDismiss = async (p: Pending) => {
-    await window.hermesAPI.srRemovePending(p.id);
+    await srRemovePending(p.id);
     await refresh();
   };
 
@@ -358,8 +371,8 @@ export function ScheduledModal() {
   const onCronToggle = async (job: CronJob) => {
     setBusyId(job.id);
     try {
-      if (job.state === "paused") await window.hermesAPI.resumeCronJob(job.id);
-      else await window.hermesAPI.pauseCronJob(job.id);
+      if (job.state === "paused") await resumeCronJob(job.id);
+      else await pauseCronJob(job.id);
       await refresh();
     } finally {
       setBusyId(null);
@@ -369,7 +382,7 @@ export function ScheduledModal() {
   const onCronTrigger = async (job: CronJob) => {
     setBusyId(job.id);
     try {
-      await window.hermesAPI.triggerCronJob(job.id);
+      await triggerCronJob(job.id);
       await refresh();
       flash(`Triggered "${job.name}"`);
     } finally {
@@ -380,7 +393,7 @@ export function ScheduledModal() {
   const onCronDelete = async (job: CronJob) => {
     setBusyId(job.id);
     try {
-      await window.hermesAPI.removeCronJob(job.id);
+      await removeCronJob(job.id);
       await refresh();
     } finally {
       setBusyId(null);

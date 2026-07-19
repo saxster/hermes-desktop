@@ -12,9 +12,16 @@ import { useVaultQuery } from "../hooks/useNoteIndex";
 import { vaultRowToTask } from "../tasks/vaultRowToTask";
 import { TASKS_DB_FOLDER } from "../tasks/taskStorage";
 import { dueDateKey } from "../tasks/taskUtils";
+import {
+  listCronJobs,
+  pauseCronJob,
+  resumeCronJob,
+  srList,
+  srUpdate,
+} from "../../../lib/api/scheduler";
 
 type WorkTab = "today" | "next" | "scheduled" | "delegated" | "review";
-type Schedule = Awaited<ReturnType<typeof window.hermesAPI.srList>>[number];
+type Schedule = Awaited<ReturnType<typeof srList>>[number];
 
 export function localDateKey(date = new Date()): string {
   const year = date.getFullYear();
@@ -69,9 +76,9 @@ function WorkScheduledPanel(): React.JSX.Element {
     setError("");
     try {
       const [scheduleRows, launchRows, cronRows] = await Promise.all([
-        window.hermesAPI.srList(),
+        srList(),
         window.hermesAPI.appLaunchListSchedules().catch(() => []),
-        window.hermesAPI.listCronJobs(true).catch(() => [] as CronJob[]),
+        listCronJobs(true).catch(() => [] as CronJob[]),
       ]);
       setSchedules(scheduleRows || []);
       setLaunchSchedules(launchRows || []);
@@ -94,7 +101,7 @@ function WorkScheduledPanel(): React.JSX.Element {
   async function toggleSchedule(rule: Schedule): Promise<void> {
     setBusyId(rule.id);
     try {
-      await window.hermesAPI.srUpdate(rule.id, { enabled: !rule.enabled });
+      await srUpdate(rule.id, { enabled: !rule.enabled });
       await refresh();
     } finally {
       setBusyId("");
@@ -104,8 +111,8 @@ function WorkScheduledPanel(): React.JSX.Element {
   async function toggleCron(job: CronJob): Promise<void> {
     setBusyId(job.id);
     try {
-      if (job.state === "paused") await window.hermesAPI.resumeCronJob(job.id);
-      else await window.hermesAPI.pauseCronJob(job.id);
+      if (job.state === "paused") await resumeCronJob(job.id);
+      else await pauseCronJob(job.id);
       await refresh();
     } finally {
       setBusyId("");
