@@ -35,6 +35,14 @@ import { useI18n } from "../../components/useI18n";
 import { buildChatTranscript } from "./transcriptUtils";
 import { ConfigHealthBanner } from "../../components/ConfigHealthBanner";
 import { clearStagedAttachments } from "../../lib/api/media";
+import {
+  abortChat,
+  adoptCouncilResponse,
+  deleteSession,
+  onContextMenuCopyChat,
+  onContextMenuSelectBubble,
+  validateChatReadiness,
+} from "../../lib/api/chat";
 import { getDevMode, DEV_MODE_EVENT } from "../../lib/devMode";
 import type { Attachment } from "../../../../shared/attachments";
 import {
@@ -245,7 +253,7 @@ function Chat({
     let cancelled = false;
     (async (): Promise<void> => {
       try {
-        const r = await window.hermesAPI.validateChatReadiness(profile);
+        const r = await validateChatReadiness(profile);
         if (!cancelled) setReadiness(r);
       } catch {
         // Fail open on IPC error — never block Send on validation failure
@@ -330,7 +338,7 @@ function Chat({
     messagesRef.current = messages;
   });
   useEffect(() => {
-    return window.hermesAPI.onContextMenuCopyChat((format) => {
+    return onContextMenuCopyChat((format) => {
       const msgs = messagesRef.current;
       if (msgs.length === 0) return;
       void window.hermesAPI.copyToClipboard(buildChatTranscript(msgs, format));
@@ -341,7 +349,7 @@ function Chat({
   // select the entire window, so scope it to the .chat-bubble under the
   // cursor — the user can then Copy that message.
   useEffect(() => {
-    return window.hermesAPI.onContextMenuSelectBubble(({ x, y }) => {
+    return onContextMenuSelectBubble(({ x, y }) => {
       const bubble = document.elementFromPoint(x, y)?.closest(".chat-bubble");
       if (!bubble) return;
       const selection = window.getSelection();
@@ -362,12 +370,12 @@ function Chat({
 
   const handleClear = useCallback(() => {
     if (isLoading) {
-      window.hermesAPI.abortChat(hermesSessionId ?? sessionId ?? undefined);
+      abortChat(hermesSessionId ?? sessionId ?? undefined);
       setIsLoading(false);
     }
     const idToDelete = hermesSessionId ?? sessionId;
     if (idToDelete) {
-      void window.hermesAPI.deleteSession(idToDelete);
+      void deleteSession(idToDelete);
       void clearStagedAttachments(idToDelete);
     }
     setMessages([]);
@@ -606,11 +614,7 @@ function Chat({
 
       if (dbId !== null && !isNaN(dbId)) {
         try {
-          await window.hermesAPI.adoptCouncilResponse(
-            dbId,
-            activeSessionId,
-            councilGroupId,
-          );
+          await adoptCouncilResponse(dbId, activeSessionId, councilGroupId);
         } catch (err) {
           console.error("Failed to adopt response on DB:", err);
         }

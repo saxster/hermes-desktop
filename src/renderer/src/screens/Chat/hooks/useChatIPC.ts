@@ -1,6 +1,16 @@
 import { useEffect } from "react";
 import type { ChatMessage, UsageState } from "../types";
 import {
+  getSessionMessages,
+  onChatApprovalAuto,
+  onChatChunk,
+  onChatDone,
+  onChatError,
+  onChatReasoningChunk,
+  onChatToolProgress,
+  onChatUsage,
+} from "../../../lib/api/chat";
+import {
   dbItemsToChatMessages,
   reconcileStreamedWithDb,
   type DbHistoryItem,
@@ -32,7 +42,7 @@ export function useChatIPC({
     // This screen owns the legacy/global chat stream (runId === undefined).
     // Events tagged with a clientRunId belong to a specific run elsewhere
     // (e.g. SPS /work, or a parallel session tab) — ignore them here.
-    const cleanupChunk = window.hermesAPI.onChatChunk((chunk, runId) => {
+    const cleanupChunk = onChatChunk((chunk, runId) => {
       if (runId !== undefined) {
         if (runId.startsWith("council-turn-")) {
           const [turnId, modelKey] = runId.split("::");
@@ -85,140 +95,134 @@ export function useChatIPC({
     // message) and append to it. If no such row exists yet, create one
     // and place it BEFORE any assistant content bubbles in the same
     // turn so the visual order is reasoning → answer.
-    const cleanupReasoning = window.hermesAPI.onChatReasoningChunk(
-      (chunk, runId) => {
-        if (runId !== undefined) {
-          if (runId.startsWith("council-turn-")) {
-            const [turnId, modelKey] = runId.split("::");
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id === turnId && m.kind === "council_turn") {
-                  const resp = m.responses[modelKey];
-                  if (resp) {
-                    return {
-                      ...m,
-                      responses: {
-                        ...m.responses,
-                        [modelKey]: {
-                          ...resp,
-                          reasoning: (resp.reasoning || "") + chunk,
-                        },
+    const cleanupReasoning = onChatReasoningChunk((chunk, runId) => {
+      if (runId !== undefined) {
+        if (runId.startsWith("council-turn-")) {
+          const [turnId, modelKey] = runId.split("::");
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === turnId && m.kind === "council_turn") {
+                const resp = m.responses[modelKey];
+                if (resp) {
+                  return {
+                    ...m,
+                    responses: {
+                      ...m.responses,
+                      [modelKey]: {
+                        ...resp,
+                        reasoning: (resp.reasoning || "") + chunk,
                       },
-                    };
-                  }
+                    },
+                  };
                 }
-                return m;
-              }),
-            );
-          }
-          return;
-        }
-        if (!chunk) return;
-        setMessages((prev) => {
-          let insertAt = prev.length;
-          for (let i = prev.length - 1; i >= 0; i--) {
-            const m = prev[i];
-            if (m.role === "user") break;
-            // Append to the active turn's reasoning row if one exists.
-            if ("kind" in m && m.kind === "reasoning") {
-              return [
-                ...prev.slice(0, i),
-                { ...m, text: m.text + chunk },
-                ...prev.slice(i + 1),
-              ];
-            }
-            // Otherwise track the earliest in-turn agent row so the new
-            // reasoning bubble lands ahead of it (typical case: content
-            // bubble started first because reasoning arrived a tick late).
-            insertAt = i;
-          }
-          return [
-            ...prev.slice(0, insertAt),
-            {
-              id: `reasoning-${Date.now()}`,
-              kind: "reasoning",
-              role: "agent",
-              text: chunk,
-            },
-            ...prev.slice(insertAt),
-          ];
-        });
-      },
-    );
-
-    const cleanupDone = window.hermesAPI.onChatDone(
-      async (sessionId, runId) => {
-        if (runId !== undefined) {
-          if (runId.startsWith("council-turn-")) {
-            if (sessionId) setHermesSessionId(sessionId);
-            const [turnId, modelKey] = runId.split("::");
-            setMessages((prev) => {
-              const updated = prev.map((m) => {
-                if (m.id === turnId && m.kind === "council_turn") {
-                  const resp = m.responses[modelKey];
-                  if (resp) {
-                    const parsed = parseCouncilVerdict(resp.content);
-                    return {
-                      ...m,
-                      responses: {
-                        ...m.responses,
-                        [modelKey]: {
-                          ...resp,
-                          ...parsed,
-                          isLoading: false,
-                          toolProgress: undefined,
-                        },
-                      },
-                    };
-                  }
-                }
-                return m;
-              });
-
-              // Check if any council responses are still loading
-              const anyLoading = updated.some(
-                (m) =>
-                  m.kind === "council_turn" &&
-                  Object.values(m.responses).some((r) => r.isLoading),
-              );
-              if (!anyLoading) {
-                setIsLoading(false);
               }
-              return updated;
-            });
+              return m;
+            }),
+          );
+        }
+        return;
+      }
+      if (!chunk) return;
+      setMessages((prev) => {
+        let insertAt = prev.length;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const m = prev[i];
+          if (m.role === "user") break;
+          // Append to the active turn's reasoning row if one exists.
+          if ("kind" in m && m.kind === "reasoning") {
+            return [
+              ...prev.slice(0, i),
+              { ...m, text: m.text + chunk },
+              ...prev.slice(i + 1),
+            ];
           }
-          return;
+          // Otherwise track the earliest in-turn agent row so the new
+          // reasoning bubble lands ahead of it (typical case: content
+          // bubble started first because reasoning arrived a tick late).
+          insertAt = i;
         }
-        if (sessionId) setHermesSessionId(sessionId);
-        setToolProgress(null);
-        setIsLoading(false);
-        // End-of-stream merge from state.db. The gateway doesn't forward
-        // streaming reasoning_content / tool deltas over the OpenAI-compatible
-        // SSE (NousResearch/hermes-agent#30449) — the agent writes them to
-        // state.db at finalisation instead. Without this merge, the
-        // reasoning / tool bubbles only materialise when something else
-        // triggers a re-sync (window focus change, tab switch). Doing it
-        // here makes them appear immediately on stream completion (#352).
-        //
-        // We *merge* (not replace) so that once #30449 lands and reasoning
-        // does stream, the already-rendered streamed bubble keeps its
-        // React identity instead of being re-mounted by a DB-id swap.
-        // `reconcileStreamedWithDb` does the matching — see its doc block.
-        if (!sessionId) return;
-        try {
-          const items = (await window.hermesAPI.getSessionMessages(
-            sessionId,
-          )) as DbHistoryItem[];
-          const dbMessages = dbItemsToChatMessages(items);
-          if (dbMessages.length === 0) return;
-          setMessages((prev) => reconcileStreamedWithDb(prev, dbMessages));
-        } catch {
-          // Merge is a UX nicety — don't break the chat flow if it fails.
-        }
-      },
-    );
+        return [
+          ...prev.slice(0, insertAt),
+          {
+            id: `reasoning-${Date.now()}`,
+            kind: "reasoning",
+            role: "agent",
+            text: chunk,
+          },
+          ...prev.slice(insertAt),
+        ];
+      });
+    });
 
-    const cleanupError = window.hermesAPI.onChatError((error, runId) => {
+    const cleanupDone = onChatDone(async (sessionId, runId) => {
+      if (runId !== undefined) {
+        if (runId.startsWith("council-turn-")) {
+          if (sessionId) setHermesSessionId(sessionId);
+          const [turnId, modelKey] = runId.split("::");
+          setMessages((prev) => {
+            const updated = prev.map((m) => {
+              if (m.id === turnId && m.kind === "council_turn") {
+                const resp = m.responses[modelKey];
+                if (resp) {
+                  const parsed = parseCouncilVerdict(resp.content);
+                  return {
+                    ...m,
+                    responses: {
+                      ...m.responses,
+                      [modelKey]: {
+                        ...resp,
+                        ...parsed,
+                        isLoading: false,
+                        toolProgress: undefined,
+                      },
+                    },
+                  };
+                }
+              }
+              return m;
+            });
+
+            // Check if any council responses are still loading
+            const anyLoading = updated.some(
+              (m) =>
+                m.kind === "council_turn" &&
+                Object.values(m.responses).some((r) => r.isLoading),
+            );
+            if (!anyLoading) {
+              setIsLoading(false);
+            }
+            return updated;
+          });
+        }
+        return;
+      }
+      if (sessionId) setHermesSessionId(sessionId);
+      setToolProgress(null);
+      setIsLoading(false);
+      // End-of-stream merge from state.db. The gateway doesn't forward
+      // streaming reasoning_content / tool deltas over the OpenAI-compatible
+      // SSE (NousResearch/hermes-agent#30449) — the agent writes them to
+      // state.db at finalisation instead. Without this merge, the
+      // reasoning / tool bubbles only materialise when something else
+      // triggers a re-sync (window focus change, tab switch). Doing it
+      // here makes them appear immediately on stream completion (#352).
+      //
+      // We *merge* (not replace) so that once #30449 lands and reasoning
+      // does stream, the already-rendered streamed bubble keeps its
+      // React identity instead of being re-mounted by a DB-id swap.
+      // `reconcileStreamedWithDb` does the matching — see its doc block.
+      if (!sessionId) return;
+      try {
+        const items = (await getSessionMessages(sessionId)) as DbHistoryItem[];
+        const dbMessages = dbItemsToChatMessages(items);
+        if (dbMessages.length === 0) return;
+        setMessages((prev) => reconcileStreamedWithDb(prev, dbMessages));
+      } catch {
+        // Merge is a UX nicety — don't break the chat flow if it fails.
+      }
+    });
+
+    const cleanupError = onChatError((error, runId) => {
       if (runId !== undefined) {
         if (runId.startsWith("council-turn-")) {
           const [turnId, modelKey] = runId.split("::");
@@ -265,81 +269,77 @@ export function useChatIPC({
       setIsLoading(false);
     });
 
-    const cleanupToolProgress = window.hermesAPI.onChatToolProgress(
-      (tool, runId) => {
-        if (runId !== undefined) {
-          if (runId.startsWith("council-turn-")) {
-            const [turnId, modelKey] = runId.split("::");
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id === turnId && m.kind === "council_turn") {
-                  const resp = m.responses[modelKey];
-                  if (resp) {
-                    return {
-                      ...m,
-                      responses: {
-                        ...m.responses,
-                        [modelKey]: {
-                          ...resp,
-                          toolProgress: tool ?? undefined,
-                        },
+    const cleanupToolProgress = onChatToolProgress((tool, runId) => {
+      if (runId !== undefined) {
+        if (runId.startsWith("council-turn-")) {
+          const [turnId, modelKey] = runId.split("::");
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === turnId && m.kind === "council_turn") {
+                const resp = m.responses[modelKey];
+                if (resp) {
+                  return {
+                    ...m,
+                    responses: {
+                      ...m.responses,
+                      [modelKey]: {
+                        ...resp,
+                        toolProgress: tool ?? undefined,
                       },
-                    };
-                  }
+                    },
+                  };
                 }
-                return m;
-              }),
-            );
-          }
-          return;
+              }
+              return m;
+            }),
+          );
         }
-        setToolProgress(tool);
-      },
-    );
+        return;
+      }
+      setToolProgress(tool);
+    });
 
     // Scoped-autonomy audit notice (M2B): show what was auto-approved so the
     // behaviour isn't invisible. Legacy/global stream only (runId === undefined).
-    const cleanupApprovalAuto = window.hermesAPI.onChatApprovalAuto(
-      (req, runId) => {
-        if (runId !== undefined) {
-          if (runId.startsWith("council-turn-")) {
-            const [turnId, modelKey] = runId.split("::");
-            const label = req.command ?? req.toolName ?? "command";
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id === turnId && m.kind === "council_turn") {
-                  const resp = m.responses[modelKey];
-                  if (resp) {
-                    return {
-                      ...m,
-                      responses: {
-                        ...m.responses,
-                        [modelKey]: {
-                          ...resp,
-                          approval: `Auto-approved: ${label}`,
-                        },
+    const cleanupApprovalAuto = onChatApprovalAuto((req, runId) => {
+      if (runId !== undefined) {
+        if (runId.startsWith("council-turn-")) {
+          const [turnId, modelKey] = runId.split("::");
+          const label = req.command ?? req.toolName ?? "command";
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === turnId && m.kind === "council_turn") {
+                const resp = m.responses[modelKey];
+                if (resp) {
+                  return {
+                    ...m,
+                    responses: {
+                      ...m.responses,
+                      [modelKey]: {
+                        ...resp,
+                        approval: `Auto-approved: ${label}`,
                       },
-                    };
-                  }
+                    },
+                  };
                 }
-                return m;
-              }),
-            );
-          }
-          return;
+              }
+              return m;
+            }),
+          );
         }
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `auto-approve-${Date.now()}`,
-            role: "agent",
-            content: `✓ Auto-approved: ${req.command ?? req.toolName ?? "command"}`,
-          },
-        ]);
-      },
-    );
+        return;
+      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `auto-approve-${Date.now()}`,
+          role: "agent",
+          content: `✓ Auto-approved: ${req.command ?? req.toolName ?? "command"}`,
+        },
+      ]);
+    });
 
-    const cleanupUsage = window.hermesAPI.onChatUsage((u, runId) => {
+    const cleanupUsage = onChatUsage((u, runId) => {
       if (runId !== undefined) return;
       setUsage((prev) => ({
         promptTokens: (prev?.promptTokens || 0) + u.promptTokens,

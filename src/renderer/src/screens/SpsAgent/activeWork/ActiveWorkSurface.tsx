@@ -7,6 +7,7 @@ import type {
   KanbanTask,
   KanbanTaskDetail,
 } from "../../../../../shared/kanban";
+import { abortChat, sendMessage } from "../../../lib/api/chat";
 
 const COLUMNS = ["triage", "todo", "ready", "running", "blocked", "done"];
 
@@ -105,7 +106,7 @@ export function ActiveWorkSurface() {
         clientRunId,
       });
       activeId = active.id;
-      const result = await window.hermesAPI.sendMessage(
+      const result = await sendMessage(
         `/goal ${goal}`,
         undefined,
         undefined,
@@ -139,7 +140,7 @@ export function ActiveWorkSurface() {
   }
 
   async function stopRun(run: ActiveWorkRun): Promise<void> {
-    await window.hermesAPI.abortChat(run.sessionId || run.clientRunId);
+    await abortChat(run.sessionId || run.clientRunId);
     await window.hermesAPI.spsUpdateActiveWorkRun(run.id, {
       status: "stopped",
       completedAt: Date.now(),

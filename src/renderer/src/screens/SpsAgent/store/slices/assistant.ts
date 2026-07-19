@@ -24,6 +24,12 @@ import {
 } from "../../assistant/prompts";
 import { TASKS } from "../../data/seed";
 import { commitChangeset } from "../../inbox/ingestApply";
+import {
+  onChatApprovalAuto,
+  onChatChunk,
+  onChatToolProgress,
+  sendMessage,
+} from "../../../../lib/api/chat";
 import { buildResearchReachPromptHint } from "../../../../../../shared/research-reach";
 import type { AgentMessage } from "../../assistant/types";
 import type { Block } from "../../types";
@@ -411,12 +417,12 @@ export const createAssistantSlice: StateCreator<
         }
 
         const cleanups = [
-          window.hermesAPI.onChatChunk((chunk, rid) => {
+          onChatChunk((chunk, rid) => {
             if (rid !== runId) return;
             acc += chunk;
             render();
           }),
-          window.hermesAPI.onChatToolProgress((t, rid) => {
+          onChatToolProgress((t, rid) => {
             if (rid !== runId) return;
             tool = t;
             if (activeWorkId) {
@@ -427,7 +433,7 @@ export const createAssistantSlice: StateCreator<
             }
             render();
           }),
-          window.hermesAPI.onChatApprovalAuto((req, rid) => {
+          onChatApprovalAuto((req, rid) => {
             if (rid !== runId) return;
             acc += `\n\n_✓ auto-approved: ${req.command ?? req.toolName ?? "command"}_`;
             render();
@@ -435,7 +441,7 @@ export const createAssistantSlice: StateCreator<
         ];
 
         try {
-          const result = await window.hermesAPI.sendMessage(
+          const result = await sendMessage(
             message,
             undefined, // profile
             resumeId,
@@ -737,12 +743,12 @@ export const createAssistantSlice: StateCreator<
       const runId = uid("run");
       let acc = "";
       const cleanups = [
-        window.hermesAPI.onChatChunk((chunk, rid) => {
+        onChatChunk((chunk, rid) => {
           if (rid !== runId) return;
           acc += chunk;
           handlers?.onChunk?.(acc);
         }),
-        window.hermesAPI.onChatToolProgress((tool, rid) => {
+        onChatToolProgress((tool, rid) => {
           if (rid !== runId) return;
           handlers?.onTool?.(tool);
         }),
@@ -758,7 +764,7 @@ export const createAssistantSlice: StateCreator<
           sourceHint = "";
         }
 
-        const result = await window.hermesAPI.sendMessage(
+        const result = await sendMessage(
           buildResearchPrompt(trimmed, { sourceHint }),
           undefined, // profile
           undefined, // resumeSessionId

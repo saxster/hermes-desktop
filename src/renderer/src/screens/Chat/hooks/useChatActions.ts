@@ -7,6 +7,7 @@ import type {
   CouncilTurnMessage,
 } from "../types";
 import { getGroundInWorkspace } from "../../../lib/grounding";
+import { abortChat, sendMessage } from "../../../lib/api/chat";
 import { buildHandoffPrompt } from "../handoff";
 import {
   buildCouncilSeatPrompt,
@@ -124,7 +125,7 @@ export function useChatActions({
       runId?: string,
     ): Promise<void> => {
       try {
-        await window.hermesAPI.sendMessage(
+        await sendMessage(
           text,
           profile,
           hermesSessionId || undefined,
@@ -318,7 +319,7 @@ export function useChatActions({
   );
 
   const handleAbort = useCallback(() => {
-    window.hermesAPI.abortChat(hermesSessionId ?? undefined);
+    abortChat(hermesSessionId ?? undefined);
     setIsLoading(false);
     setTimeout(() => chatInputRef.current?.focus(), 50);
   }, [chatInputRef, hermesSessionId, setIsLoading]);

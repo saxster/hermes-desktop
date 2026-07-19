@@ -12,6 +12,12 @@ import {
   type CalibrationScorecard,
 } from "./calibrationContract";
 import { uid } from "../lib/ids";
+import {
+  onChatChunk,
+  onChatDone,
+  onChatToolProgress,
+  sendMessage,
+} from "../../../lib/api/chat";
 
 export type RunStatus = "idle" | "running" | "done" | "error";
 
@@ -67,18 +73,16 @@ export function useEquityRun(): EquityRunState {
 
   // Subscribe to the streamed chat signals for the lifetime of the surface.
   useEffect(() => {
-    const offChunk = window.hermesAPI.onChatChunk((chunk: string, runId) => {
+    const offChunk = onChatChunk((chunk: string, runId) => {
       if (runId !== activeRunIdRef.current) return;
       bufferRef.current += chunk;
       setTranscript(bufferRef.current);
     });
-    const offTool = window.hermesAPI.onChatToolProgress(
-      (tool: string, runId) => {
-        if (runId !== activeRunIdRef.current) return;
-        setToolProgress(tool);
-      },
-    );
-    const offDone = window.hermesAPI.onChatDone((_sessionId, runId) => {
+    const offTool = onChatToolProgress((tool: string, runId) => {
+      if (runId !== activeRunIdRef.current) return;
+      setToolProgress(tool);
+    });
+    const offDone = onChatDone((_sessionId, runId) => {
       if (runId !== activeRunIdRef.current) return;
       setStatus("done");
       setToolProgress(null);
@@ -115,7 +119,7 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
           ? `Operate strictly per the india-equity-research skill below.\n\n${skillMd}\n\n---\n\n${directive}`
           : `Use the india-equity-research skill. ${directive}`;
         try {
-          const res = await window.hermesAPI.sendMessage(
+          const res = await sendMessage(
             prompt,
             PROFILE,
             undefined,
@@ -169,17 +173,16 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
           .replace(/[^a-z0-9]+/g, "-");
       const list = symbols.join(", ");
       const prompt = `Use the india-equity-research skill in basket mode to rank ${list} (NSE) as basket "${name}" (id ${id}). Pull Phase 0 shared context once, run the single-stock pass per name, then call basket_run.run to build the ranking board. Return the canonical basket board markdown.`;
-      void window.hermesAPI
-        .sendMessage(
-          prompt,
-          PROFILE,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          runId,
-        )
+      void sendMessage(
+        prompt,
+        PROFILE,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        runId,
+      )
         .then((res) => {
           if (activeRunIdRef.current !== runId) return;
           if (res?.response && res.response.length > bufferRef.current.length) {
@@ -208,17 +211,16 @@ Use ONE evidence_id. Call india-equity-data.fetch for quote, fundamentals AND hi
     setStatus("running");
 
     const prompt = `Use the india-equity-research skill's calibration script to compute my thesis hit-rate scorecard over a ${horizonDays}-day horizon (call calibration.run). Do NOT persist — return the canonical calibration scorecard markdown so I can review and choose to save.`;
-    void window.hermesAPI
-      .sendMessage(
-        prompt,
-        PROFILE,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        runId,
-      )
+    void sendMessage(
+      prompt,
+      PROFILE,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      runId,
+    )
       .then((res) => {
         if (activeRunIdRef.current !== runId) return;
         if (res?.response && res.response.length > bufferRef.current.length) {

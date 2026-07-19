@@ -3,6 +3,7 @@ import { useStore as useSpsStore } from "../SpsAgent/store";
 import type { NormalizedAdminView } from "../../lib/openSettings";
 import { OperatorReadinessPanel } from "../../components/OperatorReadinessPanel";
 import type { OperatorReadinessAction } from "../../../../shared/operator-readiness";
+import { validateChatReadiness } from "../../lib/api/chat";
 
 interface ModelConfig {
   provider: string;
@@ -124,7 +125,7 @@ function ControlCenterOverview({
         const [, modelConfig, readiness] = await Promise.all([
           window.hermesAPI.getConnectionConfig(),
           window.hermesAPI.getModelConfig(profile),
-          window.hermesAPI.validateChatReadiness(profile),
+          validateChatReadiness(profile),
         ]);
         if (cancelled) return;
         const status = readinessStatus(readiness);

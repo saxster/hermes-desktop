@@ -19,6 +19,7 @@ import type { GatewayHealthStatus } from "../../../../../shared/gateway";
 import type { TaskNagRecord } from "../../../../../shared/tasks-dump";
 import { useVaultQuery } from "../hooks/useNoteIndex";
 import { readFocus, writeFocus } from "../../../lib/api/memory";
+import { listSessions } from "../../../lib/api/chat";
 
 const WIDGET_META: Record<WidgetKind, { title: string; icon: IconName }> = {
   quick: { title: "Quick actions", icon: "wand" },
@@ -663,10 +664,7 @@ function RecentChats() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   useEffect(() => {
     let cancelled = false;
-    const api = window.hermesAPI;
-    if (!api?.listSessions) return;
-    api
-      .listSessions(6, 0)
+    listSessions(6, 0)
       .then((rows) => {
         if (!cancelled) setSessions((rows as SessionRow[]).slice(0, 6));
       })

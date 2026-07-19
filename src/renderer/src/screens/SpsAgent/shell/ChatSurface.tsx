@@ -9,6 +9,7 @@ import { dbItemsToChatMessages } from "../../Chat/sessionHistory";
 import type { DbHistoryItem } from "../../Chat/sessionHistory";
 import { useStore } from "../store";
 import { openSettings } from "../../../lib/openSettings";
+import { getSessionMessages } from "../../../lib/api/chat";
 import { blk } from "../lib/ids";
 import type { Block } from "../types";
 
@@ -92,10 +93,7 @@ export function ChatSurface() {
       setMessages([]);
       return;
     }
-    const api = window.hermesAPI;
-    if (!api?.getSessionMessages) return;
-    api
-      .getSessionMessages(activeChatSession)
+    getSessionMessages(activeChatSession)
       .then((items) => {
         if (cancelled) return;
         setMessages(dbItemsToChatMessages(items as DbHistoryItem[]));

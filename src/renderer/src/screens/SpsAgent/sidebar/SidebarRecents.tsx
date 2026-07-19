@@ -3,12 +3,18 @@
 // not just the recent 8 — this is the in-workspace replacement for the deleted
 // admin Sessions screen. Clicking a row opens the AI Chats surface on that
 // session; right-click (or the hover ⋯) renames or deletes it via the Hermes
-// session API. Renders nothing extra when hermesAPI is absent (demo/standalone).
+// session API. Session loads are best-effort (empty on offline / no gateway).
 import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { InlineRename } from "../components/InlineRename";
 import { useStore } from "../store";
 import type { SessionRow } from "../types";
+import {
+  deleteSession,
+  listSessions,
+  searchSessions,
+  updateSessionTitle,
+} from "../../../lib/api/chat";
 
 const RECENTS_LIMIT = 8;
 const SEARCH_LIMIT = 25;
@@ -45,10 +51,7 @@ export function SidebarRecents() {
   // Load the recent sessions once (the default, no-query view).
   useEffect(() => {
     let cancelled = false;
-    const api = window.hermesAPI;
-    if (!api?.listSessions) return;
-    api
-      .listSessions(RECENTS_LIMIT, 0)
+    listSessions(RECENTS_LIMIT, 0)
       .then((rows) => {
         if (!cancelled) setRecents(rows.slice(0, RECENTS_LIMIT));
       })
@@ -67,12 +70,9 @@ export function SidebarRecents() {
       setResults(null);
       return;
     }
-    const api = window.hermesAPI;
-    if (!api?.searchSessions) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      api
-        .searchSessions(q, SEARCH_LIMIT)
+      searchSessions(q, SEARCH_LIMIT)
         .then((hits) => {
           if (!cancelled) setResults(hits.map(searchHitToRow));
         })
@@ -126,10 +126,8 @@ export function SidebarRecents() {
 
   const commitRename = async (id: string, title: string): Promise<void> => {
     setRenamingId(null);
-    const api = window.hermesAPI;
-    if (!api?.updateSessionTitle) return;
     try {
-      await api.updateSessionTitle(id, title);
+      await updateSessionTitle(id, title);
       patchTitle(id, title);
     } catch {
       /* gateway offline — leave the list unchanged */
@@ -138,10 +136,8 @@ export function SidebarRecents() {
 
   const removeSession = async (id: string): Promise<void> => {
     setMenu(null);
-    const api = window.hermesAPI;
-    if (!api?.deleteSession) return;
     try {
-      await api.deleteSession(id);
+      await deleteSession(id);
       dropRow(id);
       // Don't strand the surface on a chat that no longer exists.
       if (activeChatSession === id) startNewChat();

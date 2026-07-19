@@ -13,6 +13,11 @@ import {
   buildTree,
   type DelegateNode,
 } from "../../lib/delegation";
+import {
+  onChatApprovalRequest,
+  onChatDelegateProgress,
+  respondApproval,
+} from "../../lib/api/chat";
 
 /**
  * Subscribes to the gateway's approval (B1) and delegation (B3) SSE signals
@@ -47,7 +52,7 @@ export function useChatSignals(profile?: string): {
   }, [profile]);
 
   useEffect(() => {
-    const offApproval = window.hermesAPI.onChatApprovalRequest((req) => {
+    const offApproval = onChatApprovalRequest((req) => {
       setApprovals((s) => {
         // Stamp the enqueue time so the countdown (and auto-deny) have a clock.
         const { state, autoResponse } = enqueueApproval(s, {
@@ -55,16 +60,12 @@ export function useChatSignals(profile?: string): {
           enqueuedAt: Date.now(),
         });
         if (autoResponse) {
-          void window.hermesAPI.respondApproval(
-            autoResponse.id,
-            autoResponse.choice,
-            profile,
-          );
+          void respondApproval(autoResponse.id, autoResponse.choice, profile);
         }
         return state;
       });
     });
-    const offDelegate = window.hermesAPI.onChatDelegateProgress((p) => {
+    const offDelegate = onChatDelegateProgress((p) => {
       setDelegation((s) => applyDelegateEvent(s, p));
     });
     return () => {
@@ -77,11 +78,7 @@ export function useChatSignals(profile?: string): {
     (id: string, choice: ApprovalChoice) => {
       setApprovals((s) => {
         const { state, response } = resolveApproval(s, id, choice);
-        void window.hermesAPI.respondApproval(
-          response.id,
-          response.choice,
-          profile,
-        );
+        void respondApproval(response.id, response.choice, profile);
         return state;
       });
     },
