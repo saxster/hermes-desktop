@@ -32,6 +32,12 @@ import {
   type LocalSkill,
   type SkillRow,
 } from "./LearningDetailTabs";
+import {
+  acceptLearningProposal,
+  createLearningProposal,
+  dismissLearningProposal,
+  listLearningProposals,
+} from "../../../lib/api/memory";
 
 type Tab = "recipes" | "experts" | "memories" | "skills" | "curator";
 
@@ -107,7 +113,7 @@ export function LearningSurface({
   );
 
   const loadProposals = useCallback(async () => {
-    setProposals(await window.hermesAPI.listLearningProposals(profile));
+    setProposals(await listLearningProposals(profile));
   }, [profile]);
 
   const loadRecipes = useCallback(async () => {
@@ -209,17 +215,13 @@ export function LearningSurface({
   }
 
   async function accept(id: string): Promise<void> {
-    await run("accept", () =>
-      window.hermesAPI.acceptLearningProposal(id, profile),
-    );
+    await run("accept", () => acceptLearningProposal(id, profile));
     await loadProposals();
     await loadSkills();
   }
 
   async function dismiss(id: string): Promise<void> {
-    await run("dismiss", () =>
-      window.hermesAPI.dismissLearningProposal(id, profile),
-    );
+    await run("dismiss", () => dismissLearningProposal(id, profile));
     await loadProposals();
   }
 
@@ -227,7 +229,7 @@ export function LearningSurface({
     const body = memoryDraft.trim();
     if (!body) return;
     const res = await run("memory", () =>
-      window.hermesAPI.createLearningProposal(
+      createLearningProposal(
         { kind: "memory", body, source: { type: "manual" } },
         profile,
       ),
@@ -530,7 +532,7 @@ export function LearningSurface({
       setNotice(res?.error || "Could not generate skill draft.");
       return;
     }
-    await window.hermesAPI.createLearningProposal(
+    await createLearningProposal(
       {
         kind: "skill",
         draft: { ...res.draft, category: "custom" },

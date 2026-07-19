@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Refresh } from "../../../assets/icons";
 import { useI18n } from "../../../components/useI18n";
+import {
+  readSoul,
+  resetSoul as resetSoulContent,
+  writeSoul,
+} from "../../../lib/api/memory";
 
 interface SoulEditorProps {
   profile?: string;
@@ -18,7 +23,7 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
   const loadSoul = useCallback(async (): Promise<void> => {
     loaded.current = false;
     setLoading(true);
-    const text = await window.hermesAPI.readSoul(profile);
+    const text = await readSoul(profile);
     setContent(text);
     setLoading(false);
     setTimeout(() => {
@@ -36,7 +41,7 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
   const saveSoul = useCallback(
     async (text: string) => {
       if (!loaded.current) return;
-      await window.hermesAPI.writeSoul(text, profile);
+      await writeSoul(text, profile);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     },
@@ -57,7 +62,7 @@ export function SoulEditor({ profile }: SoulEditorProps): React.JSX.Element {
   }, [content, saveSoul]);
 
   async function handleReset(): Promise<void> {
-    const newContent = await window.hermesAPI.resetSoul(profile);
+    const newContent = await resetSoulContent(profile);
     loaded.current = false;
     setContent(newContent);
     setShowReset(false);

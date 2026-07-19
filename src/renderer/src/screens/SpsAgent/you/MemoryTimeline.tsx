@@ -4,6 +4,7 @@ import type {
   MemoryTimeline as Timeline,
   TimelineEntry,
 } from "../../../../../shared/memoryTimeline";
+import { getMemoryTimeline, removeMemoryEntry } from "../../../lib/api/memory";
 
 /**
  * Agent-curated memory timeline (idea A4). Lists memory entries in file order
@@ -25,8 +26,7 @@ export function MemoryTimeline({
 
   const load = useCallback(() => {
     setLoading(true);
-    window.hermesAPI
-      .getMemoryTimeline(profile)
+    getMemoryTimeline(profile)
       .then(setTimeline)
       .catch(() => setTimeline({ entries: [] }))
       .finally(() => setLoading(false));
@@ -38,7 +38,7 @@ export function MemoryTimeline({
 
   const handleRemove = useCallback(
     async (index: number) => {
-      await window.hermesAPI.removeMemoryEntry(index, profile);
+      await removeMemoryEntry(index, profile);
       load();
       onRefresh();
     },

@@ -26,6 +26,14 @@ import {
 import { useStore } from "../store";
 import { pageFromMarkdown } from "../editor/pageMarkdown";
 import { blk } from "../lib/ids";
+import {
+  discoverMemoryProviders,
+  readFocus,
+  readMemory,
+  writeFocus,
+  writeMemory,
+  writeUserProfile,
+} from "../../../lib/api/memory";
 
 interface YouSurfaceProps {
   profile?: string;
@@ -93,7 +101,7 @@ export function YouSurface({
   const loadProviders = useCallback(async () => {
     try {
       const [provs, active] = await Promise.all([
-        window.hermesAPI.discoverMemoryProviders(profile),
+        discoverMemoryProviders(profile),
         window.hermesAPI.getConfig("memory.provider", profile),
       ]);
       setProviders(provs);
@@ -106,8 +114,8 @@ export function YouSurface({
 
   const load = useCallback(async () => {
     const [mem, foc, hk] = await Promise.all([
-      window.hermesAPI.readMemory(profile),
-      window.hermesAPI.readFocus(),
+      readMemory(profile),
+      readFocus(),
       window.hermesAPI.getDailyContextHookStatus(profile),
     ]);
     const m = mem;
@@ -147,7 +155,7 @@ export function YouSurface({
           error: `Too long (${serialized.length}/${userCharLimit}). Shorten your note or a rule.`,
         };
       }
-      const res = await window.hermesAPI.writeUserProfile(serialized, profile);
+      const res = await writeUserProfile(serialized, profile);
       if (res.success) {
         setProse(nextProse);
         setRules(nextRules);
@@ -253,7 +261,7 @@ export function YouSurface({
         hint="A sticky note injected into every chat as 'Current focus'. Keep it to 1–3 lines."
         value={focus}
         placeholder="e.g. India equities — defensive PSU basket; tracking macro/regime and tail-risk signals."
-        onSave={(content) => window.hermesAPI.writeFocus(content)}
+        onSave={(content) => writeFocus(content)}
       />
 
       <EditorSection
@@ -262,7 +270,7 @@ export function YouSurface({
         value={memory.content}
         charLimit={memory.charLimit}
         placeholder="Durable facts, separated by § on their own line."
-        onSave={(content) => window.hermesAPI.writeMemory(content, profile)}
+        onSave={(content) => writeMemory(content, profile)}
       />
 
       <div className="settings-section">

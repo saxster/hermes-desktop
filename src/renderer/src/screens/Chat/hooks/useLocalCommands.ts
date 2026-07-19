@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useI18n } from "../../../components/useI18n";
 import { SLASH_COMMANDS } from "../slashCommands";
 import { operatorGuideMarkdown } from "../../../lib/operatorGuide";
+import { readMemory, readSoul } from "../../../lib/api/memory";
 import type { UseChatSkills } from "../../../lib/useChatSkills";
 import type { UsageState } from "../types";
 
@@ -97,7 +98,7 @@ export function useLocalCommands({
         }
 
         case "/memory": {
-          const mem = await window.hermesAPI.readMemory(profile);
+          const mem = await readMemory(profile);
           const lines: string[] = ["**Agent Memory**\n"];
           if (mem.memory.exists && mem.memory.content.trim()) {
             lines.push(mem.memory.content.trim());
@@ -141,7 +142,7 @@ export function useLocalCommands({
         }
 
         case "/persona": {
-          const soul = await window.hermesAPI.readSoul(profile);
+          const soul = await readSoul(profile);
           addAgentMessage(
             soul.trim()
               ? `**Current Persona**\n\n${soul.trim()}`

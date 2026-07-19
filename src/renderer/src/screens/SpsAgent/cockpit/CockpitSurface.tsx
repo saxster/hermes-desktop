@@ -18,6 +18,7 @@ import type { EquityAlert } from "../../../../../shared/equity";
 import type { GatewayHealthStatus } from "../../../../../shared/gateway";
 import type { TaskNagRecord } from "../../../../../shared/tasks-dump";
 import { useVaultQuery } from "../hooks/useNoteIndex";
+import { readFocus, writeFocus } from "../../../lib/api/memory";
 
 const WIDGET_META: Record<WidgetKind, { title: string; icon: IconName }> = {
   quick: { title: "Quick actions", icon: "wand" },
@@ -834,7 +835,7 @@ function PulseWidget() {
   const flash = useStore((s) => s.flash);
 
   useEffect(() => {
-    window.hermesAPI.readFocus().then((f) => {
+    readFocus().then((f) => {
       setFocus(f);
       setFocusInput(f);
     });
@@ -862,7 +863,7 @@ function PulseWidget() {
   }, [flash, loadPulseStreams]);
 
   const saveFocus = async () => {
-    const res = await window.hermesAPI.writeFocus(focusInput);
+    const res = await writeFocus(focusInput);
     if (res.success) {
       setFocus(focusInput);
       setEditingFocus(false);

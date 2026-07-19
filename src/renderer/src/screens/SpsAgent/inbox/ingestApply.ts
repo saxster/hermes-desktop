@@ -7,6 +7,7 @@
 // flips each capture's status. Page-commit goes through the caller-supplied
 // store action so this stays free of direct store coupling.
 import { withStatus, INBOX_FOLDER, type CaptureStatus } from "./capture";
+import { addMemoryEntry } from "../../../lib/api/memory";
 
 export interface IngestPageProposal {
   op: "create" | "update";
@@ -43,12 +44,10 @@ export async function commitChangeset(
     pages++;
   }
   let memory = 0;
-  if (api?.addMemoryEntry) {
-    for (let i = 0; i < cs.memory.length; i++) {
-      if (opts.skipMemory?.has(i)) continue;
-      await api.addMemoryEntry(cs.memory[i], opts.profile);
-      memory++;
-    }
+  for (let i = 0; i < cs.memory.length; i++) {
+    if (opts.skipMemory?.has(i)) continue;
+    await addMemoryEntry(cs.memory[i], opts.profile);
+    memory++;
   }
   if (api?.spsReadRow && api?.spsExportRow) {
     for (const cap of cs.captures) {
