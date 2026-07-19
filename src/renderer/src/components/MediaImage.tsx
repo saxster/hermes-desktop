@@ -135,7 +135,7 @@ export function DownloadChip({
   return (
     <button
       className="chat-media-file"
-      onClick={() => window.hermesAPI.saveMediaFile(token.src, token.name)}
+      onClick={() => saveMediaFile(token.src, token.name)}
       onContextMenu={onContextMenu}
     >
       <Download size={14} />

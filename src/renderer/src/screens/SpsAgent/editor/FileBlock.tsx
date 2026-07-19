@@ -4,6 +4,7 @@
 import { MediaDropZone } from "../components/MediaDropZone";
 import { Icon } from "../components/Icon";
 import { assetUrl, prettySize } from "../lib/assets";
+import { saveMediaFile } from "../../../lib/api/media";
 import type { Block } from "../types";
 
 interface Props {
@@ -32,9 +33,8 @@ export function FileBlock({ block, setType }: Props) {
   }
 
   const save = (): void => {
-    const api = window.hermesAPI;
-    if (!api?.saveMediaFile || !block.assetPath) return;
-    void api.saveMediaFile(assetUrl(block.assetPath), block.name || "file");
+    if (!block.assetPath) return;
+    void saveMediaFile(assetUrl(block.assetPath), block.name || "file");
   };
 
   return (
