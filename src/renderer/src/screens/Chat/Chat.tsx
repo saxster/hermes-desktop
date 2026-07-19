@@ -34,6 +34,7 @@ import { SLASH_COMMANDS, type SlashCommand } from "./slashCommands";
 import { useI18n } from "../../components/useI18n";
 import { buildChatTranscript } from "./transcriptUtils";
 import { ConfigHealthBanner } from "../../components/ConfigHealthBanner";
+import { clearStagedAttachments } from "../../lib/api/media";
 import { getDevMode, DEV_MODE_EVENT } from "../../lib/devMode";
 import type { Attachment } from "../../../../shared/attachments";
 import {
@@ -367,7 +368,7 @@ function Chat({
     const idToDelete = hermesSessionId ?? sessionId;
     if (idToDelete) {
       void window.hermesAPI.deleteSession(idToDelete);
-      void window.hermesAPI.clearStagedAttachments(idToDelete);
+      void clearStagedAttachments(idToDelete);
     }
     setMessages([]);
     setHermesSessionId(null);

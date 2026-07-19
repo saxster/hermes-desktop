@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { Download, X } from "lucide-react";
 import type { MediaToken } from "../screens/Chat/mediaUtils";
 import { useI18n } from "./useI18n";
+import {
+  mediaFileExists,
+  readMediaFile,
+  saveMediaFile,
+  showMediaMenu,
+} from "../lib/api/media";
 
 /**
  * Returns an `onContextMenu` handler that opens a native right-click menu
@@ -16,7 +22,7 @@ function useMediaContextMenu(
   const { t } = useI18n();
   return (event) => {
     event.preventDefault();
-    window.hermesAPI.showMediaMenu(token.src, token.name, {
+    showMediaMenu(token.src, token.name, {
       open: t("chat.media.open"),
       saveAs: t("chat.media.saveAs"),
     });
@@ -46,8 +52,7 @@ export function MediaImage({
   useEffect(() => {
     if (isDirect) return;
     let cancelled = false;
-    window.hermesAPI
-      .readMediaFile(token.src)
+    readMediaFile(token.src)
       .then((dataUrl) => {
         if (cancelled) return;
         if (dataUrl) setResolved(dataUrl);
@@ -101,9 +106,7 @@ export function MediaImage({
           >
             <button
               className="chat-image-preview-btn"
-              onClick={() =>
-                window.hermesAPI.saveMediaFile(token.src, token.name)
-              }
+              onClick={() => saveMediaFile(token.src, token.name)}
             >
               <Download size={14} />
               Save image
@@ -166,8 +169,7 @@ export function MediaSegmentView({
     // URLs are trusted as-is.
     if (source !== "bare-path" || token.isUrl) return;
     let cancelled = false;
-    window.hermesAPI
-      .mediaFileExists(token.src)
+    mediaFileExists(token.src)
       .then((ok) => {
         if (!cancelled) setVerified(ok);
       })

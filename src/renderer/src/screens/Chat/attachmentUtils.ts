@@ -7,6 +7,7 @@ import {
   isImageMime,
   isTextFile,
 } from "../../../../shared/attachments";
+import { stageAttachment } from "../../lib/api/media";
 
 export interface AttachmentError {
   code:
@@ -453,11 +454,7 @@ export async function processFiles(
     let path = "";
     try {
       const base64 = await readAsBase64(file);
-      path = await window.hermesAPI.stageAttachment(
-        options.sessionId || "",
-        name,
-        base64,
-      );
+      path = await stageAttachment(options.sessionId || "", name, base64);
     } catch (err) {
       errors.push({
         code: "read-failed",
