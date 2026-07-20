@@ -61,6 +61,7 @@ const api = {
   spsEmailOpenReply: vi.fn(),
   spsClassifyTask: vi.fn(),
   spsRouteTask: vi.fn(),
+  spsInboxDigestRunNow: vi.fn(),
 };
 
 function installApi(): void {
@@ -171,6 +172,11 @@ beforeEach(() => {
     route: "human",
     status: "todo",
     dispatched: false,
+  });
+  api.spsInboxDigestRunNow.mockResolvedValue({
+    ok: true,
+    id: "inbox-2026-07-19",
+    counts: { total: 3, action: 1, newsletters: 2 },
   });
 });
 
@@ -581,6 +587,85 @@ describe("InboxSurface email actions", () => {
     });
     expect(storeState.flash).toHaveBeenCalledWith(
       expect.stringContaining("Task created"),
+    );
+  });
+});
+
+describe("InboxSurface daily digest", () => {
+  function digestRow() {
+    return {
+      path: "digests/inbox-2026-07-19.md",
+      title: "Inbox digest — 2026-07-19",
+      props: {
+        title: "Inbox digest — 2026-07-19",
+        kind: "inbox-digest",
+        date: "2026-07-19",
+        createdAt: Date.now(),
+      },
+      mtime: 0,
+    };
+  }
+
+  it("shows the latest digest and expands its body on toggle", async () => {
+    api.spsReadRow.mockResolvedValue(
+      [
+        "---",
+        'title: "Inbox digest — 2026-07-19"',
+        'kind: "inbox-digest"',
+        "---",
+        "",
+        "## Needs action",
+        "",
+        "**Ravi** — pricing answer",
+      ].join("\n"),
+    );
+    vaultState.rows = [digestRow()];
+    render(<InboxSurface />);
+
+    const toggle = await screen.findByRole("button", {
+      name: /daily digest — 2026-07-19/i,
+    });
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(api.spsReadRow).toHaveBeenCalledWith(
+        "digests",
+        "inbox-2026-07-19",
+        "default",
+      );
+    });
+    expect(await screen.findByText(/pricing answer/i)).toBeInTheDocument();
+  });
+
+  it("never renders the digest card for non-digest rows", async () => {
+    vaultState.rows = [
+      {
+        path: "_inbox/cap_1.md",
+        title: "Roster change",
+        props: { title: "Roster change", source: "email" },
+        mtime: 0,
+      },
+    ];
+    render(<InboxSurface />);
+    await screen.findByText("Roster change");
+    expect(
+      screen.queryByRole("button", { name: /daily digest —/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("runs the digest on demand from the header button", async () => {
+    vaultState.rows = [];
+    render(<InboxSurface />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Daily digest" }),
+    );
+
+    await waitFor(() => {
+      expect(api.spsInboxDigestRunNow).toHaveBeenCalledWith("default");
+    });
+    expect(storeState.flash).toHaveBeenCalledWith(
+      expect.stringContaining("3 emails today"),
     );
   });
 });

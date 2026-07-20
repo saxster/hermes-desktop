@@ -14,6 +14,8 @@ import { HERMES_HOME, HERMES_PYTHON, hermesCliArgs } from "./installer";
 import { nagTick } from "./nag-engine";
 import { runEmailMonitorNow, getEmailMonitorConfig } from "./email-monitor";
 import { emailMonitorHasActiveAccount } from "../shared/email-monitor";
+import { runInboxDigestNow } from "./inbox-digest";
+import { INBOX_DIGEST_HOUR_LOCAL } from "../shared/inbox-digest";
 import {
   decideLockAcquisition,
   parseLockRecord,
@@ -240,6 +242,10 @@ let lastNagTickMs = 0;
 const EMAIL_TICK_THROTTLE_MS = 5 * 60_000;
 let lastEmailTickMs = 0;
 
+// The inbox digest runs once per local calendar day (at/after 17:00) from the
+// scheduler tick; this records the local date key of the last triggered day.
+let lastInboxDigestDate = "";
+
 export async function tickScheduler(profile?: string): Promise<void> {
   const activeProfile = profile ?? getActiveProfileNameSync();
 
@@ -447,6 +453,35 @@ export async function tickScheduler(profile?: string): Promise<void> {
   } catch (err) {
     log.error("scheduler", {
       msg: "error checking email monitor",
+      profile: activeProfile,
+      error: formatLogError(err),
+    });
+  }
+
+  // Inbox digest: roll the day's triaged email captures into one digest row,
+  // once per local calendar day at/after 17:00, only when email is configured.
+  try {
+    const digestNow = new Date();
+    const digestDateStr = `${digestNow.getFullYear()}-${String(digestNow.getMonth() + 1).padStart(2, "0")}-${String(digestNow.getDate()).padStart(2, "0")}`;
+    const digestDue =
+      digestNow.getHours() >= INBOX_DIGEST_HOUR_LOCAL &&
+      lastInboxDigestDate !== digestDateStr;
+    if (
+      digestDue &&
+      emailMonitorHasActiveAccount(getEmailMonitorConfig(activeProfile))
+    ) {
+      lastInboxDigestDate = digestDateStr;
+      void runInboxDigestNow(activeProfile).catch((err) => {
+        log.error("scheduler", {
+          msg: "error during inbox digest run",
+          profile: activeProfile,
+          error: formatLogError(err),
+        });
+      });
+    }
+  } catch (err) {
+    log.error("scheduler", {
+      msg: "error checking inbox digest",
       profile: activeProfile,
       error: formatLogError(err),
     });

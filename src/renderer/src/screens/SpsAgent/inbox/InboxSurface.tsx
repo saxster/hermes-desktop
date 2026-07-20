@@ -78,6 +78,11 @@ import {
 import { PillEditor } from "./PillEditor";
 import { turnCaptureIntoTask } from "./emailActions";
 import type { EmailReplyDraft } from "../../../../../shared/email-actions";
+import {
+  INBOX_DIGEST_FOLDER,
+  INBOX_DIGEST_KIND,
+} from "../../../../../shared/inbox-digest";
+import { parseYamlFrontmatterMarkdown } from "../../../../../shared/sps-frontmatter";
 
 interface InboxSurfaceProps {
   profile?: string;
@@ -179,6 +184,13 @@ export function InboxSurface({
   const [replyDraft, setReplyDraft] = useState<
     (EmailReplyDraft & { id: string }) | null
   >(null);
+  // Daily inbox digest (LLM rollup of the day's email captures into
+  // vault/digests/); the card shows the latest one, expandable inline.
+  const { rows: digestPageRows, refetch: refetchDigestPages } =
+    useVaultQuery(INBOX_DIGEST_FOLDER);
+  const [dailyDigestOpen, setDailyDigestOpen] = useState(false);
+  const [dailyDigestBody, setDailyDigestBody] = useState("");
+  const [dailyDigestBusy, setDailyDigestBusy] = useState("");
   // Account edits (add/remove/field/enable) are staged locally; "Save changes"
   // persists the whole config through spsEmailMonitorSaveConfig.
   const [emailDirty, setEmailDirty] = useState(false);
@@ -310,6 +322,14 @@ export function InboxSurface({
   // Digest captures render inside one collapsible "Newsletters" card; only the
   // normal rows go through the virtualizer.
   const { normal: nonDigest, digest: digestRows } = splitDigestRows(visible);
+  // The latest daily inbox digest page, if any. Filter client-side on kind so
+  // mocked/partial query results can never surface a non-digest row here.
+  const digestPages = digestPageRows
+    .filter((r) => r.props.kind === INBOX_DIGEST_KIND)
+    .sort(
+      (a, b) => Number(b.props.createdAt ?? 0) - Number(a.props.createdAt ?? 0),
+    );
+  const latestDigest = digestPages[0];
   const inboxVirtualizer = useVirtualizer({
     count: nonDigest.length,
     getScrollElement: getScrollContainer,
@@ -928,6 +948,46 @@ export function InboxSurface({
       setEmailBusy("");
     }
   }, [profile]);
+
+  // Daily inbox digest: roll today's triaged email captures into one page.
+  const runDailyDigest = useCallback(async (): Promise<void> => {
+    setDailyDigestBusy("run");
+    try {
+      const result = await window.hermesAPI.spsInboxDigestRunNow(profile);
+      if (!result.ok) {
+        flash(
+          result.error === "no-captures"
+            ? "No email captured today to digest."
+            : `Digest failed: ${result.error ?? "unknown error"}`,
+        );
+        return;
+      }
+      flash(`Digest updated — ${result.counts?.total ?? 0} emails today.`);
+      setDailyDigestBody("");
+      refetchDigestPages();
+      setDailyDigestOpen(true);
+    } catch (e) {
+      flash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDailyDigestBusy("");
+    }
+  }, [profile, flash, refetchDigestPages]);
+
+  // Expand/collapse the digest card; the body is read lazily on first expand.
+  const toggleDailyDigest = useCallback(async (): Promise<void> => {
+    const opening = !dailyDigestOpen;
+    setDailyDigestOpen(opening);
+    if (!opening || dailyDigestBody || !latestDigest) return;
+    const id = pageIdFromPath(latestDigest.path);
+    const markdown = await window.hermesAPI.spsReadRow(
+      INBOX_DIGEST_FOLDER,
+      id,
+      profile,
+    );
+    if (markdown != null) {
+      setDailyDigestBody(parseYamlFrontmatterMarkdown(markdown).body.trim());
+    }
+  }, [dailyDigestOpen, dailyDigestBody, latestDigest, profile]);
 
   // Patch a single staged account by list index (new accounts share the empty
   // id until save, so index — not id — is the stable editing handle here).
@@ -1768,6 +1828,16 @@ export function InboxSurface({
             <span className="inbox-badge">{visible.length}</span>
             <span className="flex-grow" />
             <button
+              className="btn btn-ghost btn-sm"
+              disabled={dailyDigestBusy === "run"}
+              onClick={() => {
+                runInboxAction("Daily digest", runDailyDigest);
+              }}
+              title="Summarize today's captured email into a digest page"
+            >
+              {dailyDigestBusy === "run" ? "Digesting…" : "Daily digest"}
+            </button>
+            <button
               className="btn btn-primary btn-sm"
               disabled={ingesting || visible.length === 0}
               onClick={() => {
@@ -1909,6 +1979,51 @@ export function InboxSurface({
                 </button>
               </div>
             </section>
+          )}
+
+          {latestDigest && (
+            <div className="inbox-card">
+              <div className="inbox-card-content">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    runInboxAction("Daily digest toggle", toggleDailyDigest);
+                  }}
+                  title={
+                    dailyDigestOpen
+                      ? "Collapse the daily digest"
+                      : "Expand the daily digest"
+                  }
+                >
+                  {dailyDigestOpen ? "▾" : "▸"} Daily digest —{" "}
+                  {String(latestDigest.props.date ?? "")}
+                </button>
+                {dailyDigestOpen && (
+                  <div className="inbox-teach-result">
+                    {dailyDigestBody ? (
+                      <pre>{dailyDigestBody}</pre>
+                    ) : (
+                      <div className="inbox-row-status">Loading digest…</div>
+                    )}
+                    <div className="inbox-teach-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={dailyDigestBusy === "run"}
+                        onClick={() => {
+                          runInboxAction("Daily digest", runDailyDigest);
+                        }}
+                      >
+                        {dailyDigestBusy === "run"
+                          ? "Digesting…"
+                          : "Regenerate"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {digestRows.length > 0 && (

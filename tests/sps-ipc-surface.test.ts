@@ -68,6 +68,7 @@ describe("SPS IPC surface", () => {
       "sps-import-local-expert-pack",
       "sps-import-okf-bundle",
       "sps-import-recent-screenshot",
+      "sps-inbox-digest-run-now",
       "sps-ingest-inbox",
       "sps-install-local-expert",
       "sps-lint-wiki",

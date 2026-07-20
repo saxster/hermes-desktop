@@ -87,6 +87,7 @@ import type {
   EmailMonitorRunResult,
   EmailMonitorStatus,
 } from "../../shared/email-monitor";
+import type { InboxDigestResult } from "../../shared/inbox-digest";
 import type {
   EmailDraftResult,
   EmailReplyDraft,
@@ -221,6 +222,8 @@ export const spsBridge = {
     ipcRenderer.invoke("sps-email-draft-reply", captureId, profile),
   spsEmailOpenReply: (draft: EmailReplyDraft): Promise<boolean> =>
     ipcRenderer.invoke("sps-email-open-reply", draft),
+  spsInboxDigestRunNow: (profile?: string): Promise<InboxDigestResult> =>
+    ipcRenderer.invoke("sps-inbox-digest-run-now", profile),
   spsFileAnswer: (
     question: string,
     answer: string,

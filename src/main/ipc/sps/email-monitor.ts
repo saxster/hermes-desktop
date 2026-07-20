@@ -8,6 +8,7 @@ import {
   runEmailMonitorNow,
   saveEmailMonitorConfig,
 } from "../../email-monitor";
+import { runInboxDigestNow } from "../../inbox-digest";
 import type {
   EmailMonitorConfig,
   EmailMonitorFeedback,
@@ -81,5 +82,12 @@ export function registerSpsEmailMonitorIpc(): void {
       });
       return false;
     }
+  });
+  // Daily inbox digest: roll today's triaged email captures into one digest
+  // row in vault/digests/. Also runs automatically once per local day from the
+  // scheduler; this is the on-demand path for the inbox surface.
+  safeHandle("sps-inbox-digest-run-now", (_event, profile?: string) => {
+    requireLocalWorkspace();
+    return runInboxDigestNow(profile);
   });
 }

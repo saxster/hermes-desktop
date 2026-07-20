@@ -15,6 +15,7 @@ import type {
   EmailReplyDraft,
 } from "../../shared/email-actions";
 import type { SpsWorkspaceLoadResult } from "../../shared/sps-types";
+import type { InboxDigestResult } from "../../shared/inbox-digest";
 
 export interface SpsBridgeApi {
   spsUnfurl: (url: string) => Promise<{
@@ -126,6 +127,8 @@ export interface SpsBridgeApi {
   ) => Promise<EmailDraftResult>;
 
   spsEmailOpenReply: (draft: EmailReplyDraft) => Promise<boolean>;
+
+  spsInboxDigestRunNow: (profile?: string) => Promise<InboxDigestResult>;
 
   spsFileAnswer: (
     question: string,
