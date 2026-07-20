@@ -62,6 +62,8 @@ const api = {
   spsClassifyTask: vi.fn(),
   spsRouteTask: vi.fn(),
   spsInboxDigestRunNow: vi.fn(),
+  spsImportTranscript: vi.fn(),
+  spsMeetingExtract: vi.fn(),
 };
 
 function installApi(): void {
@@ -177,6 +179,12 @@ beforeEach(() => {
     ok: true,
     id: "inbox-2026-07-19",
     counts: { total: 3, action: 1, newsletters: 2 },
+  });
+  api.spsImportTranscript.mockResolvedValue({ success: true, id: "cap_m1" });
+  api.spsMeetingExtract.mockResolvedValue({
+    created: true,
+    proposalId: "prop_1",
+    tasks: 2,
   });
 });
 
@@ -667,5 +675,71 @@ describe("InboxSurface daily digest", () => {
     expect(storeState.flash).toHaveBeenCalledWith(
       expect.stringContaining("3 emails today"),
     );
+  });
+});
+
+describe("InboxSurface meeting transcripts", () => {
+  function meetingRow() {
+    return {
+      path: "_inbox/cap_m1.md",
+      title: "Phoenix launch sync",
+      props: {
+        title: "Phoenix launch sync",
+        source: "meeting",
+        status: "unprocessed",
+        capturedAt: Date.now(),
+      },
+      mtime: 0,
+    };
+  }
+
+  it("imports a pasted transcript from the Meeting tab", async () => {
+    render(<InboxSurface />);
+
+    fireEvent.click(screen.getByRole("button", { name: /meeting/i }));
+    fireEvent.change(screen.getByLabelText(/meeting transcript/i), {
+      target: { value: "Alice: Kickoff.\nBob: noted." },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /import transcript/i }),
+    );
+
+    await waitFor(() => {
+      expect(api.spsImportTranscript).toHaveBeenCalledWith(
+        { title: undefined, content: "Alice: Kickoff.\nBob: noted." },
+        "default",
+      );
+    });
+  });
+
+  it("extracts a meeting capture into a review-queue proposal", async () => {
+    vaultState.rows = [meetingRow()];
+    render(<InboxSurface />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^extract$/i }));
+
+    await waitFor(() => {
+      expect(api.spsMeetingExtract).toHaveBeenCalledWith("cap_m1", "default");
+    });
+    expect(storeState.flash).toHaveBeenCalledWith(
+      expect.stringContaining("2 task(s)"),
+    );
+  });
+
+  it("explains a duplicate extraction", async () => {
+    api.spsMeetingExtract.mockResolvedValue({
+      created: false,
+      reason: "duplicate",
+    });
+    vaultState.rows = [meetingRow()];
+    render(<InboxSurface />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^extract$/i }));
+
+    await waitFor(() => {
+      expect(storeState.flash).toHaveBeenCalledWith(
+        expect.stringContaining("Already proposed"),
+      );
+    });
   });
 });

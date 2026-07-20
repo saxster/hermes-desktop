@@ -88,7 +88,7 @@ interface InboxSurfaceProps {
   profile?: string;
 }
 
-type Mode = "note" | "web" | "image" | "pdf";
+type Mode = "note" | "web" | "image" | "pdf" | "meeting";
 type Tab = "inbox" | "settings" | "sources";
 
 export function InboxSurface({
@@ -772,6 +772,76 @@ export function InboxSurface({
     flash(res.message);
   }, [profile, flash]);
 
+  // Meeting transcript intake: paste or drop a .vtt/.srt/.txt export; it's
+  // normalized and written as a meeting capture in main (sps-import-transcript).
+  const importMeeting = useCallback(async (): Promise<void> => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await window.hermesAPI.spsImportTranscript(
+        { title: title.trim() || undefined, content: body },
+        profile,
+      );
+      if (!result.success) {
+        setError(result.error ?? "Transcript import failed.");
+        return;
+      }
+      setTitle("");
+      setBody("");
+      reconcile();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [title, body, profile, reconcile]);
+
+  const readTranscriptFile = useCallback(
+    (file: File): void => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") setBody(reader.result);
+        if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
+      };
+      reader.readAsText(file);
+    },
+    [title],
+  );
+
+  // Meeting capture → review-queue proposal (meeting page + action-item
+  // tasks). Approval in the AI Review Queue is the only write boundary.
+  const extractMeeting = useCallback(
+    async (row: VaultRow): Promise<void> => {
+      const id = pageIdFromPath(row.path);
+      setRowBusy((prev) => ({ ...prev, [id]: "Extracting meeting…" }));
+      try {
+        const result = await window.hermesAPI.spsMeetingExtract(id, profile);
+        if (result.created) {
+          flash(
+            `Meeting proposal ready — ${result.tasks ?? 0} task(s) in the AI Review Queue.`,
+          );
+        } else {
+          const reasons: Record<string, string> = {
+            duplicate: "Already proposed — check the AI Review Queue.",
+            "not-found": "Capture not found.",
+            "empty-extraction": "Nothing actionable found in this transcript.",
+            "proposal-failed": "Extraction failed — is the gateway running?",
+          };
+          flash(reasons[result.reason ?? ""] ?? "Extraction failed.");
+        }
+      } catch (e) {
+        flash(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRowBusy((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    [profile, flash],
+  );
+
   const applyEmailFeedback = useCallback(
     async (
       accountId: string,
@@ -1061,7 +1131,7 @@ export function InboxSurface({
     });
 
   const canCapture =
-    mode === "note"
+    mode === "note" || mode === "meeting"
       ? body.trim().length > 0
       : mode === "web"
         ? url.trim().length > 0
@@ -1071,6 +1141,7 @@ export function InboxSurface({
     const id = pageIdFromPath(row.path);
     const isVisual = isVisualCaptureProps(row.props);
     const isEmail = row.props.source === "email";
+    const isMeeting = row.props.source === "meeting";
     const triageLabel =
       typeof row.props.triageLabel === "string" ? row.props.triageLabel : "";
     const triageReason =
@@ -1301,6 +1372,18 @@ export function InboxSurface({
               <Icon name="flag" size={15} />
             </button>
           </>
+        )}
+        {isMeeting && (
+          <button
+            title="Extract summary + action items for review"
+            className="btn btn-ghost btn-sm inbox-card-action-btn"
+            disabled={Boolean(rowBusy[id])}
+            onClick={() => {
+              runInboxAction("Meeting extraction", () => extractMeeting(row));
+            }}
+          >
+            Extract
+          </button>
         )}
         <button
           title="Mark processed"
@@ -1640,6 +1723,13 @@ export function InboxSurface({
                 <Icon name="file" size={15} />
                 <span className="nav-label">Import PDF</span>
               </button>
+              <button
+                className={`nav-item inbox-flex-no-shrink ${mode === "meeting" ? "active" : ""}`}
+                onClick={() => setMode("meeting")}
+              >
+                <Icon name="callout" size={15} />
+                <span className="nav-label">Meeting</span>
+              </button>
             </div>
 
             {mode !== "pdf" && (
@@ -1784,6 +1874,35 @@ export function InboxSurface({
                   )}
                 </div>
               </div>
+            ) : mode === "meeting" ? (
+              <div className="inbox-image-capture">
+                <textarea
+                  className="inbox-textarea inbox-textarea-resize"
+                  aria-label="Meeting transcript"
+                  placeholder="Paste a meeting transcript (.vtt, .srt, or plain 'Name: text')…"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={8}
+                />
+                <div className="inbox-image-actions">
+                  <label
+                    className="btn btn-secondary btn-sm"
+                    title="Load a transcript file from disk"
+                  >
+                    Choose transcript file
+                    <input
+                      type="file"
+                      accept=".vtt,.srt,.txt,.md,.markdown"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) readTranscriptFile(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
             ) : (
               <div className="inbox-pdf-dropzone">
                 <Icon name="doc" size={32} className="inbox-pdf-icon" />
@@ -1805,19 +1924,31 @@ export function InboxSurface({
 
             {error && <div className="inbox-error">{error}</div>}
 
-            {(mode === "note" || mode === "web") && (
+            {(mode === "note" || mode === "web" || mode === "meeting") && (
               <div className="inbox-btn-group">
                 <button
                   className="btn btn-primary"
                   disabled={busy || !canCapture}
                   onClick={() => {
                     runInboxAction(
-                      mode === "note" ? "Note capture" : "Web capture",
-                      mode === "note" ? captureNote : captureWeb,
+                      mode === "note"
+                        ? "Note capture"
+                        : mode === "web"
+                          ? "Web capture"
+                          : "Transcript import",
+                      mode === "note"
+                        ? captureNote
+                        : mode === "web"
+                          ? captureWeb
+                          : importMeeting,
                     );
                   }}
                 >
-                  {busy ? "Capturing…" : "Capture"}
+                  {busy
+                    ? "Capturing…"
+                    : mode === "meeting"
+                      ? "Import transcript"
+                      : "Capture"}
                 </button>
               </div>
             )}

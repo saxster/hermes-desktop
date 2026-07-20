@@ -233,7 +233,8 @@ export interface VaultProposalInput {
     | "context-pack"
     | "manual"
     | "enrichment"
-    | "telegram";
+    | "telegram"
+    | "meeting";
   title: string;
   summary: string;
   operations: VaultOperation[];
@@ -346,7 +347,14 @@ export interface SpsEmailCaptureAttachment {
 }
 
 export interface SpsCaptureInput {
-  source: "quick-note" | "web" | "voice" | "screenshot" | "image" | "email";
+  source:
+    | "quick-note"
+    | "web"
+    | "voice"
+    | "screenshot"
+    | "image"
+    | "email"
+    | "meeting";
   body: string;
   title?: string;
   description?: string;

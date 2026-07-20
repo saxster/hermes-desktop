@@ -5,6 +5,7 @@ import { registerSpsCoreIpc } from "./sps/core";
 import { registerSpsDeckIpc } from "./sps/deck";
 import { registerSpsEmailMonitorIpc } from "./sps/email-monitor";
 import { registerSpsLearningIpc } from "./sps/learning";
+import { registerSpsMeetingsIpc } from "./sps/meetings";
 import { registerSpsNotebookLmIpc } from "./sps/notebooklm";
 import { registerSpsResearchIpc } from "./sps/research";
 import { registerSpsVaultIpc } from "./sps/vault";
@@ -16,6 +17,7 @@ export function registerSpsIpc(): void {
   registerSpsVaultIpc();
   registerSpsDeckIpc();
   registerSpsLearningIpc();
+  registerSpsMeetingsIpc();
   registerSpsActiveWorkIpc();
   registerSpsResearchIpc();
   registerSpsNotebookLmIpc();

@@ -16,6 +16,10 @@ import type {
 } from "../../shared/email-actions";
 import type { SpsWorkspaceLoadResult } from "../../shared/sps-types";
 import type { InboxDigestResult } from "../../shared/inbox-digest";
+import type {
+  MeetingExtractResult,
+  TranscriptImportInput,
+} from "../../shared/meeting";
 
 export interface SpsBridgeApi {
   spsUnfurl: (url: string) => Promise<{
@@ -129,6 +133,16 @@ export interface SpsBridgeApi {
   spsEmailOpenReply: (draft: EmailReplyDraft) => Promise<boolean>;
 
   spsInboxDigestRunNow: (profile?: string) => Promise<InboxDigestResult>;
+
+  spsImportTranscript: (
+    input: TranscriptImportInput,
+    profile?: string,
+  ) => Promise<{ success: boolean; id?: string; error?: string }>;
+
+  spsMeetingExtract: (
+    captureId: string,
+    profile?: string,
+  ) => Promise<MeetingExtractResult>;
 
   spsFileAnswer: (
     question: string,

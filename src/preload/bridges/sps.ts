@@ -93,6 +93,10 @@ import type {
   EmailReplyDraft,
 } from "../../shared/email-actions";
 import type {
+  MeetingExtractResult,
+  TranscriptImportInput,
+} from "../../shared/meeting";
+import type {
   EquityAlert,
   EquityBasket,
   NotebookLmMcpStatus,
@@ -224,6 +228,16 @@ export const spsBridge = {
     ipcRenderer.invoke("sps-email-open-reply", draft),
   spsInboxDigestRunNow: (profile?: string): Promise<InboxDigestResult> =>
     ipcRenderer.invoke("sps-inbox-digest-run-now", profile),
+  spsImportTranscript: (
+    input: TranscriptImportInput,
+    profile?: string,
+  ): Promise<{ success: boolean; id?: string; error?: string }> =>
+    ipcRenderer.invoke("sps-import-transcript", input, profile),
+  spsMeetingExtract: (
+    captureId: string,
+    profile?: string,
+  ): Promise<MeetingExtractResult> =>
+    ipcRenderer.invoke("sps-meeting-extract", captureId, profile),
   spsFileAnswer: (
     question: string,
     answer: string,
