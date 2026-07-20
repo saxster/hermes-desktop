@@ -76,6 +76,8 @@ import {
   visualAssetPath,
 } from "./visualCapture";
 import { PillEditor } from "./PillEditor";
+import { turnCaptureIntoTask } from "./emailActions";
+import type { EmailReplyDraft } from "../../../../../shared/email-actions";
 
 interface InboxSurfaceProps {
   profile?: string;
@@ -173,6 +175,10 @@ export function InboxSurface({
   // Capture card whose "triage is wrong" menu is open (page id, "" = none).
   const [feedbackMenuFor, setFeedbackMenuFor] = useState("");
   const [digestOpen, setDigestOpen] = useState(false);
+  // AI reply draft under review (capture id + editable fields), null = none.
+  const [replyDraft, setReplyDraft] = useState<
+    (EmailReplyDraft & { id: string }) | null
+  >(null);
   // Account edits (add/remove/field/enable) are staged locally; "Save changes"
   // persists the whole config through spsEmailMonitorSaveConfig.
   const [emailDirty, setEmailDirty] = useState(false);
@@ -830,6 +836,85 @@ export function InboxSurface({
     [emailConfig, profile, flash],
   );
 
+  // Email Actions: convert a captured email into a routed ToDo task, then mark
+  // the capture processed so the inbox only shows what still needs attention.
+  const convertEmailToTask = useCallback(
+    async (row: VaultRow): Promise<void> => {
+      const id = pageIdFromPath(row.path);
+      setRowBusy((prev) => ({ ...prev, [id]: "Creating task…" }));
+      try {
+        const result = await turnCaptureIntoTask(
+          window.hermesAPI,
+          row,
+          profile,
+        );
+        if (!result.ok) {
+          flash(`Could not create a task: ${result.error ?? "unknown error"}`);
+          return;
+        }
+        flash(
+          result.status === "inbox"
+            ? "Task saved to the ToDo inbox (routing unavailable)."
+            : `Task created (${result.status}).`,
+        );
+        await setStatus(row, "processed");
+      } catch (e) {
+        flash(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRowBusy((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    [profile, flash, setStatus],
+  );
+
+  // Email Actions: draft an AI reply and hold it for review — the user edits,
+  // then hands off to the native Mail app. Nothing is sent automatically.
+  const startReplyDraft = useCallback(
+    async (row: VaultRow): Promise<void> => {
+      const id = pageIdFromPath(row.path);
+      setRowBusy((prev) => ({ ...prev, [id]: "Drafting reply…" }));
+      try {
+        const result = await window.hermesAPI.spsEmailDraftReply(id, profile);
+        if (!result.ok || !result.draft) {
+          flash(
+            result.error === "no-sender"
+              ? "This capture has no sender address to reply to."
+              : `Could not draft a reply: ${result.error ?? "unknown error"}`,
+          );
+          return;
+        }
+        setReplyDraft({ id, ...result.draft });
+      } catch (e) {
+        flash(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRowBusy((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    [profile, flash],
+  );
+
+  const openReplyInMail = useCallback(async (): Promise<void> => {
+    if (!replyDraft) return;
+    const opened = await window.hermesAPI.spsEmailOpenReply({
+      to: replyDraft.to,
+      subject: replyDraft.subject,
+      body: replyDraft.body,
+    });
+    flash(
+      opened
+        ? "Opened the draft in your mail app."
+        : "Could not open the mail app — use Copy instead.",
+    );
+  }, [replyDraft, flash]);
+
   const runEmailMonitor = useCallback(async (): Promise<void> => {
     setEmailBusy("run");
     setEmailError("");
@@ -1029,6 +1114,72 @@ export function InboxSurface({
               </div>
             </div>
           )}
+          {replyDraft?.id === id && (
+            <div className="inbox-teach-result">
+              <input
+                className="inbox-input"
+                aria-label="Reply recipient"
+                value={replyDraft.to}
+                onChange={(e) =>
+                  setReplyDraft((prev) =>
+                    prev ? { ...prev, to: e.target.value } : prev,
+                  )
+                }
+              />
+              <input
+                className="inbox-input"
+                aria-label="Reply subject"
+                value={replyDraft.subject}
+                onChange={(e) =>
+                  setReplyDraft((prev) =>
+                    prev ? { ...prev, subject: e.target.value } : prev,
+                  )
+                }
+              />
+              <textarea
+                className="inbox-textarea inbox-textarea-resize"
+                aria-label="Reply body"
+                rows={8}
+                value={replyDraft.body}
+                onChange={(e) =>
+                  setReplyDraft((prev) =>
+                    prev ? { ...prev, body: e.target.value } : prev,
+                  )
+                }
+              />
+              <div className="inbox-teach-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    runInboxAction("Mail hand-off", openReplyInMail);
+                  }}
+                >
+                  Open in Mail
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    runInboxAction("Clipboard copy", () =>
+                      navigator.clipboard?.writeText?.(
+                        `To: ${replyDraft.to}\nSubject: ${replyDraft.subject}\n\n${replyDraft.body}`,
+                      ),
+                    );
+                  }}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setReplyDraft(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {isVisual && (
           <>
@@ -1059,15 +1210,37 @@ export function InboxSurface({
           </>
         )}
         {isEmail && (
-          <button
-            title="Triage is wrong…"
-            className="btn btn-ghost btn-sm inbox-card-action-btn"
-            onClick={() =>
-              setFeedbackMenuFor((prev) => (prev === id ? "" : id))
-            }
-          >
-            <Icon name="flag" size={15} />
-          </button>
+          <>
+            <button
+              title="Draft an AI reply for review"
+              className="btn btn-ghost btn-sm inbox-card-action-btn"
+              disabled={Boolean(rowBusy[id])}
+              onClick={() => {
+                runInboxAction("Reply draft", () => startReplyDraft(row));
+              }}
+            >
+              Reply
+            </button>
+            <button
+              title="Turn into a ToDo task"
+              className="btn btn-ghost btn-sm inbox-card-action-btn"
+              disabled={Boolean(rowBusy[id])}
+              onClick={() => {
+                runInboxAction("Email to task", () => convertEmailToTask(row));
+              }}
+            >
+              → Task
+            </button>
+            <button
+              title="Triage is wrong…"
+              className="btn btn-ghost btn-sm inbox-card-action-btn"
+              onClick={() =>
+                setFeedbackMenuFor((prev) => (prev === id ? "" : id))
+              }
+            >
+              <Icon name="flag" size={15} />
+            </button>
+          </>
         )}
         <button
           title="Mark processed"

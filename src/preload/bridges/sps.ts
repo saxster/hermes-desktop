@@ -88,6 +88,10 @@ import type {
   EmailMonitorStatus,
 } from "../../shared/email-monitor";
 import type {
+  EmailDraftResult,
+  EmailReplyDraft,
+} from "../../shared/email-actions";
+import type {
   EquityAlert,
   EquityBasket,
   NotebookLmMcpStatus,
@@ -210,6 +214,13 @@ export const spsBridge = {
     profile?: string,
   ): Promise<EmailMonitorConfig> =>
     ipcRenderer.invoke("sps-email-monitor-apply-feedback", feedback, profile),
+  spsEmailDraftReply: (
+    captureId: string,
+    profile?: string,
+  ): Promise<EmailDraftResult> =>
+    ipcRenderer.invoke("sps-email-draft-reply", captureId, profile),
+  spsEmailOpenReply: (draft: EmailReplyDraft): Promise<boolean> =>
+    ipcRenderer.invoke("sps-email-open-reply", draft),
   spsFileAnswer: (
     question: string,
     answer: string,

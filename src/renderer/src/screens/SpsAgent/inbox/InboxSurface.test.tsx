@@ -57,6 +57,10 @@ const api = {
   spsEmailMonitorRunNow: vi.fn(),
   spsEmailMonitorApplyFeedback: vi.fn(),
   spsEmailMonitorSaveConfig: vi.fn(),
+  spsEmailDraftReply: vi.fn(),
+  spsEmailOpenReply: vi.fn(),
+  spsClassifyTask: vi.fn(),
+  spsRouteTask: vi.fn(),
 };
 
 function installApi(): void {
@@ -149,6 +153,25 @@ beforeEach(() => {
   api.spsEmailMonitorSaveConfig.mockImplementation((config: unknown) =>
     Promise.resolve(config),
   );
+  api.spsEmailDraftReply.mockResolvedValue({
+    ok: true,
+    draft: {
+      to: "client@bluebay.example",
+      subject: "Re: Bluebay roster change",
+      body: "Thanks for the update — please send the roster over.",
+    },
+  });
+  api.spsEmailOpenReply.mockResolvedValue(true);
+  api.spsClassifyTask.mockResolvedValue({
+    route: "human",
+    assigneeId: "you",
+    nagCadence: "daily",
+  });
+  api.spsRouteTask.mockResolvedValue({
+    route: "human",
+    status: "todo",
+    dispatched: false,
+  });
 });
 
 afterEach(() => {
@@ -455,5 +478,109 @@ describe("InboxSurface email triage surface", () => {
     fireEvent.click(toggle);
     expect(screen.getByText("Newsletter one")).toBeInTheDocument();
     expect(screen.getByText("Newsletter two")).toBeInTheDocument();
+  });
+});
+
+describe("InboxSurface email actions", () => {
+  function emailActionRow(path: string, title: string) {
+    return {
+      path,
+      title,
+      props: {
+        title,
+        source: "email",
+        status: "unprocessed",
+        capturedAt: Date.now(),
+        emailAccountId: "ops",
+        emailFrom: "client@bluebay.example",
+        triageLabel: "action",
+      },
+      mtime: 0,
+    };
+  }
+
+  it("drafts a reply, lets the user edit it, and hands off to Mail", async () => {
+    vaultState.rows = [
+      emailActionRow("_inbox/cap_1.md", "Bluebay roster change"),
+    ];
+    render(<InboxSurface />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^reply$/i }));
+
+    await waitFor(() => {
+      expect(api.spsEmailDraftReply).toHaveBeenCalledWith("cap_1", "default");
+    });
+    const toField = await screen.findByLabelText(/reply recipient/i);
+    expect(toField).toHaveValue("client@bluebay.example");
+    expect(screen.getByLabelText(/reply subject/i)).toHaveValue(
+      "Re: Bluebay roster change",
+    );
+    const bodyField = screen.getByLabelText(/reply body/i);
+    expect(bodyField).toHaveValue(
+      "Thanks for the update — please send the roster over.",
+    );
+
+    fireEvent.change(bodyField, { target: { value: "Edited reply body." } });
+    fireEvent.click(screen.getByRole("button", { name: /open in mail/i }));
+
+    await waitFor(() => {
+      expect(api.spsEmailOpenReply).toHaveBeenCalledWith({
+        to: "client@bluebay.example",
+        subject: "Re: Bluebay roster change",
+        body: "Edited reply body.",
+      });
+    });
+    expect(storeState.flash).toHaveBeenCalledWith(
+      expect.stringContaining("mail app"),
+    );
+  });
+
+  it("turns an email capture into a routed task and marks it processed", async () => {
+    api.spsReadRow.mockResolvedValue(
+      [
+        "---",
+        'title: "Bluebay roster change"',
+        'source: "email"',
+        'emailFrom: "client@bluebay.example"',
+        'status: "unprocessed"',
+        "---",
+        "",
+        "Please send the updated roster by Friday.",
+      ].join("\n"),
+    );
+    vaultState.rows = [
+      emailActionRow("_inbox/cap_1.md", "Bluebay roster change"),
+    ];
+    render(<InboxSurface />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /→ task/i }));
+
+    await waitFor(() => {
+      expect(api.spsClassifyTask).toHaveBeenCalled();
+      expect(api.spsRouteTask).toHaveBeenCalled();
+    });
+    // Task row persisted to the tasks folder; capture flipped to processed.
+    const exportCalls = api.spsExportRow.mock.calls;
+    expect(
+      exportCalls.some(
+        (call: unknown[]) =>
+          call[0] === "tasks" &&
+          /^task-/.test(call[1] as string) &&
+          (call[2] as string).includes("source:: [[cap_1]]"),
+      ),
+    ).toBe(true);
+    await waitFor(() => {
+      expect(
+        exportCalls.some(
+          (call: unknown[]) =>
+            call[0] === "_inbox" &&
+            call[1] === "cap_1" &&
+            (call[2] as string).includes("processed"),
+        ),
+      ).toBe(true);
+    });
+    expect(storeState.flash).toHaveBeenCalledWith(
+      expect.stringContaining("Task created"),
+    );
   });
 });

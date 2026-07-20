@@ -10,6 +10,10 @@ import type {
   TaskNagRecord,
   TaskTriageResult,
 } from "../../shared/tasks-dump";
+import type {
+  EmailDraftResult,
+  EmailReplyDraft,
+} from "../../shared/email-actions";
 import type { SpsWorkspaceLoadResult } from "../../shared/sps-types";
 
 export interface SpsBridgeApi {
@@ -115,6 +119,13 @@ export interface SpsBridgeApi {
     feedback: Api.EmailMonitorFeedback,
     profile?: string,
   ) => Promise<Api.EmailMonitorConfig>;
+
+  spsEmailDraftReply: (
+    captureId: string,
+    profile?: string,
+  ) => Promise<EmailDraftResult>;
+
+  spsEmailOpenReply: (draft: EmailReplyDraft) => Promise<boolean>;
 
   spsFileAnswer: (
     question: string,

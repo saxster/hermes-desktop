@@ -1,3 +1,4 @@
+import { shell } from "electron";
 import { safeHandle } from "../safe-handle";
 import { requireLocalWorkspace } from "../connection-guards";
 import {
@@ -11,6 +12,15 @@ import type {
   EmailMonitorConfig,
   EmailMonitorFeedback,
 } from "../../../shared/email-monitor";
+import { draftReplyFromCapture } from "../../email-draft";
+import { SPS_INBOX_FOLDER } from "../../sps-capture";
+import { resolveSpsVaultDir } from "../../sps-storage";
+import { readRowMarkdownFrom } from "../../sps-vault";
+import {
+  buildMailtoUrl,
+  type EmailReplyDraft,
+} from "../../../shared/email-actions";
+import { formatLogError, log } from "../../log";
 
 export function registerSpsEmailMonitorIpc(): void {
   safeHandle("sps-email-monitor-get-config", (_event, profile?: string) => {
@@ -39,4 +49,37 @@ export function registerSpsEmailMonitorIpc(): void {
       return applyEmailMonitorFeedbackForProfile(feedback, profile);
     },
   );
+  // Email Actions: draft an AI reply to a captured email. The draft comes back
+  // for human review; sending always happens in the user's own mail client.
+  safeHandle(
+    "sps-email-draft-reply",
+    async (_event, captureId: string, profile?: string) => {
+      requireLocalWorkspace();
+      const vaultDir = resolveSpsVaultDir(profile);
+      const markdown = await readRowMarkdownFrom(
+        vaultDir,
+        SPS_INBOX_FOLDER,
+        captureId,
+      );
+      if (markdown == null) return { ok: false, error: "capture-not-found" };
+      return draftReplyFromCapture(markdown, { profile });
+    },
+  );
+  // Hand the reviewed draft to the native Mail app via a mailto: URL built in
+  // main from validated data (mirrors the contact-channel hand-off rationale).
+  safeHandle("sps-email-open-reply", async (_event, draft: EmailReplyDraft) => {
+    requireLocalWorkspace();
+    const url = buildMailtoUrl(draft);
+    if (!url) return false;
+    try {
+      await shell.openExternal(url);
+      return true;
+    } catch (err) {
+      log.error("email-monitor-ipc", {
+        msg: "reply hand-off failed",
+        error: formatLogError(err),
+      });
+      return false;
+    }
+  });
 }
