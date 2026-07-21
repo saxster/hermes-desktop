@@ -60,6 +60,7 @@ export function LearningSurface({
   const [localExpertDetail, setLocalExpertDetail] =
     useState<LocalExpertPackDetailResult | null>(null);
   const [expertImportPath, setExpertImportPath] = useState("");
+  const [skillPackPath, setSkillPackPath] = useState("");
   const [expertExportPath, setExpertExportPath] = useState("");
   const [expertCheckRun, setExpertCheckRun] =
     useState<LocalExpertCheckRunResult | null>(null);
@@ -453,6 +454,54 @@ export function LearningSurface({
     }
   }
 
+  // Skill packs: preview-then-import of SKILL.md bundles into the profile's
+  // skills/ directory (mirrors the expert-pack flow above).
+  async function pickSkillPack(): Promise<void> {
+    const selected = await run("pick-skill-pack", () =>
+      window.hermesAPI.spsPickSkillPack(),
+    );
+    if (selected) setSkillPackPath(selected);
+  }
+
+  async function previewSkillPack(): Promise<void> {
+    const source = skillPackPath.trim();
+    if (!source) return;
+    const res = await run("preview-skill-pack", () =>
+      window.hermesAPI.spsPreviewSkillPack(source, profile),
+    );
+    if (!res) return;
+    setNotice(
+      res.ok
+        ? `Skill pack preview: ${res.pack?.title || "skill pack"} — ${res.skillCount || 0} skill(s)${
+            res.conflicts?.length
+              ? `, ${res.conflicts.length} already installed`
+              : ""
+          }.`
+        : `Skill pack preview failed: ${res.errors.join("; ")}`,
+    );
+  }
+
+  async function importSkillPack(): Promise<void> {
+    const source = skillPackPath.trim();
+    if (!source) return;
+    const res = await run("import-skill-pack", () =>
+      window.hermesAPI.spsImportSkillPack(source, profile),
+    );
+    if (res?.ok && res.packId) {
+      setNotice(
+        `Imported ${res.imported.length} skill(s) from ${res.packId}${
+          res.skipped.length
+            ? `; skipped ${res.skipped.length} already installed`
+            : ""
+        }.`,
+      );
+      setSkillPackPath("");
+      await loadSkills();
+    } else if (res) {
+      setNotice(res.errors.join("; ") || "Could not import skill pack.");
+    }
+  }
+
   async function pickExpertExportPath(packId: string): Promise<void> {
     const selected = await run("pick-expert-export", () =>
       window.hermesAPI.spsPickLocalExpertPackExportPath(packId),
@@ -785,6 +834,14 @@ export function LearningSurface({
           }
           uninstallSkill={(skill) =>
             runDetached("uninstall skill", () => uninstallSkill(skill))
+          }
+          packPath={skillPackPath}
+          pickSkillPack={() => runDetached("pick skill pack", pickSkillPack)}
+          previewSkillPack={() =>
+            runDetached("preview skill pack", previewSkillPack)
+          }
+          importSkillPack={() =>
+            runDetached("import skill pack", importSkillPack)
           }
           busy={busy}
         />

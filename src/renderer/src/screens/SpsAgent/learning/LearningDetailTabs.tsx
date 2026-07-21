@@ -128,6 +128,10 @@ export function SkillsTab(props: {
   createSkill: () => void;
   generateDraft: () => void;
   importSkill: (skill: LocalSkill) => void;
+  packPath: string;
+  pickSkillPack: () => void;
+  previewSkillPack: () => void;
+  importSkillPack: () => void;
   busy: string;
 }): React.JSX.Element {
   return (
@@ -277,6 +281,45 @@ export function SkillsTab(props: {
           ))}
         </section>
       )}
+
+      <section className="settings-section">
+        <div className="settings-section-title">Skill packs</div>
+        <label className="settings-field">
+          <span>Import pack path</span>
+          <input
+            value={props.packPath}
+            readOnly
+            placeholder="Choose a skill-pack JSON file"
+          />
+        </label>
+        <div className="learning-surface-inline-actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={props.busy === "pick-skill-pack"}
+            onClick={props.pickSkillPack}
+          >
+            Choose pack
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={
+              !props.packPath.trim() || props.busy === "preview-skill-pack"
+            }
+            onClick={props.previewSkillPack}
+          >
+            Preview import
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={
+              !props.packPath.trim() || props.busy === "import-skill-pack"
+            }
+            onClick={props.importSkillPack}
+          >
+            Import pack
+          </button>
+        </div>
+      </section>
     </>
   );
 }

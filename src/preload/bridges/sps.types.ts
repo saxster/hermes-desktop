@@ -21,6 +21,10 @@ import type {
   TranscriptImportInput,
 } from "../../shared/meeting";
 import type { PropertyAutofillResult } from "../../shared/property-autofill";
+import type {
+  SkillPackImportResult,
+  SkillPackPreviewResult,
+} from "../../shared/skill-packs";
 
 export interface SpsBridgeApi {
   spsUnfurl: (url: string) => Promise<{
@@ -374,6 +378,18 @@ export interface SpsBridgeApi {
   ) => Promise<Api.LocalExpertPackExportResult>;
 
   spsPickLocalExpertPackExportPath: (packId: string) => Promise<string | null>;
+
+  spsPickSkillPack: () => Promise<string | null>;
+
+  spsPreviewSkillPack: (
+    filePath: string,
+    profile?: string,
+  ) => Promise<SkillPackPreviewResult>;
+
+  spsImportSkillPack: (
+    filePath: string,
+    profile?: string,
+  ) => Promise<SkillPackImportResult>;
 
   spsEnableLocalExpertChecks: (
     packId: string,

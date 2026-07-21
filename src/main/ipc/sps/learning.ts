@@ -23,6 +23,7 @@ import {
   enableLocalExpertChecks,
   runLocalExpertChecks,
 } from "../../local-experts/macos-checks";
+import { importSkillPack, previewSkillPack } from "../../skill-packs";
 import type {
   AssistantRecipePatch,
   CreateAssistantRecipeInput,
@@ -189,5 +190,41 @@ export function registerSpsLearningIpc(): void {
     "sps-run-local-expert-checks",
     (_event, packId: string, profile?: string) =>
       runLocalExpertChecks(packId, profile),
+  );
+  // Skill packs: preview-then-import of original SKILL.md bundles into the
+  // profile's skills/ directory. Picker grants the file path; preview/import
+  // re-assert the grant, mirroring the local-expert pack flow.
+  safeHandle("sps-pick-skill-pack", async (event) => {
+    requireLocalWorkspace();
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const opts: Electron.OpenDialogOptions = {
+      properties: ["openFile"],
+      filters: [{ name: "Skill Pack", extensions: ["json"] }],
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, opts)
+      : await dialog.showOpenDialog(opts);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return grantFilePath(result.filePaths[0]);
+  });
+  safeHandle(
+    "sps-preview-skill-pack",
+    (_event, filePath: unknown, profile?: unknown) => {
+      requireLocalWorkspace();
+      return previewSkillPack(
+        assertGrantedFilePath(assertIpcString(filePath, "skill pack path")),
+        normalizeIpcProfile(profile),
+      );
+    },
+  );
+  safeHandle(
+    "sps-import-skill-pack",
+    (_event, filePath: unknown, profile?: unknown) => {
+      requireLocalWorkspace();
+      return importSkillPack(
+        assertGrantedFilePath(assertIpcString(filePath, "skill pack path")),
+        normalizeIpcProfile(profile),
+      );
+    },
   );
 }

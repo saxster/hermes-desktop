@@ -44,6 +44,10 @@ import type {
   ListLocalExpertsResult,
 } from "../../shared/local-experts";
 import type {
+  SkillPackImportResult,
+  SkillPackPreviewResult,
+} from "../../shared/skill-packs";
+import type {
   SpsCaptureInput,
   SpsBaseViewConfig,
   SpsBaseProposalInput,
@@ -468,6 +472,18 @@ export const spsBridge = {
     ),
   spsPickLocalExpertPackExportPath: (packId: string): Promise<string | null> =>
     ipcRenderer.invoke("sps-pick-local-expert-pack-export-path", packId),
+  spsPickSkillPack: (): Promise<string | null> =>
+    ipcRenderer.invoke("sps-pick-skill-pack"),
+  spsPreviewSkillPack: (
+    filePath: string,
+    profile?: string,
+  ): Promise<SkillPackPreviewResult> =>
+    ipcRenderer.invoke("sps-preview-skill-pack", filePath, profile),
+  spsImportSkillPack: (
+    filePath: string,
+    profile?: string,
+  ): Promise<SkillPackImportResult> =>
+    ipcRenderer.invoke("sps-import-skill-pack", filePath, profile),
   spsEnableLocalExpertChecks: (
     packId: string,
     profile?: string,
