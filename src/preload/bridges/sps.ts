@@ -11,6 +11,7 @@ import type {
   TaskNagRecord,
   TaskTriageResult,
 } from "../../shared/tasks-dump";
+import type { PropertyAutofillResult } from "../../shared/property-autofill";
 import type {
   SearchOpts as ResearchSearchOpts,
   WorkSummary as ResearchWorkSummary,
@@ -597,6 +598,12 @@ export const spsBridge = {
     tags?: number;
     reason?: string;
   }> => ipcRenderer.invoke("sps-propose-contact-enrichment", personId, profile),
+  spsProposePropertyAutofill: (
+    folder: string,
+    rowId: string,
+    profile?: string,
+  ): Promise<PropertyAutofillResult> =>
+    ipcRenderer.invoke("sps-propose-property-autofill", folder, rowId, profile),
   spsNagGet: (rowId: string, profile?: string): Promise<TaskNagRecord | null> =>
     ipcRenderer.invoke("sps-nag-get", rowId, profile),
   spsNagList: (profile?: string): Promise<TaskNagRecord[]> =>

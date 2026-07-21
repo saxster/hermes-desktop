@@ -1,5 +1,6 @@
 import { registerSpsActionsIpc } from "./sps/actions";
 import { registerSpsActiveWorkIpc } from "./sps/active-work";
+import { registerSpsAutofillIpc } from "./sps/autofill";
 import { registerSpsCaptureIpc } from "./sps/capture";
 import { registerSpsCoreIpc } from "./sps/core";
 import { registerSpsDeckIpc } from "./sps/deck";
@@ -22,4 +23,5 @@ export function registerSpsIpc(): void {
   registerSpsResearchIpc();
   registerSpsNotebookLmIpc();
   registerSpsActionsIpc();
+  registerSpsAutofillIpc();
 }

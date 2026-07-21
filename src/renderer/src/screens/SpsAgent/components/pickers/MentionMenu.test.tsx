@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => ({
@@ -21,7 +21,16 @@ vi.mock("../../store", () => ({
 }));
 
 vi.mock("../../hooks/usePersonPages", () => ({
-  usePersonPages: () => ({ persons: [] }),
+  usePersonPages: () => ({
+    persons: [
+      {
+        id: "ravi-menon",
+        name: "Ravi Menon",
+        aliases: [],
+        fragments: [],
+      },
+    ],
+  }),
 }));
 
 import { MentionMenu } from "./MentionMenu";
@@ -34,5 +43,33 @@ describe("MentionMenu", () => {
 
     expect(screen.getByText("Project Alpha")).toBeInTheDocument();
     expect(screen.getByText("New page")).toBeInTheDocument();
+  });
+
+  it("invokes the enrichment and autofill callbacks for person items", () => {
+    const onProposeEnrichment = vi.fn();
+    const onProposeAutofill = vi.fn();
+    render(
+      <MentionMenu
+        x={10}
+        y={10}
+        query=""
+        onPick={vi.fn()}
+        onClose={vi.fn()}
+        onProposeEnrichment={onProposeEnrichment}
+        onProposeAutofill={onProposeAutofill}
+      />,
+    );
+
+    fireEvent.mouseDown(
+      screen.getByRole("button", { name: /suggest details for ravi menon/i }),
+    );
+    expect(onProposeEnrichment).toHaveBeenCalledWith("ravi-menon");
+
+    fireEvent.mouseDown(
+      screen.getByRole("button", {
+        name: /suggest properties for ravi menon/i,
+      }),
+    );
+    expect(onProposeAutofill).toHaveBeenCalledWith("ravi-menon");
   });
 });

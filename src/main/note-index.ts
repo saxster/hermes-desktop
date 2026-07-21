@@ -68,6 +68,10 @@ const INDEXED_PROPERTIES = new Set([
   "prio",
   "assignee",
   "tenant",
+  // Entity typing (person/project/meeting/… rows + ONTOLOGY `type`) — makes
+  // "all entities of a kind" an indexed query instead of a props-JSON scan.
+  "schema",
+  "type",
 ]);
 
 /** Extract `[[wikilink]]` targets from raw note content. */

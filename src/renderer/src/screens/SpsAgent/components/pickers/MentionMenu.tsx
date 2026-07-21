@@ -17,6 +17,9 @@ interface Props {
   // Manual "Suggest details" — ask the AI to propose fragments/tags for this
   // contact (lands in the Review Queue). Absent ⇒ no enrich affordance.
   onProposeEnrichment?: (personId: string) => void;
+  // Manual "Suggest properties" — ask the AI to propose property updates for
+  // this contact (lands in the Review Queue). Absent ⇒ no autofill affordance.
+  onProposeAutofill?: (personId: string) => void;
 }
 
 export function MentionMenu({
@@ -26,6 +29,7 @@ export function MentionMenu({
   onPick,
   onClose,
   onProposeEnrichment,
+  onProposeAutofill,
 }: Props) {
   const [sel, setSel] = useState(0);
   const ql = (query || "").toLowerCase();
@@ -152,6 +156,28 @@ export function MentionMenu({
                 }}
               >
                 ✨
+              </button>
+            )}
+            {it.kind === "person" && onProposeAutofill && (
+              <button
+                type="button"
+                title="Suggest properties for this contact"
+                aria-label={`Suggest properties for ${it.label}`}
+                style={{
+                  marginRight: 6,
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  lineHeight: 1,
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onProposeAutofill(it.id);
+                }}
+              >
+                ✎
               </button>
             )}
             <span style={{ color: "var(--tx-4)", fontSize: 11 }}>

@@ -457,6 +457,39 @@ export function Editor() {
     });
   };
 
+  // Manual "Suggest properties" (autofill, not data entry): the AI proposes
+  // property updates for the contact from notes that mention them — landed as
+  // update-frontmatter operations in the Review Queue, never written directly.
+  const proposeAutofill = (personId: string): void => {
+    setMention(null);
+    (async () => {
+      try {
+        const res = await window.hermesAPI.spsProposePropertyAutofill?.(
+          "people",
+          personId,
+        );
+        if (res?.created) {
+          const count = res.updates ?? 0;
+          onToast(
+            `Suggested ${count} propert${count === 1 ? "y" : "ies"} — review in the AI Review Queue`,
+          );
+        } else {
+          const reasons: Record<string, string> = {
+            "no-context": "No notes mention this contact yet",
+            "nothing-new": "No new properties to suggest",
+            unsupported: "Autofill is not available for this row",
+          };
+          onToast(reasons[res?.reason ?? ""] ?? "Could not suggest properties");
+        }
+      } catch {
+        onToast("Could not suggest properties");
+      }
+    })().catch((error: unknown) => {
+      console.error("Property autofill failed:", error);
+      onToast("Could not suggest properties", { tone: "warn" });
+    });
+  };
+
   const toggleTodo = (id: string) =>
     setBlocks((bs) =>
       bs.map((b) => (b.id === id ? { ...b, done: !b.done } : b)),
@@ -668,6 +701,7 @@ export function Editor() {
           onPick={pickMention}
           onClose={() => setMention(null)}
           onProposeEnrichment={proposeEnrichment}
+          onProposeAutofill={proposeAutofill}
         />
       )}
       {bmenu && (

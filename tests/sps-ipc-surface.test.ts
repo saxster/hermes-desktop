@@ -87,6 +87,7 @@ describe("SPS IPC surface", () => {
       "sps-pick-local-expert-pack",
       "sps-pick-local-expert-pack-export-path",
       "sps-preview-local-expert-pack",
+      "sps-propose-property-autofill",
       "sps-register-deep-links",
       "sps-research-ensure-agent-tool",
       "sps-research-get-config",

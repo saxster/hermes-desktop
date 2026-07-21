@@ -102,6 +102,23 @@ export interface GroundingSource {
   relPath: string;
   absPath: string;
   excerpt: string;
+  /** Typed graph neighbors for entity pages (schema/type frontmatter). */
+  relations?: string[];
+}
+
+const ENTITY_RELATIONS_MAX = 5;
+const ENTITY_RELATION_LINE_CHARS = 240;
+
+/** Entity pages carry a `schema` (person/project/meeting/…) or ONTOLOGY `type`. */
+export function isEntityFrontmatter(props: Record<string, unknown>): boolean {
+  return (
+    (typeof props.schema === "string" && props.schema.trim() !== "") ||
+    (typeof props.type === "string" && props.type.trim() !== "")
+  );
+}
+
+function relationDisplayName(relPath: string): string {
+  return basename(relPath, extname(relPath));
 }
 
 function excerptForGrounding(markdown: string): string {
@@ -116,10 +133,12 @@ export function formatRetrievalSystemMessage(
   isRemote = false,
 ): { role: "system"; content: string } | null {
   if (sources.length === 0) return null;
-  const blocks = sources.map(
-    (s) =>
-      `[${s.title} · ${s.relPath}]${isRemote ? "" : ` (full file: ${s.absPath})`}\n${s.excerpt}`,
-  );
+  const blocks = sources.map((s) => {
+    const linked = s.relations?.length
+      ? `\nLinked: ${s.relations.join("; ").slice(0, ENTITY_RELATION_LINE_CHARS)}`
+      : "";
+    return `[${s.title} · ${s.relPath}]${isRemote ? "" : ` (full file: ${s.absPath})`}\n${s.excerpt}${linked}`;
+  });
 
   const readInstruction = isRemote
     ? `These files exist on the user's local desktop and cannot be read directly via local file tools. You must rely solely on the provided excerpts. Cite the source path using Obsidian wikilinks like [[Page Title]].`
@@ -247,6 +266,7 @@ export async function buildRetrievalSystemMessage(
 
     const root = index.status().root;
     const sources: GroundingSource[] = [];
+    const entityPaths = new Set<string>();
     for (const path of topPaths) {
       const hit = hitByPath.get(path);
       if (!hit) continue;
@@ -254,6 +274,8 @@ export async function buildRetrievalSystemMessage(
       try {
         const raw = await readFile(absPath, "utf-8");
         const title = hit.title || getNoteTitle(raw, path);
+        const { props } = parseFrontmatter(raw);
+        if (props && isEntityFrontmatter(props)) entityPaths.add(path);
         sources.push({
           title,
           relPath: path,
@@ -264,6 +286,42 @@ export async function buildRetrievalSystemMessage(
         /* skip an unreadable hit */
       }
     }
+
+    // Entity-aware grounding: attach each entity page's typed graph neighbors
+    // (person → meetings/tasks, project → decisions) so the model sees the
+    // relationship context, not just the page text. Purely additive and
+    // budgeted; any graph failure leaves the excerpts untouched.
+    if (entityPaths.size > 0) {
+      try {
+        const edges = index.links();
+        for (const source of sources) {
+          if (!entityPaths.has(source.relPath)) continue;
+          const relations: string[] = [];
+          for (const edge of edges) {
+            if (edge.source !== source.relPath) continue;
+            relations.push(
+              `${edge.type} → ${relationDisplayName(edge.target)}`,
+            );
+            if (relations.length >= ENTITY_RELATIONS_MAX) break;
+          }
+          if (relations.length < ENTITY_RELATIONS_MAX) {
+            for (const edge of index.backlinkDetails(source.relPath)) {
+              relations.push(
+                `${edge.type} ← ${relationDisplayName(edge.source)}`,
+              );
+              if (relations.length >= ENTITY_RELATIONS_MAX) break;
+            }
+          }
+          if (relations.length > 0) source.relations = relations;
+        }
+      } catch (err) {
+        log.error("grounding", {
+          msg: "entity relation lookup failed",
+          error: formatLogError(err),
+        });
+      }
+    }
+
     return formatRetrievalSystemMessage(sources, opts.isRemote);
   } catch (err) {
     log.error("grounding", {

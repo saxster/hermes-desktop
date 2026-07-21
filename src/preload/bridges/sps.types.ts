@@ -20,6 +20,7 @@ import type {
   MeetingExtractResult,
   TranscriptImportInput,
 } from "../../shared/meeting";
+import type { PropertyAutofillResult } from "../../shared/property-autofill";
 
 export interface SpsBridgeApi {
   spsUnfurl: (url: string) => Promise<{
@@ -500,6 +501,12 @@ export interface SpsBridgeApi {
     tags?: number;
     reason?: string;
   }>;
+
+  spsProposePropertyAutofill: (
+    folder: string,
+    rowId: string,
+    profile?: string,
+  ) => Promise<PropertyAutofillResult>;
 
   spsNagGet: (rowId: string, profile?: string) => Promise<TaskNagRecord | null>;
 
