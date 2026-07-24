@@ -19,6 +19,7 @@ import {
 } from "./vault-review-queue";
 import { deliverOwnerEvent } from "./owner-delivery";
 import { profileHome } from "./utils";
+import { createActiveWorkRun, updateActiveWorkRun } from "./active-work-runs";
 
 export interface TaskProposalSpoolInput {
   requestId: string;
@@ -207,6 +208,53 @@ export async function drainTaskProposalSpool(
 ): Promise<TaskProposalDrainResult> {
   const result = await drainTaskProposalSpoolIn(profileHome(profile));
   for (const proposal of result.created) {
+    const active = await createActiveWorkRun(
+      {
+        source: "proposal-triggered",
+        trigger: "external",
+        reviewPolicy: "review-first",
+        clientRunId: `task-proposal:${proposal.id}`,
+        title: proposal.title,
+        goal: "Preserve the inbound task request as a reviewable workspace proposal.",
+        criteria: [
+          {
+            text: "Create a reviewable task proposal without writing it directly to the workspace.",
+          },
+        ],
+        expectedArtifacts: [
+          { kind: "proposal", label: "Task proposal", required: true },
+        ],
+      },
+      profile,
+    );
+    const createdAt = Date.now();
+    const proposalArtifact = {
+      id: `artifact_${createdAt.toString(36)}_proposal`,
+      kind: "proposal" as const,
+      label: proposal.title,
+      ref: proposal.id,
+      createdAt,
+    };
+    await updateActiveWorkRun(
+      active.id,
+      {
+        status: "awaiting-review",
+        summary: proposal.summary,
+        criteria: active.criteria.map((criterion) => ({
+          ...criterion,
+          done: true,
+          evidence: {
+            summary:
+              "The inbound request was converted into a review-only proposal.",
+            artifactId: proposalArtifact.id,
+            verifiedAt: createdAt,
+            verifiedBy: "system" as const,
+          },
+        })),
+        artifacts: [proposalArtifact],
+      },
+      profile,
+    );
     await deliverOwnerEvent(
       {
         id: `task-proposal:${proposal.id}`,

@@ -1,3 +1,6 @@
+import type { ActiveWorkExpectedArtifact } from "./active-work";
+import type { ModelFitnessCapability } from "./model-fitness";
+
 export type AssistantRecipeKind =
   | "research-brief"
   | "article-writer"
@@ -69,6 +72,14 @@ export interface AssistantRecipe {
   updatedAt: number;
   lastRunAt?: number;
   lastRunSummary?: string;
+  outcomeKitId?: string;
+  outcome?: string;
+  outcomeCriteria?: Array<{ id: string; text: string }>;
+  outcomeArtifacts?: ActiveWorkExpectedArtifact[];
+  modelRequirements?: {
+    capabilities: ModelFitnessCapability[];
+    requireVerified: boolean;
+  };
 }
 
 export interface CreateAssistantRecipeInput {
@@ -81,6 +92,11 @@ export interface CreateAssistantRecipeInput {
   allowedActions: AssistantRecipeAction[];
   reviewMode?: AssistantRecipeReviewMode;
   schedule?: AssistantRecipeSchedule;
+  outcomeKitId?: string;
+  outcome?: string;
+  outcomeCriteria?: Array<{ id: string; text: string }>;
+  outcomeArtifacts?: ActiveWorkExpectedArtifact[];
+  modelRequirements?: AssistantRecipe["modelRequirements"];
 }
 
 export type AssistantRecipePatch = Partial<
@@ -95,6 +111,10 @@ export type AssistantRecipePatch = Partial<
     | "reviewMode"
     | "enabled"
     | "schedule"
+    | "outcome"
+    | "outcomeCriteria"
+    | "outcomeArtifacts"
+    | "modelRequirements"
   >
 >;
 
@@ -116,9 +136,11 @@ export interface AssistantRecipeRunResult {
 
 export interface AssistantRecipeRunRecord {
   id: string;
+  activeWorkRunId: string;
   recipeId: string;
   recipeName: string;
   input: string;
+  prompt: string;
   resultText: string;
   status: AssistantRecipeRunStatus;
   error?: string;
@@ -126,7 +148,7 @@ export interface AssistantRecipeRunRecord {
   durationMs: number;
   savedProposalId?: string;
   savedPageId?: string;
-  trigger: "manual" | "scheduled" | "cron";
+  trigger: "manual" | "scheduled" | "cron" | "proposal" | "external";
 }
 
 export interface AssistantRecipeRunsResult {

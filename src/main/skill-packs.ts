@@ -18,6 +18,7 @@ import {
   type SkillPackPreviewResult,
   type SkillPackSkill,
 } from "../shared/skill-packs";
+import { registerOutcomeKitContent } from "./outcome-kits";
 
 /** Key-sorted stable JSON (recursive), so a pack's hash is content-defined. */
 function stableStringify(value: unknown): string {
@@ -102,7 +103,7 @@ export function previewSkillPack(
     )
     .map((skill) => skill.name);
   const errors: string[] = [];
-  if (conflicts.length === pack.skills.length) {
+  if (conflicts.length === pack.skills.length && !pack.outcomeKit) {
     errors.push("Every skill in this pack is already installed.");
   }
   return {
@@ -192,11 +193,22 @@ export function importSkillPack(
       errors.push(`${key}: ${(err as Error).message}`);
     }
   }
+  let outcomeKitRegistered = false;
+  if (errors.length === 0 && pack.outcomeKit) {
+    registerOutcomeKitContent(
+      pack.outcomeKit,
+      skillPackHash(pack),
+      [...imported, ...skipped],
+      profile,
+    );
+    outcomeKitRegistered = true;
+  }
   return {
     ok: errors.length === 0,
     packId: pack.packId,
     imported,
     skipped,
     errors,
+    outcomeKitRegistered,
   };
 }

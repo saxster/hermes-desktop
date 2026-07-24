@@ -1,5 +1,9 @@
 import { ipcRenderer } from "electron";
 import type { MediaBridgeApi } from "./media.types";
+import type {
+  HermesRunEvent,
+  HermesRunResumeSnapshot,
+} from "../../shared/run-events";
 
 export const mediaBridge = {
   // Media (agent-generated images / files — issue #299)
@@ -159,6 +163,31 @@ export const mediaBridge = {
     ): void => callback(error, runId);
     ipcRenderer.on("chat-error", handler);
     return () => ipcRenderer.removeListener("chat-error", handler);
+  },
+
+  listHermesRunEvents: (
+    runId?: string,
+    limit?: number,
+    profile?: string,
+  ): Promise<HermesRunEvent[]> =>
+    ipcRenderer.invoke("list-hermes-run-events", runId, limit, profile),
+
+  getHermesRunResume: (
+    runId: string,
+    profile?: string,
+  ): Promise<HermesRunResumeSnapshot | null> =>
+    ipcRenderer.invoke("get-hermes-run-resume", runId, profile),
+
+  onHermesRunEvent: (
+    callback: (event: HermesRunEvent, clientRunId?: string) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      runEvent: unknown,
+      clientRunId?: string,
+    ): void => callback(runEvent as HermesRunEvent, clientRunId);
+    ipcRenderer.on("hermes-run-event", handler);
+    return () => ipcRenderer.removeListener("hermes-run-event", handler);
   },
 
   /** Gateway requested approval for a dangerous command (idea B1). The

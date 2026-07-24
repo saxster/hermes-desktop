@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { VaultProposal } from "../../../../../shared/sps-types";
+import type { HumanAttentionItem } from "../../../../../shared/human-attention";
+import { respondApproval } from "../../../lib/api/chat";
 import { Icon } from "../components/Icon";
 import { useStore } from "../store";
 import { commitVaultProposal } from "./commitVaultProposal";
@@ -16,14 +18,19 @@ export function ReviewQueueSurface({
   const setSurface = useStore((s) => s.setSurface);
   const selectPage = useStore((s) => s.selectPage);
   const [proposals, setProposals] = useState<VaultProposal[]>([]);
+  const [attention, setAttention] = useState<HumanAttentionItem[]>([]);
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const rows = await window.hermesAPI.spsListVaultProposals?.(profile);
-      setProposals(rows ?? []);
+      const [proposalRows, attentionRows] = await Promise.all([
+        window.hermesAPI.spsListVaultProposals?.(profile),
+        window.hermesAPI.spsListHumanAttention({}, profile),
+      ]);
+      setProposals(proposalRows ?? []);
+      setAttention(attentionRows ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -91,6 +98,47 @@ export function ReviewQueueSurface({
     }
   };
 
+  const resolveAttention = async (
+    item: HumanAttentionItem,
+    choiceId: string,
+  ): Promise<void> => {
+    setBusy(item.id);
+    setError("");
+    try {
+      if (
+        item.kind === "approval" &&
+        item.requestId &&
+        (choiceId === "once" || choiceId === "deny")
+      ) {
+        const upstream = await respondApproval(
+          item.requestId,
+          choiceId,
+          profile,
+        );
+        if (!upstream.ok) {
+          throw new Error(
+            upstream.error || "Hermes could not accept this approval response.",
+          );
+        }
+      }
+      const result = await window.hermesAPI.spsResolveHumanAttention(
+        item.id,
+        { choiceId },
+        profile,
+      );
+      if (!result.ok)
+        throw new Error(result.error || "Could not resolve item.");
+      await load();
+      if (choiceId === "review-run" && item.resume?.kind === "active-work") {
+        setSurface("activeWork");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
   const openPage = (pageId: string): void => {
     selectPage(pageId);
     setSurface("doc");
@@ -101,19 +149,54 @@ export function ReviewQueueSurface({
       <header className="inbox-header-mb">
         <h1 className="inbox-title">
           <Icon name="check" size={22} />
-          AI Review Queue
+          Needs Attention
         </h1>
         <p className="inbox-subtitle">
-          My Assistant can propose vault changes here. Nothing lands until you
-          review and apply it.
+          Decisions, blocked work, failures, and proposed workspace changes are
+          held here until you handle them.
         </p>
       </header>
 
       {error && <div className="inbox-error">{error}</div>}
 
-      {pending.length === 0 ? (
-        <div className="inbox-empty-notice">No pending vault proposals.</div>
-      ) : (
+      {attention.length > 0 && (
+        <section aria-labelledby="attention-items-title">
+          <h2 id="attention-items-title">Assistant check-ins</h2>
+          <ul className="inbox-card-list">
+            {attention.map((item) => (
+              <li key={item.id} className="inbox-proposed-page">
+                <div className="inbox-flex-align-center-gap8-mb6">
+                  <span className="inbox-card-badge">
+                    {item.kind.replaceAll("-", " ")}
+                  </span>
+                  <strong>{item.title}</strong>
+                </div>
+                <div className="inbox-proposal-summary">{item.summary}</div>
+                <div className="inbox-flex-align-center-gap8-mb6">
+                  {item.choices.map((choice) => (
+                    <button
+                      key={choice.id}
+                      className={
+                        choice.tone === "primary"
+                          ? "btn btn-primary btn-sm"
+                          : "btn btn-ghost btn-sm"
+                      }
+                      disabled={busy === item.id}
+                      onClick={() => void resolveAttention(item, choice.id)}
+                    >
+                      {busy === item.id ? "Saving..." : choice.label}
+                    </button>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {pending.length === 0 && attention.length === 0 ? (
+        <div className="inbox-empty-notice">Nothing needs your attention.</div>
+      ) : pending.length > 0 ? (
         <ul className="inbox-card-list">
           {pending.map((proposal) => {
             const picked = selectedFor(proposal);
@@ -179,7 +262,7 @@ export function ReviewQueueSurface({
             );
           })}
         </ul>
-      )}
+      ) : null}
     </div>
   );
 }

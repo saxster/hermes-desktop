@@ -50,6 +50,10 @@ const api = {
   spsRunAssistantRecipe: vi.fn(),
   spsListAssistantRecipeRuns: vi.fn(),
   spsSaveAssistantRecipeRun: vi.fn(),
+  spsListOutcomeKits: vi.fn(),
+  spsActivateOutcomeKit: vi.fn(),
+  spsEnableOutcomeKitSchedule: vi.fn(),
+  spsRunOutcomeKit: vi.fn(),
   spsListLocalExperts: vi.fn(),
   spsGetLocalExpert: vi.fn(),
   spsInstallLocalExpert: vi.fn(),
@@ -208,6 +212,26 @@ beforeEach(() => {
     ok: true,
     proposalId: "vp2",
     pageId: "assistant-results/research-brief-19700101000002",
+  });
+  api.spsListOutcomeKits.mockResolvedValue([]);
+  api.spsActivateOutcomeKit.mockResolvedValue({
+    ok: true,
+    recipeId: "kit-recipe",
+  });
+  api.spsEnableOutcomeKitSchedule.mockResolvedValue({ ok: true });
+  api.spsRunOutcomeKit.mockResolvedValue({
+    ok: true,
+    run: {
+      id: "kit-run",
+      recipeId: "kit-recipe",
+      recipeName: "Research Kit",
+      input: "Topic: AI safety",
+      resultText: "Sourced brief.",
+      status: "success",
+      createdAt: 3,
+      durationMs: 20,
+      trigger: "manual",
+    },
   });
   api.spsListLocalExperts.mockResolvedValue({
     packs: [
@@ -416,6 +440,118 @@ describe("LearningSurface", () => {
           reviewMode: "review-first",
         }),
         "default",
+      ),
+    );
+  });
+
+  it("keeps Outcome Kit activation, schedule, and execution as separate decisions", async () => {
+    api.spsListOutcomeKits.mockResolvedValue([
+      {
+        contractVersion: 1,
+        kit: {
+          contractVersion: 1,
+          kitId: "research-kit",
+          title: "Research Kit",
+          version: 1,
+          outcome: "Produce a sourced brief.",
+          inputs: [{ id: "topic", label: "Topic", required: true }],
+          artifacts: [{ kind: "text", label: "Brief", required: true }],
+          criteria: [{ id: "sourced", text: "Claims are sourced." }],
+          dependencies: {
+            skills: [],
+            connectors: [],
+            model: { capabilities: ["research"], requireVerified: false },
+          },
+          recipe: {
+            name: "Research Kit",
+            kind: "research-brief",
+            description: "Research.",
+            job: "Research.",
+            inputs: "Topic.",
+            output: "Brief.",
+            allowedActions: ["read_workspace", "search_web", "draft_content"],
+          },
+          reviewPolicy: "review-first",
+          risk: { mode: "INTERACTIVE", classes: ["READ"] },
+          triggerTemplates: ["manual", "scheduled"],
+          scheduleTemplate: { cadence: "weekly", hour: 8 },
+          evalFixtures: [
+            {
+              id: "basic",
+              input: "AI safety",
+              expectedCriteria: ["sourced"],
+              expectedArtifactKinds: ["text"],
+            },
+          ],
+          provenance: { publisher: "Fathah Hermes" },
+        },
+        packHash: "abc",
+        contentInstalledAt: 1,
+        importedSkills: [],
+        readiness: {
+          kitId: "research-kit",
+          status: "attention",
+          canActivate: true,
+          items: [
+            {
+              id: "schedule",
+              kind: "schedule",
+              status: "attention",
+              title: "Schedule template",
+              summary: "Disabled until separately enabled.",
+            },
+          ],
+          modelFitness: {
+            status: "unverified",
+            provider: "custom",
+            model: "private",
+            required: ["research"],
+            supported: [],
+            missing: ["research"],
+            reason: "Unverified model.",
+          },
+          generatedAt: 1,
+        },
+      },
+    ]);
+
+    const view = render(<LearningSurface profile="default" />);
+    fireEvent.click(screen.getByText("Assistants"));
+    fireEvent.click(await screen.findByText("Activate content"));
+    await waitFor(() =>
+      expect(api.spsActivateOutcomeKit).toHaveBeenCalledWith(
+        "research-kit",
+        "default",
+      ),
+    );
+    expect(api.spsEnableOutcomeKitSchedule).not.toHaveBeenCalled();
+
+    api.spsListOutcomeKits.mockResolvedValue([
+      {
+        ...(await api.spsListOutcomeKits.mock.results[0].value)[0],
+        recipeId: "kit-recipe",
+        activatedAt: 2,
+      },
+    ]);
+    view.rerender(<LearningSurface profile="alternate" />);
+    fireEvent.click(await screen.findByText("Assistants"));
+    fireEvent.change(await screen.findByLabelText("Research Kit Topic"), {
+      target: { value: "AI safety" },
+    });
+    fireEvent.click(screen.getByText("Run kit"));
+    await waitFor(() =>
+      expect(api.spsRunOutcomeKit).toHaveBeenCalledWith(
+        "research-kit",
+        { topic: "AI safety" },
+        "alternate",
+        "manual",
+      ),
+    );
+    fireEvent.click(screen.getByText("Enable schedule"));
+    await waitFor(() =>
+      expect(api.spsEnableOutcomeKitSchedule).toHaveBeenCalledWith(
+        "research-kit",
+        "alternate",
       ),
     );
   });

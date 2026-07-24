@@ -1,7 +1,13 @@
+import { randomUUID } from "crypto";
 import { StreamRedactor } from "./redactor";
 import type { Attachment } from "../shared/attachments";
 import type { ChatCallbacks, ChatHandle } from "./hermes/chat-client";
 import { CHAT_STOPPED_ERROR } from "./hermes/chat-client/messages";
+import {
+  HERMES_RUN_EVENT_CONTRACT_VERSION,
+  type HermesRunEvent,
+  type HermesRunEventKind,
+} from "../shared/run-events";
 
 /** The chat send transport — structurally `sendMessage` from hermes/chat-client. */
 export type ChatTransport = (
@@ -85,6 +91,27 @@ export async function runChatTurn(
     secretsToRedact,
   } = ctx;
 
+  const runId = req.clientRunId?.trim() || `chat_${randomUUID()}`;
+  let eventSequence = 0;
+  const emitRunEvent = (
+    kind: HermesRunEventKind,
+    payload: Record<string, unknown> = {},
+    sessionId?: string,
+  ): boolean => {
+    const sequence = eventSequence++;
+    const event: HermesRunEvent = {
+      contractVersion: HERMES_RUN_EVENT_CONTRACT_VERSION,
+      eventId: `${runId}:${sequence}:${kind}`,
+      runId,
+      sequence,
+      kind,
+      createdAt: Date.now(),
+      sessionId: sessionId || req.resumeSessionId,
+      payload,
+    };
+    return sink.emit("hermes-run-event", event);
+  };
+
   const existing = abortRegistry.get(sessionKey);
   if (existing) {
     existing();
@@ -114,12 +141,16 @@ export async function runChatTurn(
       abortRegistry.delete(sessionKey);
     }
   };
-  const finishError = (error: string): void => {
+  const finishError = (
+    error: string,
+    kind: "run.failed" | "run.stopped" = "run.failed",
+  ): void => {
     if (settled) return;
     settled = true;
     contentRedactor.flush();
     reasoningRedactor.flush();
     clearAbort();
+    emitRunEvent(kind, { error });
     sink.emit("chat-error", error);
     rejectChat(new Error(error));
     effects.notifyError(error);
@@ -130,10 +161,32 @@ export async function runChatTurn(
     } else {
       abortRequestedBeforeHandle = true;
     }
-    finishError(CHAT_STOPPED_ERROR);
+    finishError(CHAT_STOPPED_ERROR, "run.stopped");
+  };
+  const failUntrackedRun = (): void => {
+    handle?.abort();
+    finishError(
+      "Hermes could not preserve the run event trail, so the run was stopped.",
+    );
   };
 
   abortRegistry.set(sessionKey, abortCurrent);
+  if (
+    !emitRunEvent("run.started", {
+      eventContractVersion: HERMES_RUN_EVENT_CONTRACT_VERSION,
+      capabilities: [
+        "progress",
+        "approval-request",
+        "checkpoint",
+        "delegation-progress",
+        "terminal-events",
+      ],
+      gatewayEventDurability: "unverified",
+    })
+  ) {
+    failUntrackedRun();
+    return promise;
+  }
 
   try {
     handle = await transport(
@@ -160,7 +213,6 @@ export async function runChatTurn(
         },
         onDone: (sessionId) => {
           if (settled) return;
-          settled = true;
           const contentFlush = contentRedactor.flush();
           if (contentFlush) {
             fullResponse += contentFlush;
@@ -170,6 +222,17 @@ export async function runChatTurn(
           if (reasoningFlush) {
             sink.emit("chat-reasoning-chunk", reasoningFlush);
           }
+          if (
+            !emitRunEvent(
+              "run.completed",
+              { responseChars: fullResponse.length },
+              sessionId,
+            )
+          ) {
+            failUntrackedRun();
+            return;
+          }
+          settled = true;
           clearAbort();
           sink.emit("chat-done", sessionId || "");
 
@@ -185,6 +248,10 @@ export async function runChatTurn(
           finishError(error);
         },
         onToolProgress: (tool) => {
+          if (!emitRunEvent("run.progress", { tool })) {
+            failUntrackedRun();
+            return;
+          }
           sink.emit("chat-tool-progress", tool);
         },
         onUsage: (usage) => {
@@ -196,12 +263,49 @@ export async function runChatTurn(
             sink.emit("chat-approval-auto", { ...request, sessionKey });
             return;
           }
+          if (
+            !emitRunEvent("run.approval.requested", {
+              requestId: request.id,
+              command: request.command,
+              toolName: request.toolName,
+              patternKey: request.patternKey,
+              description: request.description,
+            })
+          ) {
+            failUntrackedRun();
+            return;
+          }
           sink.emit("chat-approval-request", { ...request, sessionKey });
         },
         onCheckpoint: (cp) => {
+          if (
+            !emitRunEvent("run.checkpoint", {
+              checkpointId: cp.id,
+              label: cp.label,
+              turn: cp.turn,
+              createdAt: cp.createdAt,
+            })
+          ) {
+            failUntrackedRun();
+            return;
+          }
           sink.emit("chat-checkpoint", { ...cp, sessionKey });
         },
         onDelegateProgress: (p) => {
+          if (
+            !emitRunEvent("run.delegation.progress", {
+              delegateId: p.id,
+              parentId: p.parentId,
+              goal: p.goal,
+              status: p.status,
+              depth: p.depth,
+              tool: p.tool,
+              label: p.label,
+            })
+          ) {
+            failUntrackedRun();
+            return;
+          }
           sink.emit("chat-delegate-progress", { ...p, sessionKey });
         },
       },

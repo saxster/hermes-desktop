@@ -7,6 +7,11 @@ import { createSkill } from "./skills";
 import { spsAssistant } from "./sps-agent";
 import { createVaultProposal } from "./vault-review-queue";
 import {
+  createActiveWorkRun,
+  getActiveWorkRun,
+  updateActiveWorkRun,
+} from "./active-work-runs";
+import {
   createCronJob,
   listCronJobs,
   pauseCronJob,
@@ -97,6 +102,214 @@ function normalizeActions(
   return seen.size ? [...seen] : ["draft_content"];
 }
 
+const RECIPE_KINDS = new Set([
+  "research-brief",
+  "article-writer",
+  "content-writer",
+  "deck-builder",
+  "meeting-debrief",
+  "file-processor",
+  "morning-briefing",
+  "competitor-tracker",
+  "custom",
+]);
+const RECIPE_ACTIONS = new Set<AssistantRecipeAction>([
+  "read_workspace",
+  "search_web",
+  "draft_content",
+  "propose_changes",
+  "process_files",
+  "schedule_runs",
+  "send_messages",
+]);
+const RECIPE_PATCH_KEYS = new Set([
+  "name",
+  "description",
+  "job",
+  "inputs",
+  "output",
+  "allowedActions",
+  "reviewMode",
+  "enabled",
+  "schedule",
+  "outcome",
+  "outcomeCriteria",
+  "outcomeArtifacts",
+  "modelRequirements",
+]);
+
+function validOptionalText(value: unknown, max: number): boolean {
+  return (
+    value === undefined || (typeof value === "string" && value.length <= max)
+  );
+}
+
+function recipeOutcomeFieldError(value: {
+  outcome?: unknown;
+  outcomeCriteria?: unknown;
+  outcomeArtifacts?: unknown;
+  modelRequirements?: unknown;
+}): string | null {
+  if (!validOptionalText(value.outcome, 2_000)) return "Outcome is invalid.";
+  if (value.outcomeCriteria !== undefined) {
+    if (
+      !Array.isArray(value.outcomeCriteria) ||
+      value.outcomeCriteria.length > 100
+    )
+      return "Outcome criteria are invalid.";
+    for (const criterion of value.outcomeCriteria) {
+      if (
+        !criterion ||
+        typeof criterion !== "object" ||
+        typeof (criterion as { id?: unknown }).id !== "string" ||
+        !(criterion as { id: string }).id.trim() ||
+        typeof (criterion as { text?: unknown }).text !== "string" ||
+        !(criterion as { text: string }).text.trim()
+      ) {
+        return "Outcome criteria are invalid.";
+      }
+    }
+  }
+  if (value.outcomeArtifacts !== undefined) {
+    if (
+      !Array.isArray(value.outcomeArtifacts) ||
+      value.outcomeArtifacts.length > 100
+    )
+      return "Outcome artifacts are invalid.";
+    for (const artifact of value.outcomeArtifacts) {
+      if (
+        !artifact ||
+        typeof artifact !== "object" ||
+        ![
+          "page",
+          "session",
+          "task",
+          "file",
+          "text",
+          "proposal",
+          "receipt",
+          "transcript",
+          "url",
+        ].includes(String((artifact as { kind?: unknown }).kind)) ||
+        typeof (artifact as { label?: unknown }).label !== "string" ||
+        !(artifact as { label: string }).label.trim() ||
+        typeof (artifact as { required?: unknown }).required !== "boolean"
+      ) {
+        return "Outcome artifacts are invalid.";
+      }
+    }
+  }
+  if (value.modelRequirements !== undefined) {
+    const model = value.modelRequirements as {
+      capabilities?: unknown;
+      requireVerified?: unknown;
+    };
+    if (
+      !model ||
+      typeof model !== "object" ||
+      !Array.isArray(model.capabilities) ||
+      !model.capabilities.length ||
+      model.capabilities.some(
+        (capability) =>
+          ![
+            "research",
+            "writing",
+            "reasoning",
+            "tool-use",
+            "long-context",
+          ].includes(String(capability)),
+      ) ||
+      typeof model.requireVerified !== "boolean"
+    ) {
+      return "Model requirements are invalid.";
+    }
+  }
+  return null;
+}
+
+function createRecipeInputError(
+  input: CreateAssistantRecipeInput,
+): string | null {
+  if (!input || typeof input !== "object")
+    return "Assistant recipe input is required.";
+  for (const [key, max] of [
+    ["name", 200],
+    ["job", 5_000],
+    ["inputs", 5_000],
+    ["output", 5_000],
+  ] as const) {
+    const value = input[key];
+    if (typeof value !== "string" || !value.trim() || value.length > max)
+      return `${key} is invalid.`;
+  }
+  if (!RECIPE_KINDS.has(String(input.kind)))
+    return "Assistant kind is invalid.";
+  if (!Array.isArray(input.allowedActions) || !input.allowedActions.length)
+    return "Pick at least one allowed action.";
+  if (input.allowedActions.some((action) => !RECIPE_ACTIONS.has(action)))
+    return "Assistant actions are invalid.";
+  if (
+    input.reviewMode !== undefined &&
+    input.reviewMode !== "review-first" &&
+    input.reviewMode !== "auto-apply"
+  ) {
+    return "Review mode is invalid.";
+  }
+  if (!validOptionalText(input.description, 2_000))
+    return "Assistant description is invalid.";
+  if (!validOptionalText(input.outcomeKitId, 160))
+    return "Outcome Kit id is invalid.";
+  if (
+    input.schedule !== undefined &&
+    (!input.schedule || typeof input.schedule !== "object")
+  ) {
+    return "Schedule is invalid.";
+  }
+  return recipeOutcomeFieldError(input);
+}
+
+function recipePatchError(patch: AssistantRecipePatch): string | null {
+  if (!patch || typeof patch !== "object")
+    return "Assistant recipe patch is required.";
+  const unsupported = Object.keys(patch).find(
+    (key) => !RECIPE_PATCH_KEYS.has(key),
+  );
+  if (unsupported) return `${unsupported} cannot be changed.`;
+  for (const [key, max] of [
+    ["name", 200],
+    ["description", 2_000],
+    ["job", 5_000],
+    ["inputs", 5_000],
+    ["output", 5_000],
+  ] as const) {
+    if (!validOptionalText(patch[key], max)) return `${key} is invalid.`;
+  }
+  if (patch.enabled !== undefined && typeof patch.enabled !== "boolean")
+    return "enabled must be boolean.";
+  if (
+    patch.reviewMode !== undefined &&
+    patch.reviewMode !== "review-first" &&
+    patch.reviewMode !== "auto-apply"
+  ) {
+    return "Review mode is invalid.";
+  }
+  if (
+    patch.allowedActions !== undefined &&
+    (!Array.isArray(patch.allowedActions) ||
+      !patch.allowedActions.length ||
+      patch.allowedActions.some((action) => !RECIPE_ACTIONS.has(action)))
+  ) {
+    return "Assistant actions are invalid.";
+  }
+  if (
+    patch.schedule !== undefined &&
+    (!patch.schedule || typeof patch.schedule !== "object")
+  ) {
+    return "Schedule is invalid.";
+  }
+  return recipeOutcomeFieldError(patch);
+}
+
 function normalizeReviewMode(
   actions: AssistantRecipeAction[],
   requested: AssistantRecipe["reviewMode"] | undefined,
@@ -133,15 +346,27 @@ function isRun(value: unknown): value is AssistantRecipeRunRecord {
   );
 }
 
+function normalizeRun(run: AssistantRecipeRunRecord): AssistantRecipeRunRecord {
+  return {
+    ...run,
+    activeWorkRunId: run.activeWorkRunId || "",
+    prompt: run.prompt || "",
+  };
+}
+
 function readStore(profile?: string): AssistantRecipe[] {
   const file = recipesPath(profile);
   if (!existsSync(file)) return [];
   try {
     const parsed = JSON.parse(readFileSync(file, "utf-8")) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isRecipe);
-  } catch {
-    return [];
+    if (!Array.isArray(parsed)) throw new Error("store root is not an array");
+    if (!parsed.every(isRecipe))
+      throw new Error("store contains an invalid recipe");
+    return parsed;
+  } catch (error) {
+    throw new Error(
+      `Assistant recipes could not be read: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -156,10 +381,16 @@ function readRuns(profile?: string): AssistantRecipeRunRecord[] {
     return readFileSync(file, "utf-8")
       .split(/\r?\n/)
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as unknown)
-      .filter(isRun);
-  } catch {
-    return [];
+      .map((line, index) => {
+        const parsed = JSON.parse(line) as unknown;
+        if (!isRun(parsed))
+          throw new Error(`run history row ${index + 1} is invalid`);
+        return normalizeRun(parsed);
+      });
+  } catch (error) {
+    throw new Error(
+      `Assistant recipe history could not be read: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -221,6 +452,22 @@ function buildSkillBody(input: CreateAssistantRecipeInput): string {
     "",
     "## Output",
     input.output.trim(),
+    ...(input.outcome
+      ? [
+          "",
+          "## Outcome contract",
+          input.outcome.trim(),
+          ...(input.outcomeCriteria?.length
+            ? [
+                "",
+                "Success criteria:",
+                ...input.outcomeCriteria.map(
+                  (criterion) => `- ${criterion.text}`,
+                ),
+              ]
+            : []),
+        ]
+      : []),
     "",
     "## Allowed actions",
     actions,
@@ -245,6 +492,24 @@ function buildRunPrompt(recipe: AssistantRecipe, userInput?: string): string {
     "",
     "Expected output:",
     recipe.output,
+    ...(recipe.outcome
+      ? [
+          "",
+          "Outcome to achieve:",
+          recipe.outcome,
+          "",
+          "Success criteria:",
+          ...(recipe.outcomeCriteria ?? []).map(
+            (criterion) => `- ${criterion.text}`,
+          ),
+          "",
+          "Required deliverables:",
+          ...(recipe.outcomeArtifacts ?? []).map(
+            (artifact) =>
+              `- ${artifact.label} (${artifact.kind})${artifact.required ? " [required]" : ""}`,
+          ),
+        ]
+      : []),
     "",
     `Review mode: ${recipe.reviewMode === "auto-apply" ? "auto-apply if safe" : "review-first"}.`,
     extra ? `\nUser request:\n${extra}` : "",
@@ -261,6 +526,12 @@ function resultTextFromAssistant(result: unknown): string {
     if (Array.isArray(r.reply)) return r.reply.map(String).join("\n");
   }
   return JSON.stringify(result ?? "Assistant finished.", null, 2);
+}
+
+function errorFromAssistant(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null;
+  const error = (result as { error?: unknown }).error;
+  return typeof error === "string" && error.trim() ? error.trim() : null;
 }
 
 function buildRecipeResultMarkdown(run: AssistantRecipeRunRecord): string {
@@ -342,21 +613,24 @@ async function createPairedCron(
 ): Promise<string | undefined> {
   const schedule = recipe.schedule;
   if (!schedule?.enabled) return schedule?.cronJobId;
-  try {
-    const name = `assistant-recipe:${recipe.id}`;
-    const res = await createCronJob(
-      cronExprFor(schedule.cadence, schedule.hour),
-      buildAssistantCronPrompt(recipe),
-      name,
-      "local",
-      profile,
-    );
-    if (!res.success) return undefined;
-    const jobs = await listCronJobs(true, profile);
-    return [...jobs].reverse().find((job) => job.name === name)?.id;
-  } catch {
-    return undefined;
+  const name = `assistant-recipe:${recipe.id}`;
+  const res = await createCronJob(
+    cronExprFor(schedule.cadence, schedule.hour),
+    buildAssistantCronPrompt(recipe),
+    name,
+    "local",
+    profile,
+  );
+  if (!res.success) {
+    throw new Error(res.error || "Could not create the paired cron job.");
   }
+  const jobs = await listCronJobs(true, profile);
+  const id = [...jobs].reverse().find((job) => job.name === name)?.id;
+  if (!id)
+    throw new Error(
+      "The paired cron job was created but could not be verified.",
+    );
+  return id;
 }
 
 async function syncSchedule(
@@ -368,11 +642,9 @@ async function syncSchedule(
   if (!schedule) return recipe;
   if (!schedule.enabled) {
     if (previous?.cronJobId) {
-      try {
-        await pauseCronJob(previous.cronJobId, profile);
-      } catch {
-        /* best-effort */
-      }
+      const paused = await pauseCronJob(previous.cronJobId, profile);
+      if (!paused.success)
+        throw new Error(paused.error || "Could not pause the paired cron job.");
     }
     return {
       ...recipe,
@@ -383,22 +655,28 @@ async function syncSchedule(
     previous?.cronJobId &&
     (previous.cadence !== schedule.cadence || previous.hour !== schedule.hour);
   if (changed && previous?.cronJobId) {
-    try {
-      await removeCronJob(previous.cronJobId, profile);
-    } catch {
-      /* best-effort */
+    const replacementId = await createPairedCron(recipe, profile);
+    if (!replacementId)
+      throw new Error("Could not create the replacement cron job.");
+    const removed = await removeCronJob(previous.cronJobId, profile);
+    if (!removed.success) {
+      await removeCronJob(replacementId, profile);
+      throw new Error(
+        removed.error || "Could not replace the paired cron job.",
+      );
     }
+    return {
+      ...recipe,
+      schedule: { ...schedule, cronJobId: replacementId },
+    };
   } else if (previous?.cronJobId) {
-    try {
-      await resumeCronJob(previous.cronJobId, profile);
-    } catch {
-      /* best-effort */
-    }
+    const resumed = await resumeCronJob(previous.cronJobId, profile);
+    if (!resumed.success)
+      throw new Error(resumed.error || "Could not resume the paired cron job.");
   }
-  const cronJobId =
-    !changed && previous?.cronJobId
-      ? previous.cronJobId
-      : await createPairedCron(recipe, profile);
+  const cronJobId = previous?.cronJobId
+    ? previous.cronJobId
+    : await createPairedCron(recipe, profile);
   return { ...recipe, schedule: { ...schedule, cronJobId } };
 }
 
@@ -438,6 +716,8 @@ function createRunRecord({
   error,
   startedAt,
   trigger,
+  activeWorkRunId,
+  prompt,
 }: {
   recipe: AssistantRecipe;
   input: string;
@@ -446,12 +726,16 @@ function createRunRecord({
   error?: string;
   startedAt: number;
   trigger: AssistantRecipeRunRecord["trigger"];
+  activeWorkRunId: string;
+  prompt: string;
 }): AssistantRecipeRunRecord {
   return {
     id: newId("arr"),
+    activeWorkRunId,
     recipeId: recipe.id,
     recipeName: recipe.name,
     input,
+    prompt,
     resultText,
     status,
     error,
@@ -477,6 +761,8 @@ export async function createAssistantRecipe(
   input: CreateAssistantRecipeInput,
   profile?: string,
 ): Promise<AssistantRecipeResult> {
+  const inputError = createRecipeInputError(input);
+  if (inputError) return { ok: false, error: inputError };
   const name = input.name.trim();
   const job = input.job.trim();
   const inputs = input.inputs.trim();
@@ -535,10 +821,25 @@ export async function createAssistantRecipe(
     skillPath: created.path,
     enabled: true,
     schedule: input.schedule,
+    outcomeKitId: input.outcomeKitId,
+    outcome: input.outcome?.trim(),
+    outcomeCriteria: input.outcomeCriteria,
+    outcomeArtifacts: input.outcomeArtifacts,
+    modelRequirements: input.modelRequirements,
     createdAt: ts,
     updatedAt: ts,
   };
-  recipe = await syncSchedule(recipe, undefined, profile);
+  try {
+    recipe = await syncSchedule(recipe, undefined, profile);
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not enable the schedule.",
+    };
+  }
   const recipes = readStore(profile);
   writeStore([recipe, ...recipes], profile);
   return { ok: true, recipe };
@@ -549,6 +850,8 @@ export async function updateAssistantRecipe(
   patch: AssistantRecipePatch,
   profile?: string,
 ): Promise<AssistantRecipeResult> {
+  const patchError = recipePatchError(patch);
+  if (patchError) return { ok: false, error: patchError };
   const recipes = readStore(profile);
   const recipe = recipes.find((r) => r.id === id);
   if (!recipe) return { ok: false, error: "Assistant recipe not found." };
@@ -558,7 +861,6 @@ export async function updateAssistantRecipe(
   );
   const next: AssistantRecipe = {
     ...recipe,
-    ...patch,
     name: patch.name?.trim() || recipe.name,
     description:
       patch.description !== undefined
@@ -574,19 +876,34 @@ export async function updateAssistantRecipe(
     ),
     enabled: patch.enabled ?? recipe.enabled,
     schedule: patch.schedule ?? recipe.schedule,
+    outcome: patch.outcome ?? recipe.outcome,
+    outcomeCriteria: patch.outcomeCriteria ?? recipe.outcomeCriteria,
+    outcomeArtifacts: patch.outcomeArtifacts ?? recipe.outcomeArtifacts,
+    modelRequirements: patch.modelRequirements ?? recipe.modelRequirements,
     updatedAt: nowSeconds(),
   };
   const scheduleError = validateSchedule(next, next.schedule);
   if (scheduleError) return { ok: false, error: scheduleError };
-  const synced = await syncSchedule(next, recipe.schedule, profile);
+  let synced: AssistantRecipe;
+  try {
+    synced = await syncSchedule(next, recipe.schedule, profile);
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not update the schedule.",
+    };
+  }
   writeStore(replaceRecipe(recipes, synced), profile);
   return { ok: true, recipe: synced };
 }
 
-export function deleteAssistantRecipe(
+export async function deleteAssistantRecipe(
   id: string,
   profile?: string,
-): AssistantRecipeResult {
+): Promise<AssistantRecipeResult> {
   const recipes = readStore(profile);
   const recipe = recipes.find((r) => r.id === id);
   const next = recipes.filter((r) => r.id !== id);
@@ -594,7 +911,13 @@ export function deleteAssistantRecipe(
     return { ok: false, error: "Assistant recipe not found." };
   }
   if (recipe?.schedule?.cronJobId) {
-    void removeCronJob(recipe.schedule.cronJobId, profile).catch(() => {});
+    const removed = await removeCronJob(recipe.schedule.cronJobId, profile);
+    if (!removed.success) {
+      return {
+        ok: false,
+        error: removed.error || "Could not remove the paired cron job.",
+      };
+    }
   }
   writeStore(next, profile);
   return { ok: true, recipes: next };
@@ -615,6 +938,41 @@ export async function runAssistantRecipe(
   const input = userInput?.trim() || "";
   const prompt = buildRunPrompt(recipe, input);
   const startedAt = Date.now();
+  const clientRunId =
+    trigger === "scheduled" && recipe.schedule
+      ? `assistant-recipe:${recipe.id}:${periodKey(recipe.schedule.cadence, new Date(startedAt))}`
+      : undefined;
+  const active = await createActiveWorkRun(
+    {
+      source: "assistant-recipe",
+      trigger,
+      reviewPolicy: recipe.reviewMode,
+      title: recipe.name,
+      goal: recipe.outcome || recipe.job,
+      criteria: recipe.outcomeCriteria?.length
+        ? recipe.outcomeCriteria.map((criterion) => ({ text: criterion.text }))
+        : [{ text: `Produce ${recipe.output}` }],
+      expectedArtifacts: recipe.outcomeArtifacts?.length
+        ? recipe.outcomeArtifacts
+        : [{ kind: "text", label: recipe.output, required: true }],
+      clientRunId,
+    },
+    profile,
+  );
+  if (clientRunId) {
+    const existing = readRuns(profile).find(
+      (run) => run.activeWorkRunId === active.id,
+    );
+    if (existing) {
+      return {
+        ok: existing.status === "success",
+        recipe,
+        run: existing,
+        prompt,
+        ...(existing.error ? { error: existing.error } : {}),
+      };
+    }
+  }
   try {
     const result = await spsAssistant(
       prompt,
@@ -622,7 +980,44 @@ export async function runAssistantRecipe(
       profile,
       recipe.allowedActions.includes("read_workspace"),
     );
+    const assistantError = errorFromAssistant(result);
+    if (assistantError) throw new Error(assistantError);
     const resultText = resultTextFromAssistant(result);
+    if (!resultText.trim() || /^\[SILENT\]/i.test(resultText.trim())) {
+      throw new Error(
+        "Assistant recipe returned no usable output (empty or [SILENT]).",
+      );
+    }
+    const completedAt = Date.now();
+    const artifact = {
+      id: newId("artifact"),
+      kind: "text" as const,
+      label: recipe.output,
+      ref: resultText.slice(0, 500),
+      createdAt: completedAt,
+    };
+    await updateActiveWorkRun(
+      active.id,
+      {
+        status:
+          recipe.reviewMode === "auto-apply" ? "completed" : "awaiting-review",
+        criteria: active.criteria.map((criterion) => ({
+          ...criterion,
+          done: true,
+          evidence: {
+            summary: "The assistant produced the declared recipe output.",
+            artifactId: artifact.id,
+            verifiedAt: completedAt,
+            verifiedBy: "system" as const,
+          },
+        })),
+        artifacts: [artifact],
+        summary: resultText.slice(0, 500),
+        completedAt:
+          recipe.reviewMode === "auto-apply" ? completedAt : undefined,
+      },
+      profile,
+    );
     const run = appendRun(
       createRunRecord({
         recipe,
@@ -631,9 +1026,30 @@ export async function runAssistantRecipe(
         status: "success",
         startedAt,
         trigger,
+        activeWorkRunId: active.id,
+        prompt,
       }),
       profile,
     );
+    const updatedActive = await getActiveWorkRun(active.id, profile);
+    if (updatedActive) {
+      await updateActiveWorkRun(
+        active.id,
+        {
+          artifacts: [
+            ...updatedActive.artifacts,
+            {
+              id: newId("artifact"),
+              kind: "transcript",
+              label: "Recipe run transcript",
+              ref: run.id,
+              createdAt: Date.now(),
+            },
+          ],
+        },
+        profile,
+      );
+    }
     const next = {
       ...recipe,
       lastRunAt: nowSeconds(),
@@ -653,7 +1069,27 @@ export async function runAssistantRecipe(
         error,
         startedAt,
         trigger,
+        activeWorkRunId: active.id,
+        prompt,
       }),
+      profile,
+    );
+    await updateActiveWorkRun(
+      active.id,
+      {
+        status: "failed",
+        error,
+        completedAt: Date.now(),
+        artifacts: [
+          {
+            id: newId("artifact"),
+            kind: "transcript",
+            label: "Failed recipe run transcript",
+            ref: run.id,
+            createdAt: Date.now(),
+          },
+        ],
+      },
       profile,
     );
     return { ok: false, recipe, run, prompt, error };
@@ -699,6 +1135,27 @@ export async function saveAssistantRecipeRun(
     { ...run, savedProposalId: proposal.id, savedPageId: pageId },
     profile,
   );
+  if (run.activeWorkRunId) {
+    const active = await getActiveWorkRun(run.activeWorkRunId, profile);
+    if (active) {
+      await updateActiveWorkRun(
+        active.id,
+        {
+          artifacts: [
+            ...active.artifacts,
+            {
+              id: newId("artifact"),
+              kind: "proposal",
+              label: "Workspace proposal",
+              ref: proposal.id,
+              createdAt: Date.now(),
+            },
+          ],
+        },
+        profile,
+      );
+    }
+  }
   return { ok: true, run: saved, proposalId: proposal.id, pageId };
 }
 
@@ -712,9 +1169,37 @@ export function listAssistantRecipeRunsResult(
 async function saveScheduledRun(
   run: AssistantRecipeRunRecord,
   profile?: string,
-): Promise<void> {
-  if (run.status !== "success") return;
-  await saveAssistantRecipeRun(run.id, profile);
+): Promise<AssistantRecipeSaveRunResult> {
+  if (run.status !== "success") {
+    return { ok: false, error: run.error || "Assistant run failed." };
+  }
+  try {
+    const saved = await saveAssistantRecipeRun(run.id, profile);
+    if (!saved.ok && run.activeWorkRunId) {
+      await updateActiveWorkRun(
+        run.activeWorkRunId,
+        {
+          status: "failed",
+          error: saved.error || "Scheduled result could not be saved.",
+        },
+        profile,
+      );
+    }
+    return saved;
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Scheduled result could not be saved.";
+    if (run.activeWorkRunId) {
+      await updateActiveWorkRun(
+        run.activeWorkRunId,
+        { status: "failed", error: message, completedAt: Date.now() },
+        profile,
+      );
+    }
+    return { ok: false, error: message };
+  }
 }
 
 async function runDueAssistantRecipes(
@@ -733,17 +1218,23 @@ async function runDueAssistantRecipes(
       profile,
       "scheduled",
     );
-    if (result.run) await saveScheduledRun(result.run, profile);
+    const saved = result.run
+      ? await saveScheduledRun(result.run, profile)
+      : {
+          ok: false,
+          error: result.error || "Scheduled assistant did not produce a run.",
+        };
     stampScheduleRun(recipe.id, { lastRunAt: Date.now() }, profile);
     getWindow?.()?.webContents.send("assistant-recipe-update", {
       recipeId: recipe.id,
       recipeName: recipe.name,
-      saved: result.run?.status === "success",
+      saved: saved.ok,
+      ...(!saved.ok ? { error: saved.error } : {}),
     });
   }
 }
 
-async function drainAssistantRecipeCronRuns(
+export async function drainAssistantRecipeCronRuns(
   getWindow?: () => BrowserWindow | null,
   profile?: string,
 ): Promise<void> {
@@ -780,7 +1271,88 @@ async function drainAssistantRecipeCronRuns(
         continue;
       }
       const resultText = parseCronOutput(text);
-      if (!resultText) continue;
+      const clientRunId = `assistant-recipe:${recipe.id}:${item.name}:${item.mtime}`;
+      const active = await createActiveWorkRun(
+        {
+          source: "assistant-recipe",
+          trigger: "cron",
+          reviewPolicy: recipe.reviewMode,
+          title: recipe.name,
+          goal: recipe.job,
+          clientRunId,
+          criteria: [{ text: `Produce ${recipe.output}` }],
+          expectedArtifacts: [
+            { kind: "text", label: recipe.output, required: true },
+          ],
+        },
+        profile,
+      );
+      const existingRun = readRuns(profile).find(
+        (run) => run.activeWorkRunId === active.id,
+      );
+      if (existingRun) {
+        const saved = await saveScheduledRun(existingRun, profile);
+        stampScheduleRun(
+          recipe.id,
+          { lastRunAt: Date.now(), lastDrainedAt: item.mtime },
+          profile,
+        );
+        getWindow?.()?.webContents.send("assistant-recipe-update", {
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          saved: saved.ok,
+          ...(!saved.ok ? { error: saved.error } : {}),
+        });
+        continue;
+      }
+      if (!resultText) {
+        const error =
+          "Scheduled recipe returned no usable output (empty or [SILENT]).";
+        const run = appendRun(
+          createRunRecord({
+            recipe,
+            input: "Scheduled cron run.",
+            prompt: buildAssistantCronPrompt(recipe),
+            resultText: text.trim().slice(0, 2_000),
+            status: "error",
+            error,
+            startedAt: item.mtime,
+            trigger: "cron",
+            activeWorkRunId: active.id,
+          }),
+          profile,
+        );
+        await updateActiveWorkRun(
+          active.id,
+          {
+            status: "failed",
+            error,
+            completedAt: Date.now(),
+            artifacts: [
+              {
+                id: newId("artifact"),
+                kind: "transcript",
+                label: "Cron run transcript",
+                ref: run.id,
+                createdAt: Date.now(),
+              },
+            ],
+          },
+          profile,
+        );
+        stampScheduleRun(
+          recipe.id,
+          { lastRunAt: Date.now(), lastDrainedAt: item.mtime },
+          profile,
+        );
+        getWindow?.()?.webContents.send("assistant-recipe-update", {
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          saved: false,
+          error,
+        });
+        continue;
+      }
       const run = appendRun(
         createRunRecord({
           recipe,
@@ -789,10 +1361,51 @@ async function drainAssistantRecipeCronRuns(
           status: "success",
           startedAt: item.mtime,
           trigger: "cron",
+          prompt: buildAssistantCronPrompt(recipe),
+          activeWorkRunId: active.id,
         }),
         profile,
       );
-      await saveScheduledRun(run, profile);
+      const tracked = await getActiveWorkRun(run.activeWorkRunId, profile);
+      if (tracked) {
+        const completedAt = Date.now();
+        const artifact = {
+          id: newId("artifact"),
+          kind: "text" as const,
+          label: recipe.output,
+          ref: resultText.slice(0, 500),
+          createdAt: completedAt,
+        };
+        await updateActiveWorkRun(
+          tracked.id,
+          {
+            status: "awaiting-review",
+            criteria: tracked.criteria.map((criterion) => ({
+              ...criterion,
+              done: true,
+              evidence: {
+                summary: "The scheduled recipe produced its declared output.",
+                artifactId: artifact.id,
+                verifiedAt: completedAt,
+                verifiedBy: "system" as const,
+              },
+            })),
+            artifacts: [
+              artifact,
+              {
+                id: newId("artifact"),
+                kind: "transcript",
+                label: "Cron run transcript",
+                ref: run.id,
+                createdAt: completedAt,
+              },
+            ],
+            summary: resultText.slice(0, 500),
+          },
+          profile,
+        );
+      }
+      const saved = await saveScheduledRun(run, profile);
       stampScheduleRun(
         recipe.id,
         { lastRunAt: Date.now(), lastDrainedAt: item.mtime },
@@ -801,7 +1414,8 @@ async function drainAssistantRecipeCronRuns(
       getWindow?.()?.webContents.send("assistant-recipe-update", {
         recipeId: recipe.id,
         recipeName: recipe.name,
-        saved: true,
+        saved: saved.ok,
+        ...(!saved.ok ? { error: saved.error } : {}),
       });
     }
   }

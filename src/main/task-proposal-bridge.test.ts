@@ -8,8 +8,13 @@ import {
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
+import { vi } from "vitest";
+vi.mock("./owner-delivery", () => ({
+  deliverOwnerEvent: vi.fn(async () => ({ delivered: true })),
+}));
 import { listVaultProposalsIn } from "./vault-review-queue";
 import {
+  drainTaskProposalSpool,
   drainTaskProposalSpoolIn,
   taskProposalInput,
 } from "./task-proposal-bridge";
@@ -93,5 +98,44 @@ describe("task proposal bridge", () => {
         "utf-8",
       ),
     ).toBe("{bad");
+  });
+
+  it("records externally-triggered proposals as reviewable outcome runs", async () => {
+    const root = tempRoot();
+    const originalHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = root;
+    try {
+      const inbox = join(root, "sps-agent", "task-proposals", "inbox");
+      mkdirSync(inbox, { recursive: true });
+      writeFileSync(
+        join(inbox, "one.json"),
+        JSON.stringify({
+          requestId: "email-123",
+          title: "Review supplier quote",
+          source: "email",
+        }),
+      );
+
+      const result = await drainTaskProposalSpool("default");
+
+      expect(result.created).toHaveLength(1);
+      const { listActiveWorkRuns } = await import("./active-work-runs");
+      const active = await listActiveWorkRuns("default");
+      expect(active[0]).toMatchObject({
+        source: "proposal-triggered",
+        trigger: "external",
+        status: "awaiting-review",
+      });
+      expect(active[0].criteria[0]).toMatchObject({ done: true });
+      expect(active[0].artifacts).toEqual([
+        expect.objectContaining({
+          kind: "proposal",
+          ref: result.created[0].id,
+        }),
+      ]);
+    } finally {
+      if (originalHome === undefined) delete process.env.HERMES_HOME;
+      else process.env.HERMES_HOME = originalHome;
+    }
   });
 });

@@ -136,7 +136,7 @@ export const configBridge = {
   /** Resolve a pending command-approval request (idea B1). */
   respondApproval: (
     runId: string,
-    choice: "once" | "session" | "always" | "deny",
+    choice: "once" | "deny",
     profile?: string,
   ): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke("respond-approval", runId, choice, profile),
@@ -146,6 +146,14 @@ export const configBridge = {
     ipcRenderer.invoke("get-auto-approve", profile),
   setAutoApprove: (enabled: boolean, profile?: string): Promise<void> =>
     ipcRenderer.invoke("set-auto-approve", enabled, profile),
+  getAutonomyMode: (
+    profile?: string,
+  ): Promise<import("../../shared/autonomy-policy").AutonomyMode> =>
+    ipcRenderer.invoke("get-autonomy-mode", profile),
+  setAutonomyMode: (
+    mode: import("../../shared/autonomy-policy").AutonomyMode,
+    profile?: string,
+  ): Promise<void> => ipcRenderer.invoke("set-autonomy-mode", mode, profile),
   /** Completion-chime toggle (M2C). */
   getCompletionSound: (): Promise<boolean> =>
     ipcRenderer.invoke("get-completion-sound"),
@@ -272,7 +280,9 @@ export const configBridge = {
       councilGroupId,
     ),
 
-  abortChat: (sessionIdOrRunId?: string): Promise<void> =>
+  abortChat: (
+    sessionIdOrRunId?: string,
+  ): Promise<{ stopped: boolean; sessionKey: string }> =>
     ipcRenderer.invoke("abort-chat", sessionIdOrRunId),
 
   getApiServerKeyStatus: (profile?: string): Promise<{ hasKey: boolean }> =>

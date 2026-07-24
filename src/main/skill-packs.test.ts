@@ -26,6 +26,7 @@ vi.mock("./capability-risk-store", () => ({
 }));
 
 vi.mock("./utils", () => ({
+  getActiveProfileNameSync: () => "default",
   profileHome: () => TEST_HOME,
   safeWriteFile: (filePath: string, content: string) => {
     /* eslint-disable @typescript-eslint/no-require-imports */
@@ -60,6 +61,45 @@ const PACK = {
       files: { "helper.py": "print('hi')\n" },
     },
   ],
+};
+
+const OUTCOME_KIT = {
+  contractVersion: 1,
+  kitId: "workspace-engine",
+  title: "Workspace Engine Outcome Kit",
+  version: 1,
+  outcome: "Produce a reviewable workspace briefing.",
+  inputs: [{ id: "topic", label: "Topic", required: true }],
+  artifacts: [{ kind: "text", label: "Briefing", required: true }],
+  criteria: [
+    { id: "complete", text: "The briefing covers the requested topic." },
+  ],
+  dependencies: {
+    skills: ["workspace-engine/sps-workspace-layout"],
+    connectors: [],
+    model: { capabilities: ["writing"], requireVerified: false },
+  },
+  recipe: {
+    name: "Workspace briefing",
+    kind: "custom",
+    description: "Prepare a workspace briefing.",
+    job: "Prepare a briefing.",
+    inputs: "A topic.",
+    output: "A briefing.",
+    allowedActions: ["read_workspace", "draft_content"],
+  },
+  reviewPolicy: "review-first",
+  risk: { mode: "INTERACTIVE", classes: ["READ"] },
+  triggerTemplates: ["manual"],
+  evalFixtures: [
+    {
+      id: "basic",
+      input: "Project status",
+      expectedCriteria: ["complete"],
+      expectedArtifactKinds: ["text"],
+    },
+  ],
+  provenance: { publisher: "Fathah Hermes" },
 };
 
 function writePack(payload: unknown, name = "pack.json"): string {
@@ -174,6 +214,24 @@ describe("importSkillPack", () => {
     const result = importSkillPack(writePack({ packId: "x" }));
     expect(result.ok).toBe(false);
     expect(result.imported).toEqual([]);
+  });
+
+  it("registers Outcome Kit content even when its skills are already installed", () => {
+    listInstalledSkillsMock.mockReturnValue([
+      { name: "sps-workspace-layout", category: "workspace-engine" },
+      { name: "sps-inbox-workflows", category: "workspace-engine" },
+    ]);
+    const result = importSkillPack(
+      writePack({ ...PACK, outcomeKit: OUTCOME_KIT }, "outcome-pack.json"),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.imported).toEqual([]);
+    expect(result.outcomeKitRegistered).toBe(true);
+    const stored = JSON.parse(
+      readFileSync(join(TEST_HOME, "sps-agent", "outcome-kits.json"), "utf-8"),
+    );
+    expect(stored[0].kit.kitId).toBe("workspace-engine");
+    expect(stored[0].recipeId).toBeUndefined();
   });
 });
 

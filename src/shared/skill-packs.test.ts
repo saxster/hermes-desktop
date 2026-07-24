@@ -97,6 +97,53 @@ describe("validateSkillPack", () => {
       }).ok,
     ).toBe(false);
   });
+
+  it("validates an Outcome Kit inside the skill pack and requires matching ids", () => {
+    const base = goodPack();
+    const outcomeKit = {
+      contractVersion: 1,
+      kitId: base.packId,
+      title: "Workspace Outcome Kit",
+      version: 1,
+      outcome: "Produce a workspace brief.",
+      inputs: [{ id: "topic", label: "Topic", required: true }],
+      artifacts: [{ kind: "text", label: "Brief", required: true }],
+      criteria: [{ id: "complete", text: "The brief is complete." }],
+      dependencies: {
+        skills: [],
+        connectors: [],
+        model: { capabilities: ["writing"], requireVerified: false },
+      },
+      recipe: {
+        name: "Workspace brief",
+        kind: "custom",
+        description: "Prepare a brief.",
+        job: "Prepare a brief.",
+        inputs: "A topic.",
+        output: "A brief.",
+        allowedActions: ["read_workspace", "draft_content"],
+      },
+      reviewPolicy: "review-first",
+      risk: { mode: "INTERACTIVE", classes: ["READ"] },
+      triggerTemplates: ["manual"],
+      evalFixtures: [
+        {
+          id: "basic",
+          input: "Status",
+          expectedCriteria: ["complete"],
+          expectedArtifactKinds: ["text"],
+        },
+      ],
+      provenance: { publisher: "Fathah Hermes" },
+    };
+    expect(validateSkillPack({ ...base, outcomeKit }).ok).toBe(true);
+    expect(
+      validateSkillPack({
+        ...base,
+        outcomeKit: { ...outcomeKit, kitId: "different" },
+      }).errors,
+    ).toContain("outcomeKit.kitId must match packId");
+  });
 });
 
 describe("skillPackSkillToMarkdown", () => {

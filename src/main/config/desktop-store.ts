@@ -28,6 +28,7 @@ import {
   type EngineCapabilityState,
 } from "../../shared/engine-capabilities";
 import type { EngineContractVerificationResult } from "../../shared/engine-contract";
+import type { AutonomyMode } from "../../shared/autonomy-policy";
 
 // `desktop.json` — app-level, desktop-owned config (connection mode, encrypted
 // remote/api-server keys, and the desktop-enforced UX toggles below).
@@ -104,29 +105,61 @@ export function migrateDesktopConfigSecrets(): void {
 // here (not config.yaml) because they are enforced by the desktop main process,
 // not the gateway, and because setConfigValue silently drops new nested YAML keys.
 
-/** Scoped auto-approve: let the desktop auto-resolve provably-safe, read-only
- *  command approvals (see autonomy.ts). PER-PROFILE (different profiles carry
- *  different risk), keyed by the resolved profile name in desktop.json. Default
- *  OFF — opt-in only. Resolving undefined → active profile keeps the key stable
- *  between the Settings UI (passes a name) and the chat path (often passes none). */
+/** Per-profile autonomy mode. Proven-safe reads are allowed in every mode;
+ *  this setting governs what happens to consequential or unclassified actions.
+ *  Resolving undefined → active profile keeps the key stable between Settings
+ *  (passes a name) and chat (often passes none). */
 function autoApproveKey(profile?: string): string {
   return profile || getActiveProfileNameSync();
 }
+const AUTONOMY_MODES = new Set<AutonomyMode>([
+  "READ_ONLY",
+  "INTERACTIVE",
+  "SCOPED_AUTOMATION",
+]);
+
+export function getAutonomyMode(profile?: string): AutonomyMode {
+  const data = readDesktopConfig();
+  const map = data.autonomyModeByProfile;
+  const value =
+    map && typeof map === "object"
+      ? (map as Record<string, unknown>)[autoApproveKey(profile)]
+      : undefined;
+  if (AUTONOMY_MODES.has(value as AutonomyMode)) return value as AutonomyMode;
+  const legacy = data.autoApproveByProfile;
+  return legacy &&
+    typeof legacy === "object" &&
+    (legacy as Record<string, unknown>)[autoApproveKey(profile)] === true
+    ? "SCOPED_AUTOMATION"
+    : "INTERACTIVE";
+}
+
+export function setAutonomyMode(mode: AutonomyMode, profile?: string): void {
+  if (!AUTONOMY_MODES.has(mode)) throw new Error("Unsupported autonomy mode.");
+  const data = readDesktopConfig();
+  const key = autoApproveKey(profile);
+  const existingModes = data.autonomyModeByProfile;
+  const modes: Record<string, AutonomyMode> =
+    existingModes && typeof existingModes === "object"
+      ? (existingModes as Record<string, AutonomyMode>)
+      : {};
+  modes[key] = mode;
+  data.autonomyModeByProfile = modes;
+  const existingLegacy = data.autoApproveByProfile;
+  const legacy: Record<string, boolean> =
+    existingLegacy && typeof existingLegacy === "object"
+      ? (existingLegacy as Record<string, boolean>)
+      : {};
+  legacy[key] = mode === "SCOPED_AUTOMATION";
+  data.autoApproveByProfile = legacy;
+  writeDesktopConfig(data);
+}
+
 export function getAutoApprove(profile?: string): boolean {
-  const map = readDesktopConfig().autoApproveByProfile;
-  if (!map || typeof map !== "object") return false;
-  return (map as Record<string, unknown>)[autoApproveKey(profile)] === true;
+  return getAutonomyMode(profile) === "SCOPED_AUTOMATION";
 }
 export function setAutoApprove(enabled: boolean, profile?: string): void {
-  const data = readDesktopConfig();
-  const existing = data.autoApproveByProfile;
-  const map: Record<string, boolean> =
-    existing && typeof existing === "object"
-      ? (existing as Record<string, boolean>)
-      : {};
-  map[autoApproveKey(profile)] = enabled;
-  data.autoApproveByProfile = map;
-  writeDesktopConfig(data);
+  setAutonomyMode(enabled ? "SCOPED_AUTOMATION" : "INTERACTIVE", profile);
 }
 
 const COUNCIL_CONFIG_KEY = "councilConfigByProfile";

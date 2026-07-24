@@ -13,6 +13,28 @@ const mockExecFile = vi.fn((...args: unknown[]) => {
 const mockUnlinkSync = vi.fn();
 const mockHermesHome = vi.fn(() => "/tmp/hermes-test-home/.hermes");
 const mockGetApiServerKey = vi.fn(() => "desk-auth-token");
+const mockCreateActiveWorkRun = vi.fn(async (..._args: unknown[]) => ({
+  contractVersion: 2,
+  id: "work-cron",
+  source: "cron-job",
+  trigger: "cron",
+  reviewPolicy: "review-first",
+  attempt: 1,
+  status: "running",
+  title: "Cron job",
+  goal: "Run cron job",
+  criteria: [{ id: "crit-1", text: "Produce output", done: false }],
+  expectedArtifacts: [
+    { kind: "transcript", label: "Run transcript", required: true },
+  ],
+  artifacts: [],
+  createdAt: 1,
+  updatedAt: 1,
+}));
+const mockUpdateActiveWorkRun = vi.fn(async (...args: unknown[]) => ({
+  ...(await mockCreateActiveWorkRun()),
+  ...(args[1] as Record<string, unknown>),
+}));
 
 const filesInMemory = new Map<string, string>();
 
@@ -158,6 +180,11 @@ vi.mock("../src/main/cronjobs", () => ({
 
 vi.mock("../src/main/self-healing", () => ({
   triggerSelfHealing: () => {},
+}));
+
+vi.mock("../src/main/active-work-runs", () => ({
+  createActiveWorkRun: (...args: unknown[]) => mockCreateActiveWorkRun(...args),
+  updateActiveWorkRun: (...args: unknown[]) => mockUpdateActiveWorkRun(...args),
 }));
 
 import {

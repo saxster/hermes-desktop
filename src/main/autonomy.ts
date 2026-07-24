@@ -1,15 +1,20 @@
-// autonomy.ts — scoped auto-approve policy for dangerous-command approvals (M2B).
+// autonomy.ts — typed command classification for gateway approvals.
 //
 // The gateway asks the desktop to approve risky operations (hermes.approval.request).
-// "Scoped autonomy" auto-approves ONLY provably-safe, read-only terminal commands
-// and ALWAYS prompts for everything else (writes, deletes, installs, network sends,
-// anything chained/redirected, and any non-terminal tool). This is the deliberately
-// conservative inverse of the article's "YOLO" mode — an ALLOWLIST, not a denylist —
-// because the host machine holds the user's security-guarding and cafe business data.
+// Every mode allows only provably-safe, read-only terminal commands without a
+// prompt. Read-only mode denies everything else; interactive/scoped modes leave
+// consequential requests for the central decision engine and user review. This
+// is an ALLOWLIST, not a denylist, because the host holds sensitive user data.
 //
 // Pure + dependency-free so it is unit-testable; the config gate + the actual
 // approve/deny call live in the IPC layer (index.ts).
 import type { ApprovalRequest } from "./sse-parser";
+import type {
+  AutonomyDecision,
+  AutonomyDecisionInput,
+  AutonomyMode,
+} from "../shared/autonomy-policy";
+import { evaluateAutonomyDecision } from "./autonomy-policy";
 
 // Single, well-known inspection binaries with NO mutating or launching power.
 // `git` is allowed only for the read-only subcommands enumerated below.
@@ -124,12 +129,47 @@ export function isCommandSafe(command: string): boolean {
 }
 
 /**
- * Decide whether a dangerous-command approval request qualifies for scoped
- * auto-approval. Only terminal commands matched by `isCommandSafe` qualify;
+ * Decide whether a dangerous-command approval request is a proven-safe read.
+ * Only terminal commands matched by `isCommandSafe` qualify;
  * a request with no command text (an unknown/structured tool action) can never
  * be proven safe, so it always prompts.
  */
 export function canAutoApprove(req: ApprovalRequest): boolean {
-  if (!req.command) return false;
-  return isCommandSafe(req.command);
+  return evaluateAutonomyDecision(
+    approvalAutonomyInput(req, "SCOPED_AUTOMATION"),
+  ).allowed;
+}
+
+export function approvalAutonomyInput(
+  req: ApprovalRequest,
+  mode: AutonomyMode,
+  runId = req.id,
+): AutonomyDecisionInput {
+  if (!req.command) {
+    return {
+      runId,
+      mode,
+      risk: "UNKNOWN",
+      action: "gateway-approval",
+      toolName: req.toolName,
+    };
+  }
+  const safe = isCommandSafe(req.command);
+  return {
+    runId,
+    mode,
+    risk: safe ? "READ" : "EXEC",
+    action: "gateway-command",
+    toolName: req.toolName || "terminal",
+    command: req.command,
+    provenSafeRead: safe,
+  };
+}
+
+export function automaticApprovalChoice(
+  decision: AutonomyDecision,
+): "once" | "deny" | null {
+  if (decision.allowed) return "once";
+  if (decision.mode === "READ_ONLY" && !decision.needsUser) return "deny";
+  return null;
 }

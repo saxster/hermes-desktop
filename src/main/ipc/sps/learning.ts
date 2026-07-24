@@ -24,6 +24,12 @@ import {
   runLocalExpertChecks,
 } from "../../local-experts/macos-checks";
 import { importSkillPack, previewSkillPack } from "../../skill-packs";
+import {
+  activateOutcomeKit,
+  enableOutcomeKitSchedule,
+  listOutcomeKits,
+  runOutcomeKit,
+} from "../../outcome-kits";
 import type {
   AssistantRecipePatch,
   CreateAssistantRecipeInput,
@@ -226,5 +232,28 @@ export function registerSpsLearningIpc(): void {
         normalizeIpcProfile(profile),
       );
     },
+  );
+  safeHandle("sps-list-outcome-kits", (_event, profile?: string) =>
+    listOutcomeKits(profile),
+  );
+  safeHandle(
+    "sps-activate-outcome-kit",
+    (_event, kitId: string, profile?: string) =>
+      activateOutcomeKit(kitId, profile),
+  );
+  safeHandle(
+    "sps-enable-outcome-kit-schedule",
+    (_event, kitId: string, profile?: string) =>
+      enableOutcomeKitSchedule(kitId, profile),
+  );
+  safeHandle(
+    "sps-run-outcome-kit",
+    (
+      _event,
+      kitId: string,
+      inputs: Record<string, string>,
+      profile?: string,
+      trigger?: "manual" | "scheduled" | "cron" | "proposal" | "external",
+    ) => runOutcomeKit(kitId, inputs, profile, trigger),
   );
 }

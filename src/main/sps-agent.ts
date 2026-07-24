@@ -223,6 +223,9 @@ type AssistantResult = (
   // What the user's own workspace contributed to this reply (drives the trust
   // chip). Attached after validation, omitted when nothing was injected.
   context?: VaultContextUsage;
+  /** Main-process error signal for automation callers. Interactive UI may still
+   * render the friendly reply, but must not mistake it for a deliverable. */
+  error?: string;
 };
 
 interface PageContext {
@@ -549,11 +552,13 @@ export async function spsAssistant(
     };
     return context ? { ...result, context } : result;
   } catch (err) {
+    const error = err instanceof Error ? err.message : "error";
     return {
       kind: "chat",
       reply: [
-        `I couldn't reach My Assistant: ${err instanceof Error ? err.message : "error"}. Make sure the SPS connection service is running and a model is configured.`,
+        `I couldn't reach My Assistant: ${error}. Make sure the SPS connection service is running and a model is configured.`,
       ],
+      error,
     };
   }
 }

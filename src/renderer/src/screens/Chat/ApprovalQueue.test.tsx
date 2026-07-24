@@ -8,7 +8,7 @@ import type { ApprovalState } from "../../lib/approval";
 // waiting on them.
 describe("ApprovalQueue accessibility", () => {
   it("renders nothing when the queue is empty", () => {
-    const state: ApprovalState = { queue: [], safe: [] };
+    const state: ApprovalState = { queue: [] };
     const { container } = render(
       <ApprovalQueue state={state} onRespond={vi.fn()} />,
     );
@@ -20,7 +20,6 @@ describe("ApprovalQueue accessibility", () => {
       queue: [
         { id: "a1", command: "rm -rf build", patternKey: "rm", enqueuedAt: 0 },
       ],
-      safe: [],
     };
     const { getByRole } = render(
       <ApprovalQueue state={state} onRespond={vi.fn()} />,
@@ -31,5 +30,6 @@ describe("ApprovalQueue accessibility", () => {
 
     const card = getByRole("alertdialog");
     expect(card.getAttribute("aria-label")).toContain("rm -rf build");
+    expect(() => getByRole("button", { name: "Always allow" })).toThrow();
   });
 });

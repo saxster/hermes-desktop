@@ -2,6 +2,8 @@ import { ipcRenderer } from "electron";
 import type { CapabilityRiskSummary } from "../../shared/capability-risk";
 import type { ResearchReachStatus } from "../../shared/research-reach";
 import type {
+  AutonomyDecision,
+  AutonomyGrant,
   McpCatalogResult,
   McpOperationResult,
   McpServerInfo,
@@ -85,6 +87,19 @@ export const toolsmiscBridge = {
     profile?: string,
   ): Promise<CapabilityRiskSummary> =>
     ipcRenderer.invoke("capability-risk-review", id, profile),
+  listAutonomyGrants: (
+    includeInactive?: boolean,
+    profile?: string,
+  ): Promise<AutonomyGrant[]> =>
+    ipcRenderer.invoke("autonomy-grants-list", includeInactive, profile),
+  revokeAutonomyGrant: (id: string, profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("autonomy-grant-revoke", id, profile),
+  listAutonomyDecisions: (
+    runId?: string,
+    limit?: number,
+    profile?: string,
+  ): Promise<AutonomyDecision[]> =>
+    ipcRenderer.invoke("autonomy-decisions-list", runId, limit, profile),
 
   // Research Reach
   getResearchReachStatus: (): Promise<ResearchReachStatus> =>

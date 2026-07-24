@@ -1,3 +1,8 @@
+import type {
+  HermesRunEvent,
+  HermesRunResumeSnapshot,
+} from "../../shared/run-events";
+
 export interface MediaBridgeApi {
   readMediaFile: (filePath: string) => Promise<string | null>;
 
@@ -76,6 +81,21 @@ export interface MediaBridgeApi {
 
   onChatError: (
     callback: (error: string, runId?: string) => void,
+  ) => () => void;
+
+  listHermesRunEvents: (
+    runId?: string,
+    limit?: number,
+    profile?: string,
+  ) => Promise<HermesRunEvent[]>;
+
+  getHermesRunResume: (
+    runId: string,
+    profile?: string,
+  ) => Promise<HermesRunResumeSnapshot | null>;
+
+  onHermesRunEvent: (
+    callback: (event: HermesRunEvent, clientRunId?: string) => void,
   ) => () => void;
 
   onChatApprovalRequest: (

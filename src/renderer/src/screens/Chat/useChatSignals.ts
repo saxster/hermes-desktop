@@ -22,7 +22,8 @@ import {
 /**
  * Subscribes to the gateway's approval (B1) and delegation (B3) SSE signals
  * (plumbed through `chat-approval-request` / `chat-delegate-progress`) and keeps
- * their pure reducers. Approvals matching a remembered-safe key are auto-resolved.
+ * their pure reducers. Durable grants are enforced in the main process; this
+ * renderer queue offers only one-time allow or deny.
  *
  * NOTE: these events ride the runs/session-stream channel; the desktop's current
  * `/v1/chat/completions` path does not emit them yet (see plan B0). The wiring is
@@ -55,13 +56,10 @@ export function useChatSignals(profile?: string): {
     const offApproval = onChatApprovalRequest((req) => {
       setApprovals((s) => {
         // Stamp the enqueue time so the countdown (and auto-deny) have a clock.
-        const { state, autoResponse } = enqueueApproval(s, {
+        const { state } = enqueueApproval(s, {
           ...req,
           enqueuedAt: Date.now(),
         });
-        if (autoResponse) {
-          void respondApproval(autoResponse.id, autoResponse.choice, profile);
-        }
         return state;
       });
     });

@@ -11,6 +11,7 @@ import {
 import { Send } from "lucide-react";
 import { WorkspaceAppearanceSettings } from "./WorkspaceAppearanceSettings";
 import { OwnerDeliverySettings } from "./OwnerDeliverySettings";
+import type { AutonomyMode } from "../../../../shared/autonomy-policy";
 
 const TELEGRAM_COMMUNITY_URL = "https://t.me/hermes_agent_desktop";
 
@@ -23,7 +24,8 @@ export function SettingsPreferences({
   const { theme, setTheme } = useTheme();
 
   // Automation prefs (M2): scoped auto-approve + completion chime
-  const [autoApprove, setAutoApproveState] = useState(false);
+  const [autonomyMode, setAutonomyModeState] =
+    useState<AutonomyMode>("INTERACTIVE");
   const [completionSound, setCompletionSoundState] = useState(false);
   const [appZoom, setAppZoom] = useState<AppZoomSettings>(() =>
     appZoomSettingsFor(APP_ZOOM_DEFAULT),
@@ -37,7 +39,7 @@ export function SettingsPreferences({
     setAppZoom(zoomSettings);
 
     // Automation prefs (auto-approve is per-profile; chime is app-level)
-    window.hermesAPI.getAutoApprove(profile).then(setAutoApproveState);
+    window.hermesAPI.getAutonomyMode(profile).then(setAutonomyModeState);
     window.hermesAPI.getCompletionSound().then(setCompletionSoundState);
     window.hermesAPI
       .getConfig("approval.timeout_seconds", profile)
@@ -197,38 +199,35 @@ export function SettingsPreferences({
       <div className="settings-section" data-section-tab="preferences">
         <div className="settings-section-title">Automation</div>
         <div className="settings-field">
-          <label className="settings-field-label">
-            Scoped auto-approve
-            <label
-              className="tools-toggle"
-              style={{ marginLeft: 12, verticalAlign: "middle" }}
-            >
-              <input
-                type="checkbox"
-                checked={autoApprove}
-                onChange={(e) => {
-                  const val = e.target.checked;
-                  setAutoApproveState(val);
-                  window.hermesAPI
-                    .setAutoApprove(val, profile)
-                    .catch((err: unknown) => {
-                      setAutoApproveState(!val);
-                      console.error(
-                        "Failed to save auto-approve setting:",
-                        err,
-                      );
-                    });
-                }}
-              />
-              <span className="tools-toggle-track" />
-            </label>
+          <label className="settings-field-label" htmlFor="autonomy-mode">
+            Autonomy mode
           </label>
+          <select
+            id="autonomy-mode"
+            className="settings-select"
+            value={autonomyMode}
+            onChange={(event) => {
+              const previous = autonomyMode;
+              const mode = event.target.value as AutonomyMode;
+              setAutonomyModeState(mode);
+              window.hermesAPI
+                .setAutonomyMode(mode, profile)
+                .catch((err: unknown) => {
+                  setAutonomyModeState(previous);
+                  console.error("Failed to save autonomy mode:", err);
+                });
+            }}
+          >
+            <option value="READ_ONLY">Read only</option>
+            <option value="INTERACTIVE">Interactive</option>
+            <option value="SCOPED_AUTOMATION">Scoped automation</option>
+          </select>
           <div className="settings-field-hint">
-            Applies to this profile only. Auto-approves just provably-safe,
-            read-only commands (ls, cat, git status, grep…). Writes, deletes,
-            installs, network sends, and anything chained or redirected always
-            ask for your approval. Off by default; turn it off any time to
-            require manual approval again.
+            Applies to this profile only. Read only denies side effects;
+            provably-safe reads are allowed in every mode. Interactive asks
+            before consequential actions. Scoped automation can additionally use
+            exact, expiring run grants. Commands, unknown tools, and ungranted
+            external sends still require review.
           </div>
         </div>
         <div className="settings-field">

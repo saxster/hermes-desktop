@@ -306,7 +306,7 @@ export function MyWorkSurface() {
             ["next", "Next"],
             ["scheduled", "Scheduled"],
             ["delegated", "Delegated"],
-            ["review", "Review"],
+            ["review", "Needs Attention"],
           ].map(([id, label]) => (
             <button
               key={id}

@@ -16,6 +16,86 @@
         "description": "Help process the SPS inbox (email captures, meeting transcripts, quick notes) and turn inbound asks into review-first task proposals.",
         "body": "# SPS inbox workflows\n\nUse this skill when helping the owner process their SPS inbox (`vault/_inbox/`) — triaged email captures, meeting transcripts, quick notes — or when an inbound message asks to create, remember, or follow up on something.\n\n## Reading the inbox\nCaptures are markdown rows with frontmatter: `title`, `source`, `status`, `capturedAt`, plus per-source fields (`emailFrom`, `triageLabel`, `digest`, `captureKind`). Only act on `status: unprocessed` rows unless the owner says otherwise.\n\n## Creating tasks (review-first)\nNever write task rows directly. Run:\n\n`~/.hermes/bin/sps-propose-task --title \"<task>\" --source-message-id \"<stable id>\" [--body \"<context>\"] [--due YYYY-MM-DD] [--priority high|med|low] [--source telegram|email]`\n\nPreserve the owner's words. Include a due date or priority only when the message states one; do not infer. Use a stable, dedupe-safe source message id. The task lands in the AI Review Queue — tell the owner it is awaiting their approval.\n\n## What the desktop already does — do not duplicate\n- IMAP email monitor: scheduled polling, rule+LLM triage, newsletter fold, and a daily 17:00 inbox digest in `vault/digests/`.\n- Inbox card actions: turn an email capture into a routed task, draft a reply (human sends), extract action items from meeting transcripts.\n- Property autofill + contact enrichment proposals for entities.\nYour job in chat: answer questions ABOUT the inbox, summarize threads, draft follow-ups for the owner to review, and propose tasks through the helper — not to re-run those pipelines."
       }
-    ]
+    ],
+    "outcomeKit": {
+      "contractVersion": 1,
+      "kitId": "workspace-engine",
+      "title": "Workspace Briefing Kit",
+      "version": 1,
+      "outcome": "Produce a concise, evidence-linked briefing from the owner's SPS workspace and stop for review.",
+      "inputs": [
+        {
+          "id": "focus",
+          "label": "Briefing focus",
+          "required": true,
+          "description": "The project, question, or time period the briefing should cover."
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "text",
+          "label": "Workspace briefing",
+          "required": true
+        },
+        {
+          "kind": "transcript",
+          "label": "Run transcript",
+          "required": true
+        }
+      ],
+      "criteria": [
+        {
+          "id": "grounded",
+          "text": "Material claims are linked to the workspace pages that support them."
+        },
+        {
+          "id": "actionable",
+          "text": "The briefing separates facts, open questions, and suggested next actions."
+        }
+      ],
+      "dependencies": {
+        "skills": [
+          "workspace-engine/sps-workspace-layout",
+          "workspace-engine/sps-inbox-workflows"
+        ],
+        "connectors": [],
+        "model": {
+          "capabilities": ["writing", "reasoning", "long-context"],
+          "requireVerified": false
+        }
+      },
+      "recipe": {
+        "name": "Workspace briefing",
+        "kind": "morning-briefing",
+        "description": "Summarize selected workspace material with evidence and next actions.",
+        "job": "Read the relevant SPS workspace pages, distinguish source-backed facts from inference, and prepare a concise briefing for the owner.",
+        "inputs": "A required briefing focus plus the relevant markdown pages in the SPS workspace.",
+        "output": "A concise briefing with linked evidence, open questions, and suggested next actions.",
+        "allowedActions": ["read_workspace", "draft_content"]
+      },
+      "reviewPolicy": "review-first",
+      "risk": {
+        "mode": "INTERACTIVE",
+        "classes": ["READ"]
+      },
+      "triggerTemplates": ["manual", "scheduled"],
+      "scheduleTemplate": {
+        "cadence": "weekly",
+        "hour": 8
+      },
+      "evalFixtures": [
+        {
+          "id": "project-status",
+          "input": "Summarize current project status and unresolved decisions.",
+          "expectedCriteria": ["grounded", "actionable"],
+          "expectedArtifactKinds": ["text", "transcript"]
+        }
+      ],
+      "provenance": {
+        "publisher": "Fathah Hermes",
+        "sourceUrl": "docs/ONTOLOGY.md",
+        "sourceDate": "2026-07-24"
+      }
+    }
   }
 }

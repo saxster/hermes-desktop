@@ -366,7 +366,7 @@ function postJson(
 
 export function respondRunApproval(
   runId: string,
-  choice: "once" | "session" | "always" | "deny",
+  choice: "once" | "deny",
   profile?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {

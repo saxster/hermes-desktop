@@ -391,6 +391,25 @@ export interface SpsBridgeApi {
     profile?: string,
   ) => Promise<SkillPackImportResult>;
 
+  spsListOutcomeKits: (profile?: string) => Promise<Api.OutcomeKitSummary[]>;
+
+  spsActivateOutcomeKit: (
+    kitId: string,
+    profile?: string,
+  ) => Promise<Api.OutcomeKitActivationResult>;
+
+  spsEnableOutcomeKitSchedule: (
+    kitId: string,
+    profile?: string,
+  ) => Promise<Api.OutcomeKitActivationResult>;
+
+  spsRunOutcomeKit: (
+    kitId: string,
+    inputs: Record<string, string>,
+    profile?: string,
+    trigger?: "manual" | "scheduled" | "cron" | "proposal" | "external",
+  ) => Promise<Api.AssistantRecipeRunResult>;
+
   spsEnableLocalExpertChecks: (
     packId: string,
     profile?: string,
@@ -443,6 +462,21 @@ export interface SpsBridgeApi {
     patch: Api.ActiveWorkPatch,
     profile?: string,
   ) => Promise<Api.ActiveWorkRun | null>;
+
+  spsListHumanAttention: (
+    options?: Api.HumanAttentionListOptions,
+    profile?: string,
+  ) => Promise<Api.HumanAttentionItem[]>;
+
+  spsResolveHumanAttention: (
+    itemId: string,
+    input: Api.HumanAttentionResolveInput,
+    profile?: string,
+  ) => Promise<Api.HumanAttentionResolveResult>;
+
+  spsHumanAttentionCounts: (
+    profile?: string,
+  ) => Promise<Api.HumanAttentionCounts>;
 
   equityListBaskets: (profile?: string) => Promise<Api.EquityBasket[]>;
 
@@ -952,7 +986,10 @@ export interface SpsBridgeApi {
     profile?: string,
   ) => Promise<{ ok: boolean; error?: string }>;
 
-  srDelete: (id: string, profile?: string) => Promise<{ ok: boolean }>;
+  srDelete: (
+    id: string,
+    profile?: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
 
   srRunNow: (
     id: string,

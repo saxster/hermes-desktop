@@ -17,6 +17,16 @@ export type {
 } from "../shared/owner-delivery";
 export type { UsageAggregate, RunLedgerEntry } from "../shared/usage";
 export type { ActionReceipt } from "../shared/action-receipts";
+export type {
+  HermesRunEvent,
+  HermesRunResumeSnapshot,
+} from "../shared/run-events";
+export type {
+  AutonomyDecision,
+  AutonomyGrant,
+  AutonomyMode,
+  AutonomyRiskClass,
+} from "../shared/autonomy-policy";
 export type { SpsPulse } from "../shared/sps-pulse";
 export type { MemoryTimeline } from "../shared/memoryTimeline";
 export type { MemoryInfo } from "../shared/memory";
@@ -78,6 +88,13 @@ export type {
   ActiveWorkPatch,
   ActiveWorkRun,
 } from "../shared/active-work";
+export type {
+  HumanAttentionCounts,
+  HumanAttentionItem,
+  HumanAttentionListOptions,
+  HumanAttentionResolveInput,
+  HumanAttentionResolveResult,
+} from "../shared/human-attention";
 export type { ConfigHealthReport } from "../shared/config-health";
 export type { OperatorReadinessReport } from "../shared/operator-readiness";
 export type { EquityBasket, EquityAlert } from "../shared/equity";
@@ -175,6 +192,17 @@ export type {
   AssistantRecipeSaveRunResult,
   CreateAssistantRecipeInput,
 } from "../shared/assistant-recipes";
+export type {
+  OutcomeKitActivationResult,
+  OutcomeKitDefinition,
+  OutcomeKitReadiness,
+  OutcomeKitSummary,
+} from "../shared/outcome-kits";
+export type {
+  ModelFitnessCapability,
+  ModelFitnessEvidence,
+  ModelFitnessResult,
+} from "../shared/model-fitness";
 export type {
   InstallLocalExpertResult,
   LocalExpertCheckRunResult,

@@ -14,6 +14,8 @@ export interface IpcArgumentContract {
 export type IpcArgumentTupleContract = readonly IpcArgumentContract[];
 
 const optionalString = { kind: "string", optional: true } as const;
+const optionalRecord = { kind: "record", optional: true } as const;
+const optionalNumber = { kind: "number", optional: true } as const;
 
 /**
  * Channel-specific contracts for arguments that cross security- or
@@ -25,8 +27,13 @@ export const IPC_ARGUMENT_CONTRACTS: Readonly<
 > = {
   "add-mcp-server": [{ kind: "record" }, optionalString],
   "approve-pairing": [{ kind: "string" }, optionalString],
+  "autonomy-decisions-list": [optionalString, optionalNumber, optionalString],
+  "autonomy-grant-revoke": [{ kind: "string" }, optionalString],
+  "autonomy-grants-list": [{ kind: "boolean", optional: true }, optionalString],
   "create-profile": [{ kind: "string" }, { kind: "boolean" }],
   "delete-profile": [{ kind: "string" }],
+  "get-hermes-run-resume": [{ kind: "string" }, optionalString],
+  "list-hermes-run-events": [optionalString, optionalNumber, optionalString],
   "open-external": [{ kind: "string" }],
   "remove-mcp-server": [{ kind: "string" }, optionalString],
   "revoke-pairing": [{ kind: "string" }, optionalString],
@@ -37,6 +44,22 @@ export const IPC_ARGUMENT_CONTRACTS: Readonly<
   "set-mcp-server-enabled": [
     { kind: "string" },
     { kind: "boolean" },
+    optionalString,
+  ],
+  "sps-human-attention-counts": [optionalString],
+  "sps-human-attention-list": [optionalRecord, optionalString],
+  "sps-human-attention-resolve": [
+    { kind: "string" },
+    { kind: "record" },
+    optionalString,
+  ],
+  "sps-activate-outcome-kit": [{ kind: "string" }, optionalString],
+  "sps-enable-outcome-kit-schedule": [{ kind: "string" }, optionalString],
+  "sps-list-outcome-kits": [optionalString],
+  "sps-run-outcome-kit": [
+    { kind: "string" },
+    { kind: "record" },
+    optionalString,
     optionalString,
   ],
   "sps-trigger-screencapture": [optionalString],

@@ -76,6 +76,19 @@ export interface ToolsmiscBridgeApi {
     profile?: string,
   ) => Promise<Api.CapabilityRiskSummary>;
 
+  listAutonomyGrants: (
+    includeInactive?: boolean,
+    profile?: string,
+  ) => Promise<Api.AutonomyGrant[]>;
+
+  revokeAutonomyGrant: (id: string, profile?: string) => Promise<boolean>;
+
+  listAutonomyDecisions: (
+    runId?: string,
+    limit?: number,
+    profile?: string,
+  ) => Promise<Api.AutonomyDecision[]>;
+
   getResearchReachStatus: () => Promise<Api.ResearchReachStatus>;
 
   getResearchReachInstallInstructions: () => Promise<string>;

@@ -67,6 +67,8 @@ import {
 import { fetchRssArticles } from "./rss-discovery";
 import { telegramChannelConfigured } from "./telegram-delivery";
 import { formatLogError, log } from "./log";
+import { createActiveWorkRun, updateActiveWorkRun } from "./active-work-runs";
+import type { ActiveWorkRun, ActiveWorkTrigger } from "../shared/active-work";
 
 export type RunOutcome = "changed" | "no-change" | "no-sources" | "error";
 
@@ -99,41 +101,46 @@ function cronOutputDir(jobId: string): string {
   return join(HERMES_HOME, "cron", "output", jobId);
 }
 
-/** Create the paired gateway cron job for a schedule and return its id (or null
- *  on failure — the desktop isDue fallback then covers it). Best-effort. */
+/** Create and verify the paired gateway cron job for a research schedule. */
 async function createPairedCron(
   item: ScheduledResearchItem,
   profile?: string,
-): Promise<string | null> {
-  try {
-    const name = `sr:${item.id}`;
-    const res = await createCronJob(
-      cronExprFor(item.cadence, item.hour),
-      buildScheduledCronPrompt(item.topic, buildMonitorSourceHint(item)),
-      name,
-      "local",
-      profile,
+): Promise<string> {
+  const name = `sr:${item.id}`;
+  const res = await createCronJob(
+    cronExprFor(item.cadence, item.hour),
+    buildScheduledCronPrompt(item.topic, buildMonitorSourceHint(item)),
+    name,
+    "local",
+    profile,
+  );
+  if (!res.success)
+    throw new Error(res.error || "Could not create the research cron job.");
+  const jobs = await listCronJobs(true, profile);
+  const job = [...jobs].reverse().find((candidate) => candidate.name === name);
+  if (!job)
+    throw new Error(
+      "The research cron job was created but could not be verified.",
     );
-    if (!res.success) return null;
-    const jobs = await listCronJobs(true, profile);
-    const job = [...jobs].reverse().find((j) => j.name === name);
-    return job?.id ?? null;
-  } catch {
-    return null;
-  }
+  return job.id;
 }
 
 // ── registry CRUD ────────────────────────────────────────────────────────────
 function loadRegistry(profile?: string): {
   schedules: ScheduledResearchItem[];
 } {
+  if (!existsSync(registryFile(profile))) return { schedules: [] };
   try {
     const raw = readFileSync(registryFile(profile), "utf-8");
     const data = JSON.parse(raw);
-    const schedules = Array.isArray(data?.schedules) ? data.schedules : [];
+    if (!Array.isArray(data?.schedules))
+      throw new Error("registry schedules must be an array");
+    const schedules = data.schedules as ScheduledResearchItem[];
     return { schedules };
-  } catch {
-    return { schedules: [] };
+  } catch (error) {
+    throw new Error(
+      `Scheduled research registry could not be read: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -201,22 +208,33 @@ export async function createSchedule(
     lastRunAt: 0,
     lastChangeHash: "",
   };
-  reg.schedules.push(item);
-  saveRegistry(reg, profile);
-  // Research schedules pair a gateway cron so they run app-closed (best-effort;
-  // the desktop isDue fallback covers a missing cron). Digests are LOCAL data,
-  // so they run desktop-side via the isDue fallback only — no paired cron.
+  // Research schedules must verify their paired cron before the registry claims
+  // they are enabled. Digests use local data and intentionally run app-open.
   if (!isDigest) {
-    const cronJobId = await createPairedCron(item, profile);
-    if (cronJobId) {
-      const reg2 = loadRegistry(profile);
-      const found = reg2.schedules.find((s) => s.id === item.id);
-      if (found) {
-        found.cronJobId = cronJobId;
-        saveRegistry(reg2, profile);
-        item.cronJobId = cronJobId;
-      }
+    try {
+      item.cronJobId = await createPairedCron(item, profile);
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not enable the research schedule.",
+      };
     }
+  }
+  reg.schedules.push(item);
+  try {
+    saveRegistry(reg, profile);
+  } catch (error) {
+    if (item.cronJobId) await removeCronJob(item.cronJobId, profile);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not save the research schedule.",
+    };
   }
   return { ok: true, item };
 }
@@ -239,9 +257,63 @@ export async function updateSchedule(
   >,
   profile?: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  if (!patch || typeof patch !== "object")
+    return { ok: false, error: "Schedule update is invalid." };
+  const allowedKeys = new Set([
+    "cadence",
+    "hour",
+    "enabled",
+    "autoApply",
+    "sourceIntent",
+    "sourcePlan",
+    "importanceThreshold",
+    "telegramPush",
+    "telegramMode",
+  ]);
+  const unsupported = Object.keys(patch).find((key) => !allowedKeys.has(key));
+  if (unsupported)
+    return { ok: false, error: `${unsupported} cannot be changed.` };
+  if (
+    patch.cadence !== undefined &&
+    !["daily", "weekly", "monthly"].includes(String(patch.cadence))
+  ) {
+    return { ok: false, error: "Schedule cadence is invalid." };
+  }
+  if (
+    patch.hour !== undefined &&
+    (!Number.isInteger(patch.hour) || patch.hour < 0 || patch.hour > 23)
+  ) {
+    return { ok: false, error: "Schedule hour must be 0-23." };
+  }
+  for (const key of ["enabled", "autoApply", "telegramPush"] as const) {
+    if (patch[key] !== undefined && typeof patch[key] !== "boolean")
+      return { ok: false, error: `${key} must be boolean.` };
+  }
+  if (
+    patch.sourceIntent !== undefined &&
+    !["all", "web", "rss", "substack", "social"].includes(patch.sourceIntent)
+  ) {
+    return { ok: false, error: "Source intent is invalid." };
+  }
+  if (
+    patch.importanceThreshold !== undefined &&
+    !["digest", "noteworthy", "breaking"].includes(patch.importanceThreshold)
+  ) {
+    return { ok: false, error: "Importance threshold is invalid." };
+  }
+  if (
+    patch.telegramMode !== undefined &&
+    patch.telegramMode !== "summary-only"
+  ) {
+    return { ok: false, error: "Telegram mode is invalid." };
+  }
+  if (patch.sourcePlan !== undefined && !Array.isArray(patch.sourcePlan)) {
+    return { ok: false, error: "Source plan is invalid." };
+  }
   const reg = loadRegistry(profile);
   const item = reg.schedules.find((s) => s.id === id);
   if (!item) return { ok: false, error: "Schedule not found." };
+  const next: ScheduledResearchItem = { ...item };
   const cronShapeChanged =
     patch.cadence !== undefined ||
     patch.hour !== undefined ||
@@ -250,36 +322,74 @@ export async function updateSchedule(
     patch.importanceThreshold !== undefined ||
     patch.telegramPush !== undefined ||
     patch.telegramMode !== undefined;
-  if (patch.cadence !== undefined) item.cadence = patch.cadence;
-  if (patch.hour !== undefined) item.hour = patch.hour;
-  if (patch.enabled !== undefined) item.enabled = patch.enabled;
-  if (patch.autoApply !== undefined) item.autoApply = patch.autoApply;
-  if (patch.sourceIntent !== undefined) item.sourceIntent = patch.sourceIntent;
+  if (patch.cadence !== undefined) next.cadence = patch.cadence;
+  if (patch.hour !== undefined) next.hour = patch.hour;
+  if (patch.enabled !== undefined) next.enabled = patch.enabled;
+  if (patch.autoApply !== undefined) next.autoApply = patch.autoApply;
+  if (patch.sourceIntent !== undefined) next.sourceIntent = patch.sourceIntent;
   if (patch.sourcePlan !== undefined)
-    item.sourcePlan = normalizeMonitorSourcePlan(patch.sourcePlan);
+    next.sourcePlan = normalizeMonitorSourcePlan(patch.sourcePlan);
   if (patch.importanceThreshold !== undefined)
-    item.importanceThreshold = patch.importanceThreshold;
-  if (patch.telegramPush !== undefined) item.telegramPush = patch.telegramPush;
-  if (patch.telegramMode !== undefined) item.telegramMode = patch.telegramMode;
-  saveRegistry(reg, profile);
-  // Keep the paired cron job in sync.
+    next.importanceThreshold = patch.importanceThreshold;
+  if (patch.telegramPush !== undefined) next.telegramPush = patch.telegramPush;
+  if (patch.telegramMode !== undefined) next.telegramMode = patch.telegramMode;
+
   try {
-    if (cronShapeChanged && item.cronJobId) {
-      await removeCronJob(item.cronJobId, profile);
-      item.cronJobId = (await createPairedCron(item, profile)) ?? undefined;
-      saveRegistry(reg, profile);
-    } else if (!item.cronJobId) {
-      // never got a cron (earlier failure) — try again now
-      item.cronJobId = (await createPairedCron(item, profile)) ?? undefined;
-      saveRegistry(reg, profile);
+    if (next.kind !== "digest") {
+      if (cronShapeChanged && item.cronJobId) {
+        const replacementId = await createPairedCron(next, profile);
+        if (!next.enabled) {
+          const paused = await pauseCronJob(replacementId, profile);
+          if (!paused.success) {
+            await removeCronJob(replacementId, profile);
+            throw new Error(
+              paused.error || "Could not pause the replacement cron job.",
+            );
+          }
+        }
+        const removed = await removeCronJob(item.cronJobId, profile);
+        if (!removed.success) {
+          await removeCronJob(replacementId, profile);
+          throw new Error(
+            removed.error || "Could not replace the research cron job.",
+          );
+        }
+        next.cronJobId = replacementId;
+      } else if (!item.cronJobId) {
+        next.cronJobId = await createPairedCron(next, profile);
+        if (!next.enabled) {
+          const paused = await pauseCronJob(next.cronJobId, profile);
+          if (!paused.success) {
+            await removeCronJob(next.cronJobId, profile);
+            throw new Error(
+              paused.error || "Could not pause the research cron job.",
+            );
+          }
+        }
+      } else {
+        const toggled = next.enabled
+          ? await resumeCronJob(item.cronJobId, profile)
+          : await pauseCronJob(item.cronJobId, profile);
+        if (!toggled.success)
+          throw new Error(
+            toggled.error || "Could not update the research cron job.",
+          );
+        next.cronJobId = item.cronJobId;
+      }
     }
-    if (item.cronJobId) {
-      if (item.enabled) await resumeCronJob(item.cronJobId, profile);
-      else await pauseCronJob(item.cronJobId, profile);
-    }
-  } catch {
-    /* best-effort; desktop fallback covers it */
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not update the research schedule.",
+    };
   }
+  reg.schedules = reg.schedules.map((schedule) =>
+    schedule.id === id ? next : schedule,
+  );
+  saveRegistry(reg, profile);
   return { ok: true };
 }
 
@@ -301,18 +411,20 @@ export async function updateScheduleSourcePlan(
 export async function deleteSchedule(
   id: string,
   profile?: string,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; error?: string }> {
   const reg = loadRegistry(profile);
   const item = reg.schedules.find((s) => s.id === id);
-  reg.schedules = reg.schedules.filter((s) => s.id !== id);
-  saveRegistry(reg, profile);
   if (item?.cronJobId) {
-    try {
-      await removeCronJob(item.cronJobId, profile);
-    } catch {
-      /* best-effort */
+    const removed = await removeCronJob(item.cronJobId, profile);
+    if (!removed.success) {
+      return {
+        ok: false,
+        error: removed.error || "Could not remove the research cron job.",
+      };
     }
   }
+  reg.schedules = reg.schedules.filter((s) => s.id !== id);
+  saveRegistry(reg, profile);
   return { ok: true };
 }
 
@@ -364,19 +476,182 @@ function recordHistory(
   outcome: RunOutcome,
   summary: string,
   profile?: string,
-): void {
+  meta: {
+    activeWorkRunId?: string;
+    trigger?: ActiveWorkTrigger;
+    transcript?: string;
+  } = {},
+): string {
+  const id = `srr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   try {
     const dir = srDir(profile);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const line = JSON.stringify({
+      id,
       scheduleId,
       ts: Date.now(),
       outcome,
       summary,
+      ...meta,
+      transcript: meta.transcript?.slice(0, 12_000),
     });
     writeFileSync(historyFile(profile), line + "\n", { flag: "a" });
   } catch {
-    /* best-effort */
+    log.error("scheduled-research", {
+      msg: "failed to persist run transcript",
+      scheduleId,
+      profile,
+    });
+    return "";
+  }
+  return id;
+}
+
+async function createScheduledActiveWork(
+  item: ScheduledResearchItem,
+  trigger: ActiveWorkTrigger,
+  profile?: string,
+  clientRunId?: string,
+): Promise<ActiveWorkRun> {
+  return createActiveWorkRun(
+    {
+      source: "scheduled-research",
+      trigger,
+      reviewPolicy: "review-first",
+      clientRunId,
+      title: `${item.kind === "digest" ? "Digest" : "Research"}: ${item.topic}`,
+      goal: `Check ${item.topic} and produce a sourced, reviewable update when findings changed.`,
+      criteria: [
+        {
+          text: "Determine whether the monitored topic changed and preserve the evidence.",
+        },
+      ],
+      expectedArtifacts: [
+        { kind: "transcript", label: "Run transcript", required: true },
+      ],
+    },
+    profile,
+  );
+}
+
+async function finalizeScheduledActiveWork(
+  active: ActiveWorkRun,
+  item: ScheduledResearchItem,
+  outcome: RunOutcome,
+  summary: string,
+  historyId: string,
+  pending?: PendingUpdate,
+  profile?: string,
+): Promise<void> {
+  const now = Date.now();
+  const summaryArtifact = {
+    id: `artifact_${now.toString(36)}_summary`,
+    kind: "text" as const,
+    label: "Run outcome",
+    ref: summary,
+    createdAt: now,
+  };
+  const transcriptArtifact = {
+    id: `artifact_${now.toString(36)}_transcript`,
+    kind: "transcript" as const,
+    label: "Scheduled run transcript",
+    ref: historyId,
+    createdAt: now,
+  };
+  const artifacts = [
+    summaryArtifact,
+    transcriptArtifact,
+    ...(pending
+      ? [
+          {
+            id: `artifact_${now.toString(36)}_proposal`,
+            kind: "proposal" as const,
+            label: "Reviewable research update",
+            ref: pending.id,
+            createdAt: now,
+          },
+          {
+            id: `artifact_${now.toString(36)}_page`,
+            kind: "page" as const,
+            label: item.topic,
+            ref: item.pageId,
+            createdAt: now,
+          },
+        ]
+      : []),
+  ];
+  if (outcome === "error" || outcome === "no-sources") {
+    await updateActiveWorkRun(
+      active.id,
+      { status: "failed", error: summary, completedAt: now, artifacts },
+      profile,
+    );
+    return;
+  }
+  await updateActiveWorkRun(
+    active.id,
+    {
+      status: outcome === "changed" ? "awaiting-review" : "completed",
+      summary,
+      criteria: active.criteria.map((criterion) => ({
+        ...criterion,
+        done: true,
+        evidence: {
+          summary:
+            outcome === "changed"
+              ? "A reviewable update and source transcript were produced."
+              : "The run recorded that no meaningful change was found.",
+          artifactId: transcriptArtifact.id,
+          verifiedAt: now,
+          verifiedBy: "system" as const,
+        },
+      })),
+      artifacts,
+      completedAt: outcome === "changed" ? undefined : now,
+    },
+    profile,
+  );
+}
+
+async function safelyFinalizeScheduledActiveWork(
+  active: ActiveWorkRun,
+  item: ScheduledResearchItem,
+  outcome: RunOutcome,
+  summary: string,
+  historyId: string,
+  pending: PendingUpdate | undefined,
+  profile?: string,
+): Promise<void> {
+  if (!historyId) {
+    const error =
+      "Scheduled run transcript could not be persisted; the run cannot be reported as complete.";
+    await updateActiveWorkRun(
+      active.id,
+      { status: "failed", error, completedAt: Date.now() },
+      profile,
+    );
+    throw new Error(error);
+  }
+  try {
+    await finalizeScheduledActiveWork(
+      active,
+      item,
+      outcome,
+      summary,
+      historyId,
+      pending,
+      profile,
+    );
+  } catch (error) {
+    await updateActiveWorkRun(
+      active.id,
+      {
+        status: "failed",
+        error: `Outcome recording failed: ${error instanceof Error ? error.message : String(error)}`,
+        completedAt: Date.now(),
+      },
+      profile,
+    );
   }
 }
 
@@ -554,7 +829,7 @@ async function mergeBriefAndQueue(
   getWindow?: () => BrowserWindow | null,
   profile?: string,
   buildMessages?: MergeMessagesBuilder,
-): Promise<{ outcome: RunOutcome; summary: string }> {
+): Promise<{ outcome: RunOutcome; summary: string; pending?: PendingUpdate }> {
   const cappedBrief = capResearchBrief(brief);
   const briefHash = sha256(cappedBrief);
   if (item.lastChangeHash && item.lastChangeHash === briefHash) {
@@ -590,18 +865,16 @@ async function mergeBriefAndQueue(
     memory: [],
   };
   const ts = Date.now();
-  await writePending(
-    {
-      id: `${item.id}__${ts}`,
-      scheduleId: item.id,
-      topic: item.topic,
-      pageId: item.pageId,
-      ts,
-      summary: merged.summary,
-      changeset: merged,
-    },
-    profile,
-  );
+  const pending: PendingUpdate = {
+    id: `${item.id}__${ts}`,
+    scheduleId: item.id,
+    topic: item.topic,
+    pageId: item.pageId,
+    ts,
+    summary: merged.summary,
+    changeset: merged,
+  };
+  await writePending(pending, profile);
   stampHash(item, briefHash, profile);
   const deliveryNote = await deliverTelegramSummary(
     item,
@@ -619,6 +892,7 @@ async function mergeBriefAndQueue(
     summary: deliveryNote
       ? `${merged.summary} (${deliveryNote})`
       : merged.summary,
+    pending,
   };
 }
 
@@ -629,9 +903,13 @@ export async function runScheduledResearch(
   item: ScheduledResearchItem,
   getWindow?: () => BrowserWindow | null,
   profile?: string,
+  activeWork?: ActiveWorkRun,
+  trigger: ActiveWorkTrigger = "scheduled",
 ): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
   let outcome: RunOutcome = "error";
   let summary = "";
+  let transcript = "";
+  let pending: PendingUpdate | undefined;
   try {
     const brief = await gatewayChat(
       [
@@ -645,6 +923,7 @@ export async function runScheduledResearch(
       3000,
       profile,
     );
+    transcript = brief;
     if (!hasUsableSources(brief)) {
       outcome = "no-sources";
       summary = "No web sources returned.";
@@ -655,6 +934,7 @@ export async function runScheduledResearch(
     const r = await mergeBriefAndQueue(item, brief, getWindow, profile);
     outcome = r.outcome;
     summary = r.summary;
+    pending = r.pending;
     return { outcome, summary };
   } catch (err) {
     outcome = "error";
@@ -663,7 +943,22 @@ export async function runScheduledResearch(
     sendRunFailure(item, summary, getWindow);
     return { outcome, summary, error: summary };
   } finally {
-    recordHistory(item.id, outcome, summary, profile);
+    const historyId = recordHistory(item.id, outcome, summary, profile, {
+      activeWorkRunId: activeWork?.id,
+      trigger,
+      transcript,
+    });
+    if (activeWork) {
+      await safelyFinalizeScheduledActiveWork(
+        activeWork,
+        item,
+        outcome,
+        summary,
+        historyId,
+        pending,
+        profile,
+      );
+    }
   }
 }
 
@@ -679,9 +974,13 @@ export async function runDigest(
   item: ScheduledResearchItem,
   getWindow?: () => BrowserWindow | null,
   profile?: string,
+  activeWork?: ActiveWorkRun,
+  trigger: ActiveWorkTrigger = "scheduled",
 ): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
   let outcome: RunOutcome = "error";
   let summary = "";
+  let transcript = "";
+  let pending: PendingUpdate | undefined;
   try {
     const db = getExternalContextDb();
     const windowStart = periodStart(item.cadence, new Date());
@@ -711,6 +1010,7 @@ export async function runDigest(
         return `### ${prov}\n${body}`;
       })
       .join("\n\n");
+    transcript = digestSource;
     const r = await mergeBriefAndQueue(
       item,
       digestSource,
@@ -728,6 +1028,7 @@ export async function runDigest(
     );
     outcome = r.outcome;
     summary = r.summary;
+    pending = r.pending;
     return { outcome, summary };
   } catch (err) {
     outcome = "error";
@@ -736,7 +1037,22 @@ export async function runDigest(
     sendRunFailure(item, summary, getWindow);
     return { outcome, summary, error: summary };
   } finally {
-    recordHistory(item.id, outcome, summary, profile);
+    const historyId = recordHistory(item.id, outcome, summary, profile, {
+      activeWorkRunId: activeWork?.id,
+      trigger,
+      transcript,
+    });
+    if (activeWork) {
+      await safelyFinalizeScheduledActiveWork(
+        activeWork,
+        item,
+        outcome,
+        summary,
+        historyId,
+        pending,
+        profile,
+      );
+    }
   }
 }
 
@@ -745,10 +1061,12 @@ export async function runSchedule(
   item: ScheduledResearchItem,
   getWindow?: () => BrowserWindow | null,
   profile?: string,
+  trigger: ActiveWorkTrigger = "scheduled",
 ): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
+  const active = await createScheduledActiveWork(item, trigger, profile);
   return item.kind === "digest"
-    ? runDigest(item, getWindow, profile)
-    : runScheduledResearch(item, getWindow, profile);
+    ? runDigest(item, getWindow, profile, active, trigger)
+    : runScheduledResearch(item, getWindow, profile, active, trigger);
 }
 
 /** Extract the agent's brief from a gateway cron-output file. The file is a
@@ -800,6 +1118,12 @@ export async function drainCronBriefs(
     let watermark = since;
     let stalled = false;
     for (const f of fresh) {
+      const active = await createScheduledActiveWork(
+        item,
+        "cron",
+        profile,
+        `scheduled-research:${item.id}:${f.name}:${f.mtime}`,
+      );
       let content: string;
       try {
         content = await fs.readFile(join(dir, f.name), "utf-8");
@@ -807,6 +1131,19 @@ export async function drainCronBriefs(
         const message = `Cron brief could not be read: ${
           err instanceof Error ? err.message : String(err)
         }`;
+        const historyId = recordHistory(item.id, "error", message, profile, {
+          activeWorkRunId: active.id,
+          trigger: "cron",
+        });
+        await safelyFinalizeScheduledActiveWork(
+          active,
+          item,
+          "error",
+          message,
+          historyId,
+          undefined,
+          profile,
+        );
         stampRunFailure(item.id, message, profile);
         sendRunFailure(item, message, getWindow);
         stalled = true;
@@ -814,13 +1151,56 @@ export async function drainCronBriefs(
       }
       const brief = parseCronBrief(content);
       if (!brief) {
-        recordHistory(item.id, "no-change", "[SILENT] cron run", profile);
+        const warning = content.match(/⚠️[^\n]*/)?.[0]?.trim();
+        const outcome: RunOutcome = warning ? "error" : "no-change";
+        const summary = warning
+          ? `Cron runner warning: ${warning}`
+          : "Cron reported no meaningful change.";
+        const historyId = recordHistory(item.id, outcome, summary, profile, {
+          activeWorkRunId: active.id,
+          trigger: "cron",
+          transcript: content,
+        });
+        await safelyFinalizeScheduledActiveWork(
+          active,
+          item,
+          outcome,
+          summary,
+          historyId,
+          undefined,
+          profile,
+        );
+        if (warning) {
+          stampRunFailure(item.id, summary, profile);
+          sendRunFailure(item, summary, getWindow);
+        } else {
+          stampRunSuccess(item.id, profile);
+        }
         if (!stalled) watermark = f.mtime;
         continue;
       }
       if (item.kind !== "digest" && !hasUsableSources(brief)) {
         const message = "No web sources returned.";
-        recordHistory(item.id, "no-sources", message, profile);
+        const historyId = recordHistory(
+          item.id,
+          "no-sources",
+          message,
+          profile,
+          {
+            activeWorkRunId: active.id,
+            trigger: "cron",
+            transcript: content,
+          },
+        );
+        await safelyFinalizeScheduledActiveWork(
+          active,
+          item,
+          "no-sources",
+          message,
+          historyId,
+          undefined,
+          profile,
+        );
         stampRunFailure(item.id, message, profile);
         sendRunFailure(item, message, getWindow);
         if (!stalled) watermark = f.mtime;
@@ -828,11 +1208,43 @@ export async function drainCronBriefs(
       }
       try {
         const r = await mergeBriefAndQueue(item, brief, getWindow, profile);
-        recordHistory(item.id, r.outcome, r.summary, profile);
+        const historyId = recordHistory(
+          item.id,
+          r.outcome,
+          r.summary,
+          profile,
+          {
+            activeWorkRunId: active.id,
+            trigger: "cron",
+            transcript: content,
+          },
+        );
+        await safelyFinalizeScheduledActiveWork(
+          active,
+          item,
+          r.outcome,
+          r.summary,
+          historyId,
+          r.pending,
+          profile,
+        );
         if (!stalled) watermark = f.mtime;
       } catch (err) {
         const message = err instanceof Error ? err.message : "merge failed";
-        recordHistory(item.id, "error", message, profile);
+        const historyId = recordHistory(item.id, "error", message, profile, {
+          activeWorkRunId: active.id,
+          trigger: "cron",
+          transcript: content,
+        });
+        await safelyFinalizeScheduledActiveWork(
+          active,
+          item,
+          "error",
+          message,
+          historyId,
+          undefined,
+          profile,
+        );
         stampRunFailure(item.id, message, profile);
         sendRunFailure(item, message, getWindow);
         stalled = true;
@@ -909,7 +1321,7 @@ export async function triggerScheduleNow(
 ): Promise<{ outcome: RunOutcome; summary?: string; error?: string }> {
   const item = loadRegistry(profile).schedules.find((s) => s.id === id);
   if (!item) return { outcome: "error", error: "Schedule not found." };
-  return runSchedule(item, getWindow, profile);
+  return runSchedule(item, getWindow, profile, "manual");
 }
 
 // ── scheduler loop ───────────────────────────────────────────────────────────

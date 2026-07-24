@@ -322,12 +322,20 @@ export function ScheduledModal() {
   };
 
   const onToggle = async (s: Schedule) => {
-    await srUpdate(s.id, { enabled: !s.enabled });
+    const result = await srUpdate(s.id, { enabled: !s.enabled });
+    if (!result.ok) {
+      flash(result.error || "Could not update the schedule", { tone: "warn" });
+      return;
+    }
     await refresh();
   };
 
   const onDelete = async (id: string) => {
-    await srDelete(id);
+    const result = await srDelete(id);
+    if (!result.ok) {
+      flash(result.error || "Could not remove the schedule", { tone: "warn" });
+      return;
+    }
     await refresh();
   };
 

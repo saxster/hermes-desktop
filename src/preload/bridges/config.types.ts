@@ -89,13 +89,17 @@ export interface ConfigBridgeApi {
 
   respondApproval: (
     runId: string,
-    choice: "once" | "session" | "always" | "deny",
+    choice: "once" | "deny",
     profile?: string,
   ) => Promise<{ ok: boolean; error?: string }>;
 
   getAutoApprove: (profile?: string) => Promise<boolean>;
 
   setAutoApprove: (enabled: boolean, profile?: string) => Promise<void>;
+
+  getAutonomyMode: (profile?: string) => Promise<Api.AutonomyMode>;
+
+  setAutonomyMode: (mode: Api.AutonomyMode, profile?: string) => Promise<void>;
 
   getCompletionSound: () => Promise<boolean>;
 
@@ -173,7 +177,9 @@ export interface ConfigBridgeApi {
     councilGroupId: string,
   ) => Promise<void>;
 
-  abortChat: (sessionIdOrRunId?: string) => Promise<void>;
+  abortChat: (
+    sessionIdOrRunId?: string,
+  ) => Promise<{ stopped: boolean; sessionKey: string }>;
 
   getApiServerKeyStatus: (profile?: string) => Promise<{ hasKey: boolean }>;
 

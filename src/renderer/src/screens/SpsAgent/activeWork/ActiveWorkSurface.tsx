@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../components/Icon";
 import { useStore } from "../store";
-import type { ActiveWorkRun } from "../../../../../shared/active-work";
+import {
+  activeWorkCanComplete,
+  type ActiveWorkRun,
+} from "../../../../../shared/active-work";
 import type {
   KanbanBoard,
   KanbanTask,
@@ -104,6 +107,10 @@ export function ActiveWorkSurface() {
         title: goalTitle(goal),
         goal,
         clientRunId,
+        criteria: [{ text: "Produce a reviewable result for this goal" }],
+        expectedArtifacts: [
+          { kind: "text", label: "Goal result", required: true },
+        ],
       });
       activeId = active.id;
       const result = await sendMessage(
@@ -116,12 +123,44 @@ export function ActiveWorkSurface() {
         undefined,
         clientRunId,
       );
+      const completedAt = Date.now();
+      const textArtifact = {
+        id: `artifact-${completedAt.toString(36)}`,
+        kind: "text" as const,
+        label: "Goal result",
+        ref: result.response?.slice(0, 500) || "Goal response completed",
+        createdAt: completedAt,
+      };
       await window.hermesAPI.spsUpdateActiveWorkRun(active.id, {
         status: "completed",
         sessionId: result.sessionId,
         summary: result.response?.slice(0, 500),
-        completedAt: Date.now(),
+        completedAt,
         lastTool: null,
+        criteria: active.criteria.map((criterion) => ({
+          ...criterion,
+          done: true,
+          evidence: {
+            summary: "Hermes returned a reviewable goal result.",
+            artifactId: textArtifact.id,
+            verifiedAt: completedAt,
+            verifiedBy: "system" as const,
+          },
+        })),
+        artifacts: [
+          textArtifact,
+          ...(result.sessionId
+            ? [
+                {
+                  id: `artifact-session-${completedAt.toString(36)}`,
+                  kind: "session" as const,
+                  label: "Assistant session",
+                  ref: result.sessionId,
+                  createdAt: completedAt,
+                },
+              ]
+            : []),
+        ],
       });
       setGoalText("");
       await refresh();
@@ -140,7 +179,14 @@ export function ActiveWorkSurface() {
   }
 
   async function stopRun(run: ActiveWorkRun): Promise<void> {
-    await abortChat(run.sessionId || run.clientRunId);
+    setError("");
+    const result = await abortChat(run.clientRunId || run.sessionId);
+    if (!result.stopped) {
+      setError(
+        "No live Hermes process acknowledged this stop. The run was left unchanged; refresh or restart reconciliation will surface its real state.",
+      );
+      return;
+    }
     await window.hermesAPI.spsUpdateActiveWorkRun(run.id, {
       status: "stopped",
       completedAt: Date.now(),
@@ -154,6 +200,40 @@ export function ActiveWorkSurface() {
     selectPage(run.pageId);
     setSurface("doc");
     await runWork();
+  }
+
+  async function toggleCriterion(
+    run: ActiveWorkRun,
+    criterionId: string,
+  ): Promise<void> {
+    const now = Date.now();
+    const criteria = run.criteria.map((criterion) => {
+      if (criterion.id !== criterionId) return criterion;
+      const done = !criterion.done;
+      return {
+        ...criterion,
+        done,
+        evidence: done
+          ? {
+              summary: "Confirmed by the user in Delegated work.",
+              verifiedAt: now,
+              verifiedBy: "user" as const,
+            }
+          : undefined,
+      };
+    });
+    await window.hermesAPI.spsUpdateActiveWorkRun(run.id, { criteria });
+    await refresh();
+  }
+
+  async function markComplete(run: ActiveWorkRun): Promise<void> {
+    await window.hermesAPI.spsUpdateActiveWorkRun(run.id, {
+      status: "completed",
+      completedAt: Date.now(),
+      blockerReason: null,
+      error: null,
+    });
+    await refresh();
   }
 
   return (
@@ -214,6 +294,49 @@ export function ActiveWorkSurface() {
                     {run.status} · updated {timeAgo(run.updatedAt)}
                     {run.lastTool ? ` · running ${run.lastTool}` : ""}
                   </small>
+                  <small>
+                    {run.source.replaceAll("-", " ")} · {run.trigger} · attempt{" "}
+                    {run.attempt}
+                  </small>
+                  {(run.blockerReason || run.error) && (
+                    <div className="active-work-error">
+                      {run.blockerReason || run.error}
+                    </div>
+                  )}
+                  <div className="active-work-detail-stack">
+                    <h3>Success criteria</h3>
+                    {run.criteria.map((criterion) => (
+                      <label key={criterion.id} className="health-row">
+                        <input
+                          type="checkbox"
+                          checked={criterion.done}
+                          disabled={run.status === "completed"}
+                          onChange={() =>
+                            void toggleCriterion(run, criterion.id)
+                          }
+                        />
+                        <span>{criterion.text}</span>
+                        {criterion.evidence && (
+                          <small>Evidence: {criterion.evidence.summary}</small>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="active-work-detail-stack">
+                    <h3>Deliverables</h3>
+                    {run.artifacts.length === 0 ? (
+                      <small>No deliverables recorded yet.</small>
+                    ) : (
+                      run.artifacts.map((artifact) => (
+                        <div key={artifact.id} className="health-row">
+                          <span className="inbox-card-badge">
+                            {artifact.kind}
+                          </span>
+                          <span>{artifact.label}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
                 <div className="active-work-run-actions">
                   {run.pageId && (
@@ -230,6 +353,15 @@ export function ActiveWorkSurface() {
                       onClick={() => void stopRun(run)}
                     >
                       Stop
+                    </button>
+                  )}
+                  {run.status === "awaiting-review" && (
+                    <button
+                      className="cover-btn"
+                      disabled={!activeWorkCanComplete(run)}
+                      onClick={() => void markComplete(run)}
+                    >
+                      Mark complete
                     </button>
                   )}
                 </div>

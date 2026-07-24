@@ -73,6 +73,8 @@ beforeEach(() => {
     message: "No configured Telegram channel was found.",
   });
   api.srCreate.mockResolvedValue({ ok: true, item: { id: "sr_1" } });
+  api.srUpdate.mockResolvedValue({ ok: true });
+  api.srDelete.mockResolvedValue({ ok: true });
   api.onScheduledResearchUpdate.mockReturnValue(() => {});
   api.appLaunchListTargets.mockResolvedValue([]);
   api.appLaunchListSchedules.mockResolvedValue([]);

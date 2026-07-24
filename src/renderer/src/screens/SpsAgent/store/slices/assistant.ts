@@ -467,9 +467,8 @@ export const createAssistantSlice: StateCreator<
           if (activeWorkId) {
             void window.hermesAPI.spsUpdateActiveWorkRun(activeWorkId, {
               sessionId: result.sessionId,
-              status: "completed",
+              status: "awaiting-review",
               summary: acc.slice(0, 500),
-              completedAt: Date.now(),
               lastTool: null,
               artifacts: [
                 {

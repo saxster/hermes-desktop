@@ -105,6 +105,24 @@ describe("runChatTurn", () => {
     );
     expect(h.effects.playCompletionSound).toHaveBeenCalledOnce();
     expect(h.effects.notifyComplete).toHaveBeenCalledWith("hello world");
+    const runEvents = h.emits
+      .filter((event) => event.channel === "hermes-run-event")
+      .map(
+        (event) =>
+          event.payload as {
+            kind: string;
+            sequence: number;
+            sessionId?: string;
+          },
+      );
+    expect(runEvents).toEqual([
+      expect.objectContaining({ kind: "run.started", sequence: 0 }),
+      expect.objectContaining({
+        kind: "run.completed",
+        sequence: 1,
+        sessionId: "session-1",
+      }),
+    ]);
   });
 
   it("registers the abort in the registry, and clears it on done", async () => {
@@ -122,6 +140,13 @@ describe("runChatTurn", () => {
     h.cb().onError("late error");
     expect(h.effects.playCompletionSound).not.toHaveBeenCalled();
     expect(h.effects.notifyError).toHaveBeenCalledTimes(1);
+    expect(
+      h.emits.filter(
+        (event) =>
+          event.channel === "hermes-run-event" &&
+          (event.payload as { kind?: string }).kind === "run.stopped",
+      ),
+    ).toHaveLength(1);
   });
 
   it("does not drop aborts requested while transport is still starting", async () => {
@@ -192,6 +217,17 @@ describe("runChatTurn", () => {
     expect(h.abortRegistry.has("sess-key")).toBe(false);
   });
 
+  it("refuses to start when the durable run event cannot be published", async () => {
+    const h = harness({ sinkReturns: false });
+    await expect(runChatTurn(req, h.ctx())).rejects.toThrow(
+      "could not preserve the run event trail",
+    );
+    expect(h.abortRegistry.has("sess-key")).toBe(false);
+    expect(h.effects.notifyError).toHaveBeenCalledWith(
+      "Hermes could not preserve the run event trail, so the run was stopped.",
+    );
+  });
+
   it("routes approvals: auto-approve emits chat-approval-auto, else chat-approval-request", async () => {
     const h = harness();
     (h.effects.maybeAutoApprove as ReturnType<typeof vi.fn>)
@@ -212,6 +248,13 @@ describe("runChatTurn", () => {
     expect(h.emits).toContainEqual({
       channel: "chat-approval-request",
       payload: { ...reqB, sessionKey: "sess-key" },
+    });
+    expect(h.emits).toContainEqual({
+      channel: "hermes-run-event",
+      payload: expect.objectContaining({
+        kind: "run.approval.requested",
+        payload: expect.objectContaining({ requestId: "b", command: "rm" }),
+      }),
     });
 
     h.cb().onDone("s");

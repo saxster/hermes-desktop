@@ -32,6 +32,8 @@ const mockMaybeRunAppLaunchSchedules = vi.fn();
 const mockLogEnd = vi.fn();
 const mockLogWriteAfterEnd = vi.fn();
 const mockRetryQueuedOwnerDeliveries = vi.fn();
+const mockCreateActiveWorkRun = vi.fn();
+const mockUpdateActiveWorkRun = vi.fn();
 const processHandlers = new Map<string, (...args: unknown[]) => void>();
 const outputHandlers = new Map<string, (chunk: unknown) => void>();
 let mockAutoClose = true;
@@ -157,6 +159,11 @@ vi.mock("../src/main/owner-delivery", () => ({
     mockRetryQueuedOwnerDeliveries(profile),
 }));
 
+vi.mock("../src/main/active-work-runs", () => ({
+  createActiveWorkRun: (...args: unknown[]) => mockCreateActiveWorkRun(...args),
+  updateActiveWorkRun: (...args: unknown[]) => mockUpdateActiveWorkRun(...args),
+}));
+
 // The nag engine is its own unit (see scheduler-nag.test.ts); stub it here so
 // the scheduler tick test doesn't pull in note-index / better-sqlite3.
 vi.mock("../src/main/nag-engine", () => ({
@@ -178,10 +185,36 @@ describe("Scheduler Service", () => {
     mockMaybeRunHermesUpstreamWatchRoutine.mockResolvedValue(null);
     mockMaybeRunDesktopUpdateRoutine.mockResolvedValue(null);
     mockMaybeRunAppLaunchSchedules.mockResolvedValue([]);
+    mockTriggerSelfHealing.mockResolvedValue(undefined);
     mockRetryQueuedOwnerDeliveries.mockResolvedValue({
       delivered: [],
       skipped: [],
     });
+    const trackedRun = {
+      contractVersion: 2,
+      id: "work-cron",
+      source: "cron-job",
+      trigger: "cron",
+      reviewPolicy: "review-first",
+      attempt: 1,
+      status: "running",
+      title: "Cron job",
+      goal: "Run cron job",
+      criteria: [{ id: "crit-1", text: "Produce output", done: false }],
+      expectedArtifacts: [
+        { kind: "transcript", label: "Run transcript", required: true },
+      ],
+      artifacts: [],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    mockCreateActiveWorkRun.mockResolvedValue(trackedRun);
+    mockUpdateActiveWorkRun.mockImplementation(
+      async (_id: string, patch: Record<string, unknown>) => ({
+        ...trackedRun,
+        ...patch,
+      }),
+    );
     mockAutoClose = true;
     mockConnectionMode = "local";
     processHandlers.clear();
@@ -328,6 +361,65 @@ describe("Scheduler Service", () => {
 
     expect(mockLogWriteAfterEnd).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it("parks a transcript and treats exit-zero [SILENT] as a failed run", async () => {
+    mockAutoClose = false;
+
+    const run = runJobHeadless("job-silent", "Silent cron", "test-profile");
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled());
+    outputHandlers.get("stdout:data")?.("[SILENT]\n");
+    processHandlers.get("close")?.(0);
+
+    await expect(run).resolves.toBe(false);
+    expect(mockCreateActiveWorkRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "cron-job",
+        trigger: "cron",
+        taskId: "job-silent",
+        expectedArtifacts: [
+          { kind: "transcript", label: "Run transcript", required: true },
+        ],
+      }),
+      "test-profile",
+    );
+    expect(mockUpdateActiveWorkRun).toHaveBeenCalledWith(
+      "work-cron",
+      expect.objectContaining({
+        artifacts: [expect.objectContaining({ kind: "transcript" })],
+      }),
+      "test-profile",
+    );
+    expect(mockUpdateActiveWorkRun).toHaveBeenCalledWith(
+      "work-cron",
+      expect.objectContaining({
+        status: "failed",
+        error: expect.stringContaining("[SILENT]"),
+      }),
+      "test-profile",
+    );
+  });
+
+  it("detects a late [SILENT] result after more than 64 KiB of output", async () => {
+    mockAutoClose = false;
+    const run = runJobHeadless(
+      "job-late-silent",
+      "Late silent cron",
+      "test-profile",
+    );
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled());
+    outputHandlers.get("stdout:data")?.("x".repeat(70 * 1024));
+    outputHandlers.get("stdout:data")?.("\n[SILENT]\n");
+    processHandlers.get("close")?.(0);
+    await expect(run).resolves.toBe(false);
+    expect(mockUpdateActiveWorkRun).toHaveBeenCalledWith(
+      "work-cron",
+      expect.objectContaining({
+        status: "failed",
+        error: expect.stringContaining("[SILENT]"),
+      }),
+      "test-profile",
+    );
   });
 
   describe("captureScreenshot", () => {

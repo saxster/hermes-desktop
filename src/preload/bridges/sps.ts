@@ -48,6 +48,10 @@ import type {
   SkillPackPreviewResult,
 } from "../../shared/skill-packs";
 import type {
+  OutcomeKitActivationResult,
+  OutcomeKitSummary,
+} from "../../shared/outcome-kits";
+import type {
   SpsCaptureInput,
   SpsBaseViewConfig,
   SpsBaseProposalInput,
@@ -73,6 +77,13 @@ import type {
   ActiveWorkPatch,
   ActiveWorkRun,
 } from "../../shared/active-work";
+import type {
+  HumanAttentionCounts,
+  HumanAttentionItem,
+  HumanAttentionListOptions,
+  HumanAttentionResolveInput,
+  HumanAttentionResolveResult,
+} from "../../shared/human-attention";
 import type {
   DeckExportResult,
   DeckGenerationInput,
@@ -484,6 +495,25 @@ export const spsBridge = {
     profile?: string,
   ): Promise<SkillPackImportResult> =>
     ipcRenderer.invoke("sps-import-skill-pack", filePath, profile),
+  spsListOutcomeKits: (profile?: string): Promise<OutcomeKitSummary[]> =>
+    ipcRenderer.invoke("sps-list-outcome-kits", profile),
+  spsActivateOutcomeKit: (
+    kitId: string,
+    profile?: string,
+  ): Promise<OutcomeKitActivationResult> =>
+    ipcRenderer.invoke("sps-activate-outcome-kit", kitId, profile),
+  spsEnableOutcomeKitSchedule: (
+    kitId: string,
+    profile?: string,
+  ): Promise<OutcomeKitActivationResult> =>
+    ipcRenderer.invoke("sps-enable-outcome-kit-schedule", kitId, profile),
+  spsRunOutcomeKit: (
+    kitId: string,
+    inputs: Record<string, string>,
+    profile?: string,
+    trigger?: "manual" | "scheduled" | "cron" | "proposal" | "external",
+  ): Promise<AssistantRecipeRunResult> =>
+    ipcRenderer.invoke("sps-run-outcome-kit", kitId, inputs, profile, trigger),
   spsEnableLocalExpertChecks: (
     packId: string,
     profile?: string,
@@ -537,6 +567,19 @@ export const spsBridge = {
     profile?: string,
   ): Promise<ActiveWorkRun | null> =>
     ipcRenderer.invoke("sps-active-work-update", runId, patch, profile),
+  spsListHumanAttention: (
+    options?: HumanAttentionListOptions,
+    profile?: string,
+  ): Promise<HumanAttentionItem[]> =>
+    ipcRenderer.invoke("sps-human-attention-list", options, profile),
+  spsResolveHumanAttention: (
+    itemId: string,
+    input: HumanAttentionResolveInput,
+    profile?: string,
+  ): Promise<HumanAttentionResolveResult> =>
+    ipcRenderer.invoke("sps-human-attention-resolve", itemId, input, profile),
+  spsHumanAttentionCounts: (profile?: string): Promise<HumanAttentionCounts> =>
+    ipcRenderer.invoke("sps-human-attention-counts", profile),
   equityListBaskets: (profile?: string): Promise<EquityBasket[]> =>
     ipcRenderer.invoke("equity-list-baskets", profile),
   equitySaveBasket: (
@@ -1114,7 +1157,10 @@ export const spsBridge = {
     profile?: string,
   ): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke("sr-update-source-plan", id, sourcePlan, profile),
-  srDelete: (id: string, profile?: string): Promise<{ ok: boolean }> =>
+  srDelete: (
+    id: string,
+    profile?: string,
+  ): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke("sr-delete", id, profile),
   srRunNow: (
     id: string,

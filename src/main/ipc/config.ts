@@ -7,7 +7,13 @@ import {
   setOwnerDeliverySettings,
 } from "../owner-delivery";
 import type { OwnerDeliverySettings } from "../../shared/owner-delivery";
+import type { AutonomyMode } from "../../shared/autonomy-policy";
 import { syncOwnerDailyBriefCron } from "../owner-daily-brief";
+import { resolveHumanAttentionByRequestId } from "../human-attention";
+import {
+  appendDerivedHermesRunEvent,
+  listAllHermesRunEvents,
+} from "../run-event-store";
 import {
   readEnv,
   getKeychainKeys,
@@ -34,6 +40,8 @@ import {
   setPlatformEnabled,
   getAutoApprove,
   setAutoApprove,
+  getAutonomyMode,
+  setAutonomyMode,
   getCompletionSound,
   setCompletionSound,
   getOnboardingCompleted,
@@ -631,12 +639,41 @@ export function registerConfigIpc(): void {
   // Command-approval reply
   safeHandle(
     "respond-approval",
-    (
-      _event,
-      runId: string,
-      choice: "once" | "session" | "always" | "deny",
-      profile?: string,
-    ) => respondRunApproval(runId, choice, profile),
+    async (_event, runId: string, choice: unknown, profile?: string) => {
+      if (choice !== "once" && choice !== "deny") {
+        return {
+          ok: false,
+          error:
+            "Only one-time approval or denial is supported by the desktop.",
+        };
+      }
+      const result = await respondRunApproval(runId, choice, profile);
+      if (result.ok) {
+        const attention = await resolveHumanAttentionByRequestId(
+          runId,
+          choice,
+          profile,
+        );
+        const requestEvent = listAllHermesRunEvents(profile)
+          .reverse()
+          .find(
+            (candidate) =>
+              candidate.kind === "run.approval.requested" &&
+              candidate.payload.requestId === runId,
+          );
+        const eventRunId = attention?.runId || requestEvent?.runId;
+        if (eventRunId) {
+          appendDerivedHermesRunEvent(
+            eventRunId,
+            "run.approval.resolved",
+            { requestId: runId, choice },
+            profile,
+            attention?.sessionId || requestEvent?.sessionId,
+          );
+        }
+      }
+      return result;
+    },
   );
 
   // Desktop automation prefs
@@ -645,6 +682,14 @@ export function registerConfigIpc(): void {
   );
   safeHandle("set-auto-approve", (_event, enabled: boolean, profile?: string) =>
     setAutoApprove(enabled, profile),
+  );
+  safeHandle("get-autonomy-mode", (_event, profile?: string) =>
+    getAutonomyMode(profile),
+  );
+  safeHandle(
+    "set-autonomy-mode",
+    (_event, mode: AutonomyMode, profile?: string) =>
+      setAutonomyMode(mode, profile),
   );
   safeHandle("get-completion-sound", () => getCompletionSound());
   safeHandle("set-completion-sound", (_event, enabled: boolean) =>

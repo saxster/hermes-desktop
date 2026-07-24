@@ -3,6 +3,7 @@
 // owner previews and imports into the profile's skills/ directory. Modeled on
 // the Local Experts pack pattern (schemaVersion + pack hash + preview-first);
 // there is no upstream bundle format, so this envelope is ours.
+import { validateOutcomeKit, type OutcomeKitDefinition } from "./outcome-kits";
 
 export const SKILL_PACK_SCHEMA_VERSION = 1;
 export const SKILL_PACK_MAX_SKILLS = 50;
@@ -33,6 +34,8 @@ export interface SkillPack {
   version: number;
   description?: string;
   skills: SkillPackSkill[];
+  /** Optional outcome contract layered over the installed skills. */
+  outcomeKit?: OutcomeKitDefinition;
 }
 
 export interface SkillPackValidationResult {
@@ -58,6 +61,7 @@ export interface SkillPackImportResult {
   imported: string[];
   skipped: string[];
   errors: string[];
+  outcomeKitRegistered?: boolean;
 }
 
 function isSafeRelativeFilePath(value: string): boolean {
@@ -172,6 +176,18 @@ export function validateSkillPack(raw: unknown): SkillPackValidationResult {
   if (description.length > 500) {
     errors.push("description must be at most 500 characters");
   }
+  let outcomeKit: OutcomeKitDefinition | undefined;
+  if (pack.outcomeKit !== undefined) {
+    const validated = validateOutcomeKit(pack.outcomeKit);
+    if (!validated.ok || !validated.kit) {
+      errors.push(...validated.errors.map((error) => `outcomeKit.${error}`));
+    } else {
+      outcomeKit = validated.kit;
+      if (outcomeKit.kitId !== packId) {
+        errors.push("outcomeKit.kitId must match packId");
+      }
+    }
+  }
   if (!Array.isArray(pack.skills) || pack.skills.length === 0) {
     errors.push("skills must be a non-empty array");
   }
@@ -203,6 +219,7 @@ export function validateSkillPack(raw: unknown): SkillPackValidationResult {
       version: version as number,
       ...(description ? { description } : {}),
       skills,
+      ...(outcomeKit ? { outcomeKit } : {}),
     },
   };
 }

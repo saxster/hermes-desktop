@@ -11,6 +11,7 @@ import {
   type AssistantRecipeScheduleCadence,
   type AssistantRecipeTemplate,
 } from "../../../../../shared/assistant-recipes";
+import type { OutcomeKitSummary } from "../../../../../shared/outcome-kits";
 
 const RECIPE_ACTION_LABELS: Record<AssistantRecipeAction, string> = {
   read_workspace: "Read workspace",
@@ -50,6 +51,7 @@ export function compileTemplateRecipe(
 }
 
 export function AssistantRecipesTab(props: {
+  outcomeKits: OutcomeKitSummary[];
   recipes: AssistantRecipe[];
   runs: AssistantRecipeRunRecord[];
   recipeKind: AssistantRecipeKind;
@@ -79,9 +81,18 @@ export function AssistantRecipesTab(props: {
   saveRecipeResult: () => void;
   toggleRecipe: (recipe: AssistantRecipe) => void;
   deleteRecipe: (recipe: AssistantRecipe) => void;
+  activateOutcomeKit: (kit: OutcomeKitSummary) => void;
+  enableOutcomeKitSchedule: (kit: OutcomeKitSummary) => void;
+  runOutcomeKit: (
+    kit: OutcomeKitSummary,
+    inputs: Record<string, string>,
+  ) => void;
   busy: string;
 }): React.JSX.Element {
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
+  const [kitInputs, setKitInputs] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const template =
     ASSISTANT_RECIPE_TEMPLATES.find((item) => item.kind === props.recipeKind) ||
     ASSISTANT_RECIPE_TEMPLATES[0];
@@ -113,6 +124,115 @@ export function AssistantRecipesTab(props: {
 
   return (
     <>
+      <section className="settings-section">
+        <div className="settings-section-title">Outcome Kits</div>
+        <div className="settings-field-hint learning-surface-hint">
+          Installed skill-pack workflows with declared inputs, deliverables,
+          success criteria, dependencies, and review rules. Content activation,
+          schedules, and permissions are separate decisions.
+        </div>
+        {props.outcomeKits.length === 0 ? (
+          <div className="memory-empty learning-surface-empty-mt">
+            No Outcome Kits installed. Preview and import an Outcome Kit skill
+            pack from the Skills tab.
+          </div>
+        ) : (
+          <div className="you-rules-list learning-surface-list-mt">
+            {props.outcomeKits.map((kit) => {
+              const values = kitInputs[kit.kit.kitId] ?? {};
+              const missingInput = kit.kit.inputs.some(
+                (input) => input.required && !values[input.id]?.trim(),
+              );
+              return (
+                <div key={kit.kit.kitId} className="memory-entry-card">
+                  <span className="memory-entry-content">
+                    <strong>{kit.kit.title}</strong>
+                    <small className="learning-surface-small-block">
+                      {kit.kit.outcome}
+                    </small>
+                    <small className="learning-surface-small-block">
+                      Readiness: {kit.readiness.status} · {kit.kit.reviewPolicy}
+                      {kit.recipeId ? " · activated" : " · content only"}
+                    </small>
+                    <div className="you-rules-list learning-surface-list-mt">
+                      {kit.readiness.items.map((item) => (
+                        <small
+                          key={item.id}
+                          className="learning-surface-small-block"
+                        >
+                          {item.status}: {item.title} — {item.summary}
+                        </small>
+                      ))}
+                    </div>
+                    {kit.recipeId &&
+                      kit.kit.inputs.map((input) => (
+                        <label key={input.id} className="settings-field">
+                          <span>
+                            {input.label}
+                            {input.required ? " *" : ""}
+                          </span>
+                          <input
+                            className="inbox-input"
+                            aria-label={`${kit.kit.title} ${input.label}`}
+                            placeholder={input.description || input.label}
+                            value={values[input.id] || ""}
+                            onChange={(event) =>
+                              setKitInputs((current) => ({
+                                ...current,
+                                [kit.kit.kitId]: {
+                                  ...(current[kit.kit.kitId] || {}),
+                                  [input.id]: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                      ))}
+                  </span>
+                  {!kit.recipeId ? (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={
+                        !kit.readiness.canActivate ||
+                        props.busy === `activate-kit-${kit.kit.kitId}`
+                      }
+                      onClick={() => props.activateOutcomeKit(kit)}
+                    >
+                      Activate content
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={
+                        missingInput ||
+                        !kit.readiness.canActivate ||
+                        props.busy === `run-kit-${kit.kit.kitId}`
+                      }
+                      onClick={() => props.runOutcomeKit(kit, values)}
+                    >
+                      Run kit
+                    </button>
+                  )}
+                  {kit.recipeId &&
+                    kit.kit.scheduleTemplate &&
+                    !kit.scheduleEnabledAt && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={
+                          props.busy === `schedule-kit-${kit.kit.kitId}`
+                        }
+                        onClick={() => props.enableOutcomeKitSchedule(kit)}
+                      >
+                        Enable schedule
+                      </button>
+                    )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <section className="settings-section">
         <div className="settings-section-title">Build an Assistant</div>
         <div className="settings-field-hint learning-surface-hint">
@@ -339,12 +459,13 @@ export function AssistantRecipesTab(props: {
                   <button
                     className="btn btn-primary btn-sm"
                     disabled={
+                      Boolean(recipe.outcomeKitId) ||
                       !recipe.enabled ||
                       props.busy === `run-recipe-${recipe.id}`
                     }
                     onClick={() => props.runRecipe(recipe)}
                   >
-                    Run
+                    {recipe.outcomeKitId ? "Run in Outcome Kit" : "Run"}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"

@@ -60,7 +60,10 @@ beforeEach(() => {
         response: "Done",
         sessionId: "sess-1",
       }),
-      abortChat: vi.fn().mockResolvedValue(undefined),
+      abortChat: vi.fn().mockResolvedValue({
+        stopped: true,
+        sessionKey: "run-1",
+      }),
     },
   });
 });
@@ -137,5 +140,77 @@ describe("ActiveWorkSurface", () => {
     expect(await screen.findByText("Use v2 schema")).toBeInTheDocument();
     expect(screen.getByText("Still investigating")).toBeInTheDocument();
     expect(screen.getByText(/Runs: 1/)).toBeInTheDocument();
+  });
+
+  it("does not claim a run stopped when no live process acknowledges it", async () => {
+    const running = {
+      contractVersion: 2 as const,
+      id: "work-1",
+      source: "goal" as const,
+      trigger: "manual" as const,
+      reviewPolicy: "review-first" as const,
+      attempt: 1,
+      status: "running" as const,
+      title: "Goal: reports",
+      goal: "Fix reports",
+      clientRunId: "run-1",
+      criteria: [{ id: "criterion-1", text: "Reports fixed", done: false }],
+      expectedArtifacts: [
+        { kind: "text" as const, label: "Result", required: true },
+      ],
+      artifacts: [],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    window.hermesAPI.spsListActiveWorkRuns = vi
+      .fn()
+      .mockResolvedValue([running]);
+    window.hermesAPI.abortChat = vi.fn().mockResolvedValue({
+      stopped: false,
+      sessionKey: "run-1",
+    });
+
+    render(<ActiveWorkSurface />);
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
+
+    expect(
+      await screen.findByText(/No live Hermes process acknowledged this stop/),
+    ).toBeInTheDocument();
+    expect(window.hermesAPI.spsUpdateActiveWorkRun).not.toHaveBeenCalled();
+  });
+
+  it("records stopped only after the live abort is acknowledged", async () => {
+    const running = {
+      contractVersion: 2 as const,
+      id: "work-1",
+      source: "goal" as const,
+      trigger: "manual" as const,
+      reviewPolicy: "review-first" as const,
+      attempt: 1,
+      status: "running" as const,
+      title: "Goal: reports",
+      goal: "Fix reports",
+      clientRunId: "run-1",
+      criteria: [{ id: "criterion-1", text: "Reports fixed", done: false }],
+      expectedArtifacts: [
+        { kind: "text" as const, label: "Result", required: true },
+      ],
+      artifacts: [],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    window.hermesAPI.spsListActiveWorkRuns = vi
+      .fn()
+      .mockResolvedValue([running]);
+
+    render(<ActiveWorkSurface />);
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
+
+    await waitFor(() =>
+      expect(window.hermesAPI.spsUpdateActiveWorkRun).toHaveBeenCalledWith(
+        "work-1",
+        expect.objectContaining({ status: "stopped" }),
+      ),
+    );
   });
 });

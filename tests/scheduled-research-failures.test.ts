@@ -16,6 +16,12 @@ import {
 const mocks = vi.hoisted(() => ({
   gatewayChat: vi.fn(),
   fetchRssArticles: vi.fn(),
+  createCronJob: vi.fn(),
+  listCronJobs: vi.fn(),
+  removeCronJob: vi.fn(),
+  pauseCronJob: vi.fn(),
+  resumeCronJob: vi.fn(),
+  cronName: "",
 }));
 
 vi.mock("../src/main/gateway-chat", () => ({
@@ -24,6 +30,16 @@ vi.mock("../src/main/gateway-chat", () => ({
 }));
 vi.mock("../src/main/rss-discovery", () => ({
   fetchRssArticles: mocks.fetchRssArticles,
+}));
+vi.mock("../src/main/cronjobs", () => ({
+  createCronJob: (...args: unknown[]) => {
+    mocks.cronName = String(args[2] || "");
+    return mocks.createCronJob(...args);
+  },
+  listCronJobs: (...args: unknown[]) => mocks.listCronJobs(...args),
+  removeCronJob: (...args: unknown[]) => mocks.removeCronJob(...args),
+  pauseCronJob: (...args: unknown[]) => mocks.pauseCronJob(...args),
+  resumeCronJob: (...args: unknown[]) => mocks.resumeCronJob(...args),
 }));
 
 let home: string;
@@ -70,6 +86,18 @@ beforeEach(() => {
   process.env.HERMES_HOME = home;
   mocks.gatewayChat.mockReset();
   mocks.fetchRssArticles.mockReset();
+  mocks.createCronJob.mockReset();
+  mocks.listCronJobs.mockReset();
+  mocks.removeCronJob.mockReset();
+  mocks.pauseCronJob.mockReset();
+  mocks.resumeCronJob.mockReset();
+  mocks.createCronJob.mockResolvedValue({ success: true });
+  mocks.listCronJobs.mockImplementation(async () => [
+    { id: "cron-1", name: mocks.cronName },
+  ]);
+  mocks.removeCronJob.mockResolvedValue({ success: true });
+  mocks.pauseCronJob.mockResolvedValue({ success: true });
+  mocks.resumeCronJob.mockResolvedValue({ success: true });
   vi.resetModules();
 });
 
@@ -80,18 +108,62 @@ afterEach(() => {
 });
 
 describe("scheduled research failure visibility", () => {
+  it("does not claim a research schedule exists when its paired cron fails", async () => {
+    mocks.createCronJob.mockResolvedValueOnce({
+      success: false,
+      error: "cron service offline",
+    });
+    const { createSchedule, listSchedules } =
+      await import("../src/main/scheduled-research");
+    expect(
+      await createSchedule(
+        {
+          topic: "Agent reliability",
+          cadence: "daily",
+          hour: 8,
+          autoApply: false,
+        },
+        "default",
+      ),
+    ).toEqual({ ok: false, error: "cron service offline" });
+    expect(listSchedules("default")).toEqual([]);
+  });
+
+  it("keeps a schedule when its paired cron cannot be removed", async () => {
+    const { createSchedule, deleteSchedule, listSchedules } =
+      await import("../src/main/scheduled-research");
+    const created = await createSchedule(
+      {
+        topic: "Agent reliability",
+        cadence: "daily",
+        hour: 8,
+        autoApply: false,
+      },
+      "default",
+    );
+    mocks.removeCronJob.mockResolvedValueOnce({
+      success: false,
+      error: "cron service offline",
+    });
+    expect(await deleteSchedule(created.item!.id, "default")).toEqual({
+      ok: false,
+      error: "cron service offline",
+    });
+    expect(listSchedules("default")).toHaveLength(1);
+  });
+
   it("persists and pushes a gateway failure", async () => {
     const schedule = item();
     seedRegistry(schedule);
     mocks.gatewayChat.mockRejectedValueOnce(new Error("gateway offline"));
     const send = vi.fn();
-    const { runScheduledResearch } =
-      await import("../src/main/scheduled-research");
+    const { runSchedule } = await import("../src/main/scheduled-research");
 
-    const result = await runScheduledResearch(
+    const result = await runSchedule(
       schedule,
       () => ({ webContents: { send } }) as never,
       "default",
+      "manual",
     );
 
     expect(result).toMatchObject({
@@ -103,6 +175,22 @@ describe("scheduled research failure visibility", () => {
       "scheduled-research-update",
       expect.objectContaining({ outcome: "error", error: "gateway offline" }),
     );
+    const { listActiveWorkRuns } = await import("../src/main/active-work-runs");
+    const { listHumanAttentionItems } =
+      await import("../src/main/human-attention");
+    const active = await listActiveWorkRuns("default");
+    expect(active[0]).toMatchObject({
+      source: "scheduled-research",
+      trigger: "manual",
+      status: "failed",
+      error: "gateway offline",
+    });
+    expect(active[0].artifacts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "transcript" })]),
+    );
+    expect(await listHumanAttentionItems({}, "default")).toEqual([
+      expect.objectContaining({ kind: "failed-run", runId: active[0].id }),
+    ]);
   });
 
   it("does not advance a failed feed's lastCheckedAt", async () => {
@@ -151,5 +239,40 @@ describe("scheduled research failure visibility", () => {
       lastError: "No web sources returned.",
       lastDrainedAt: expect.any(Number),
     });
+    const { listActiveWorkRuns } = await import("../src/main/active-work-runs");
+    expect(await listActiveWorkRuns("default")).toEqual([
+      expect.objectContaining({ status: "failed", trigger: "cron" }),
+    ]);
+  });
+
+  it("surfaces a missing-skill [SILENT] cron instead of recording success", async () => {
+    const schedule = item({ cronJobId: "cron_missing_skill" });
+    seedRegistry(schedule);
+    const outputDir = join(home, "cron", "output", "cron_missing_skill");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(
+      join(outputDir, "brief.md"),
+      '# Cron Job\n## Response\n⚠️ Skill "daily-brief" not found\n[SILENT]\n',
+      "utf-8",
+    );
+    const { drainCronBriefs } = await import("../src/main/scheduled-research");
+
+    await drainCronBriefs(undefined, "default");
+
+    expect(readStored()).toMatchObject({
+      lastError: expect.stringContaining("Skill"),
+      lastDrainedAt: expect.any(Number),
+    });
+    const { listActiveWorkRuns } = await import("../src/main/active-work-runs");
+    const { listHumanAttentionItems } =
+      await import("../src/main/human-attention");
+    const active = await listActiveWorkRuns("default");
+    expect(active[0]).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("Skill"),
+    });
+    expect(await listHumanAttentionItems({}, "default")).toEqual([
+      expect.objectContaining({ kind: "failed-run", runId: active[0].id }),
+    ]);
   });
 });

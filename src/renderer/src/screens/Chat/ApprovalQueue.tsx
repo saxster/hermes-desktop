@@ -7,8 +7,7 @@ import {
 
 /**
  * Command-approval cards (idea B1). Renders any pending dangerous-command
- * approvals with the matched danger pattern and Allow / Allow-once / Always /
- * Deny actions. "Always" remembers the command as safe (handled in the reducer).
+ * approvals with the matched danger pattern and one-time Allow / Deny actions.
  * When an opt-in timeout is set, each card shows a live countdown to auto-deny.
  */
 export function ApprovalQueue({
@@ -76,12 +75,6 @@ export function ApprovalQueue({
                 onClick={() => onRespond(req.id, "once")}
               >
                 Allow once
-              </button>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={() => onRespond(req.id, "always")}
-              >
-                Always allow
               </button>
             </div>
           </div>

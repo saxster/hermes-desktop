@@ -3,6 +3,10 @@ import type {
   CapabilityRiskReport,
   CapabilityRiskSummary,
 } from "../../../../shared/capability-risk";
+import type {
+  AutonomyDecision,
+  AutonomyGrant,
+} from "../../../../shared/autonomy-policy";
 
 /**
  * Capability summary card (read-only) for Settings → Application Health.
@@ -30,6 +34,8 @@ interface CapabilitySnapshot {
   tools: Toolset[];
   mcp: McpServer[];
   risk: CapabilityRiskSummary | null;
+  grants: AutonomyGrant[];
+  decisions: AutonomyDecision[];
 }
 
 function CapabilitySummary({
@@ -52,10 +58,30 @@ function CapabilitySummary({
     const loadTools = window.hermesAPI.getToolsets(profile);
     const loadMcp = window.hermesAPI.listMcpServers(profile);
     const loadRisk = window.hermesAPI.getCapabilityRiskSummary(profile);
-    Promise.all([loadSkills, loadTools, loadMcp, loadRisk])
-      .then(([skills, tools, mcp, risk]) => {
+    const loadGrants = window.hermesAPI.listAutonomyGrants(false, profile);
+    const loadDecisions = window.hermesAPI.listAutonomyDecisions(
+      undefined,
+      100,
+      profile,
+    );
+    Promise.all([
+      loadSkills,
+      loadTools,
+      loadMcp,
+      loadRisk,
+      loadGrants,
+      loadDecisions,
+    ])
+      .then(([skills, tools, mcp, risk, grants, decisions]) => {
         if (cancelled) return;
-        setData({ skillCount: skills.length, tools, mcp, risk });
+        setData({
+          skillCount: skills.length,
+          tools,
+          mcp,
+          risk,
+          grants,
+          decisions,
+        });
         setLoaded(true);
       })
       .catch(() => {
@@ -98,6 +124,21 @@ function CapabilitySummary({
     setData((current) => (current ? { ...current, risk } : current));
   }
 
+  async function revokeGrant(grant: AutonomyGrant): Promise<void> {
+    if (!(await window.hermesAPI.revokeAutonomyGrant(grant.id, profile)))
+      return;
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            grants: current.grants.filter(
+              (candidate) => candidate.id !== grant.id,
+            ),
+          }
+        : current,
+    );
+  }
+
   return (
     <div className="settings-section" data-section-tab={sectionTab}>
       <div className="settings-section-title">Capabilities</div>
@@ -129,6 +170,13 @@ function CapabilitySummary({
                   warn
                 </span>
               )}
+              <span className="cap-count">
+                {data.grants.length} active scoped grants
+              </span>
+              <span className="cap-count">
+                {data.decisions.filter((decision) => !decision.allowed).length}/
+                {data.decisions.length} recent actions held
+              </span>
             </div>
             <div className="cap-summary-row">
               <button
@@ -161,6 +209,30 @@ function CapabilitySummary({
               <div className="cap-summary-row">
                 <span className="cap-summary-label">Active MCP:</span>{" "}
                 {activeMcp.map((m) => `${m.name} (${m.type})`).join(", ")}
+              </div>
+            )}
+            {data.grants.length > 0 && (
+              <div className="cap-summary-row">
+                <span className="cap-summary-label">Scoped grants:</span>
+                {data.grants.map((grant) => (
+                  <span
+                    key={grant.id}
+                    style={{ display: "block", marginTop: 6 }}
+                  >
+                    {grant.kind === "workspace-root"
+                      ? `${grant.runId}: workspace ${grant.root}`
+                      : `${grant.runId}: ${grant.toolName} → ${grant.target}`}{" "}
+                    until {new Date(grant.expiresAt).toLocaleString()}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ marginLeft: 8 }}
+                      onClick={() => void revokeGrant(grant)}
+                    >
+                      Revoke
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
             {scannerText && (

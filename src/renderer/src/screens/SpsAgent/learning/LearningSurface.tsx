@@ -17,6 +17,7 @@ import type {
   LocalExpertPackDetailResult,
   LocalExpertPackSummary,
 } from "../../../../../shared/local-experts";
+import type { OutcomeKitSummary } from "../../../../../shared/outcome-kits";
 import { useStore } from "../store";
 import {
   AssistantRecipesTab,
@@ -53,6 +54,7 @@ export function LearningSurface({
   const [tab, setTab] = useState<Tab>(developerOnly ? "skills" : "memories");
   const [recipes, setRecipes] = useState<AssistantRecipe[]>([]);
   const [recipeRuns, setRecipeRuns] = useState<AssistantRecipeRunRecord[]>([]);
+  const [outcomeKits, setOutcomeKits] = useState<OutcomeKitSummary[]>([]);
   const [localExperts, setLocalExperts] = useState<LocalExpertPackSummary[]>(
     [],
   );
@@ -127,6 +129,10 @@ export function LearningSurface({
     );
   }, [profile]);
 
+  const loadOutcomeKits = useCallback(async () => {
+    setOutcomeKits(await window.hermesAPI.spsListOutcomeKits(profile));
+  }, [profile]);
+
   const loadLocalExperts = useCallback(async () => {
     const result = await window.hermesAPI.spsListLocalExperts(profile);
     setLocalExperts(result.packs);
@@ -171,6 +177,7 @@ export function LearningSurface({
   useEffect(() => {
     runDetached("load assistants", loadRecipes);
     runDetached("load assistant runs", loadRecipeRuns);
+    runDetached("load outcome kits", loadOutcomeKits);
     runDetached("load local experts", loadLocalExperts);
     runDetached("load learning proposals", loadProposals);
     runDetached("load skills", loadSkills);
@@ -178,6 +185,7 @@ export function LearningSurface({
   }, [
     loadRecipes,
     loadRecipeRuns,
+    loadOutcomeKits,
     loadLocalExperts,
     loadProposals,
     loadSkills,
@@ -361,6 +369,59 @@ export function LearningSurface({
     }
   }
 
+  async function activateOutcomeKit(kit: OutcomeKitSummary): Promise<void> {
+    const res = await run(`activate-kit-${kit.kit.kitId}`, () =>
+      window.hermesAPI.spsActivateOutcomeKit(kit.kit.kitId, profile),
+    );
+    if (res?.ok) {
+      setNotice(
+        `${kit.kit.title} activated. No schedule or permission was enabled.`,
+      );
+      await Promise.all([loadOutcomeKits(), loadRecipes(), loadRecipeRuns()]);
+    } else if (res) {
+      setNotice(res.error || "Could not activate Outcome Kit.");
+    }
+  }
+
+  async function enableOutcomeKitSchedule(
+    kit: OutcomeKitSummary,
+  ): Promise<void> {
+    const res = await run(`schedule-kit-${kit.kit.kitId}`, () =>
+      window.hermesAPI.spsEnableOutcomeKitSchedule(kit.kit.kitId, profile),
+    );
+    if (res?.ok) {
+      setNotice(`${kit.kit.title} schedule enabled as a separate decision.`);
+      await Promise.all([loadOutcomeKits(), loadRecipes()]);
+    } else if (res) {
+      setNotice(res.error || "Could not enable Outcome Kit schedule.");
+    }
+  }
+
+  async function runOutcomeKit(
+    kit: OutcomeKitSummary,
+    inputs: Record<string, string>,
+  ): Promise<void> {
+    const res = await run(`run-kit-${kit.kit.kitId}`, () =>
+      window.hermesAPI.spsRunOutcomeKit(
+        kit.kit.kitId,
+        inputs,
+        profile,
+        "manual",
+      ),
+    );
+    if (res?.ok) {
+      setRecipeRunResult(res.run?.resultText || "");
+      setLastRecipeRunId(res.run?.id || "");
+      setNotice(
+        `${kit.kit.title} finished. Its evidence and deliverables are ready for review.`,
+      );
+      await Promise.all([loadOutcomeKits(), loadRecipes(), loadRecipeRuns()]);
+    } else if (res) {
+      setNotice(res.error || "Could not run Outcome Kit.");
+      if (res.run) await loadRecipeRuns();
+    }
+  }
+
   async function saveRecipeResult(): Promise<void> {
     if (!lastRecipeRunId) return;
     const saved = await run("save-recipe-result", () =>
@@ -496,7 +557,12 @@ export function LearningSurface({
         }.`,
       );
       setSkillPackPath("");
-      await loadSkills();
+      await Promise.all([loadSkills(), loadOutcomeKits()]);
+      if (res.outcomeKitRegistered) {
+        setNotice(
+          `Imported ${res.imported.length} skill(s) from ${res.packId}. Its Outcome Kit content is available, but its schedule and permissions remain off.`,
+        );
+      }
     } else if (res) {
       setNotice(res.errors.join("; ") || "Could not import skill pack.");
     }
@@ -697,6 +763,7 @@ export function LearningSurface({
 
       {!developerOnly && tab === "recipes" && (
         <AssistantRecipesTab
+          outcomeKits={outcomeKits}
           recipes={recipes}
           runs={recipeRuns}
           recipeKind={recipeKind}
@@ -733,6 +800,17 @@ export function LearningSurface({
           }
           deleteRecipe={(recipe) =>
             runDetached("delete assistant", () => deleteRecipe(recipe))
+          }
+          activateOutcomeKit={(kit) =>
+            runDetached("activate outcome kit", () => activateOutcomeKit(kit))
+          }
+          enableOutcomeKitSchedule={(kit) =>
+            runDetached("enable outcome kit schedule", () =>
+              enableOutcomeKitSchedule(kit),
+            )
+          }
+          runOutcomeKit={(kit, inputs) =>
+            runDetached("run outcome kit", () => runOutcomeKit(kit, inputs))
           }
           busy={busy}
         />

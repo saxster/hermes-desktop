@@ -10,6 +10,15 @@ import type {
   ActiveWorkCreateInput,
   ActiveWorkPatch,
 } from "../../../shared/active-work";
+import type {
+  HumanAttentionListOptions,
+  HumanAttentionResolveInput,
+} from "../../../shared/human-attention";
+import {
+  humanAttentionCounts,
+  listHumanAttentionItems,
+  resolveHumanAttentionItem,
+} from "../../human-attention";
 
 export function registerSpsActiveWorkIpc(): void {
   safeHandle(
@@ -37,5 +46,22 @@ export function registerSpsActiveWorkIpc(): void {
     "sps-active-work-update",
     (_event, runId: string, patch: ActiveWorkPatch, profile?: string) =>
       updateActiveWorkRun(runId, patch, profile),
+  );
+  safeHandle(
+    "sps-human-attention-list",
+    (_event, options?: HumanAttentionListOptions, profile?: string) =>
+      listHumanAttentionItems(options, profile),
+  );
+  safeHandle(
+    "sps-human-attention-resolve",
+    (
+      _event,
+      itemId: string,
+      input: HumanAttentionResolveInput,
+      profile?: string,
+    ) => resolveHumanAttentionItem(itemId, input, profile),
+  );
+  safeHandle("sps-human-attention-counts", (_event, profile?: string) =>
+    humanAttentionCounts(profile),
   );
 }

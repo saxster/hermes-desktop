@@ -42,6 +42,8 @@ import { createLearningProposal } from "./learning-proposals";
 import { listInstalledSkills, getSkillContent } from "./skills";
 import { drainTaskProposalSpool } from "./task-proposal-bridge";
 import { retryQueuedOwnerDeliveries } from "./owner-delivery";
+import { createActiveWorkRun, updateActiveWorkRun } from "./active-work-runs";
+import type { ActiveWorkRun } from "../shared/active-work";
 
 export async function captureScreenshot(
   jobId: string,
@@ -99,6 +101,90 @@ const activeRuns = new Map<string, boolean>();
 // A run that overshoots this is presumed wedged: its lock becomes stealable and a
 // reap timer kills the child and releases the lock so the job can run again.
 const JOB_TIMEOUT_MS = 15 * 60 * 1000;
+const CRON_OUTPUT_AUDIT_LIMIT = 64 * 1024;
+
+async function createCronOutcomeRun(
+  jobId: string,
+  jobName: string,
+  logFilePath: string,
+  profile: string,
+): Promise<ActiveWorkRun> {
+  return createActiveWorkRun(
+    {
+      source: "cron-job",
+      trigger: "cron",
+      reviewPolicy: "review-first",
+      title: jobName,
+      goal: `Run scheduled job "${jobName}" and preserve its actual output.`,
+      clientRunId: `cron:${jobId}:${Date.now()}`,
+      taskId: jobId,
+      criteria: [
+        {
+          text: "The scheduled process exits successfully without a [SILENT] result.",
+        },
+      ],
+      expectedArtifacts: [
+        { kind: "transcript", label: "Run transcript", required: true },
+      ],
+    },
+    profile,
+  ).then((run) =>
+    updateActiveWorkRun(
+      run.id,
+      {
+        artifacts: [
+          {
+            id: `transcript-${run.id}`,
+            kind: "transcript",
+            label: "Run transcript",
+            ref: logFilePath,
+            createdAt: Date.now(),
+          },
+        ],
+      },
+      profile,
+    ).then((updated) => updated ?? run),
+  );
+}
+
+async function settleCronOutcomeRun(
+  run: ActiveWorkRun,
+  result:
+    | { status: "completed"; summary: string }
+    | { status: "failed"; error: string },
+  profile: string,
+): Promise<void> {
+  const artifact = run.artifacts.find(
+    (candidate) => candidate.kind === "transcript",
+  );
+  const now = Date.now();
+  await updateActiveWorkRun(
+    run.id,
+    result.status === "completed"
+      ? {
+          status: "completed",
+          criteria: run.criteria.map((criterion) => ({
+            ...criterion,
+            done: true,
+            evidence: {
+              summary: result.summary,
+              artifactId: artifact?.id,
+              verifiedAt: now,
+              verifiedBy: "system",
+            },
+          })),
+          summary: result.summary,
+          completedAt: now,
+        }
+      : {
+          status: "failed",
+          error: result.error,
+          summary: result.error,
+          completedAt: now,
+        },
+    profile,
+  );
+}
 
 function lockDir(): string {
   return join(HERMES_HOME, "locks");
@@ -688,15 +774,39 @@ export async function runJobHeadless(
   activeRuns.set(jobId, true);
   const startTime = Date.now();
 
+  const logDir = join(profileHome(profile), "logs", "routines");
+  if (!existsSync(logDir)) {
+    mkdirSync(logDir, { recursive: true });
+  }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const logFilePath = join(logDir, `routine-${jobId}-${timestamp}.log`);
+  let outcomeRun: ActiveWorkRun;
+  try {
+    outcomeRun = await createCronOutcomeRun(
+      jobId,
+      jobName,
+      logFilePath,
+      profile,
+    );
+  } catch (err) {
+    activeRuns.delete(jobId);
+    try {
+      if (existsSync(lockFile)) unlinkSync(lockFile);
+    } catch {
+      // ignore
+    }
+    log.error("scheduler", {
+      msg: "refusing to run an untracked cron job",
+      jobId,
+      jobName,
+      profile,
+      error: formatLogError(err),
+    });
+    return false;
+  }
+
   return new Promise((resolve) => {
     try {
-      const logDir = join(profileHome(profile), "logs", "routines");
-      if (!existsSync(logDir)) {
-        mkdirSync(logDir, { recursive: true });
-      }
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const logFilePath = join(logDir, `routine-${jobId}-${timestamp}.log`);
       const logStream = createWriteStream(logFilePath, { flags: "a" });
 
       logStream.write(
@@ -720,13 +830,26 @@ export async function runJobHeadless(
         },
       });
       let runSettled = false;
+      let outputAudit = "";
+
+      const recordOutput = (chunk: unknown): void => {
+        outputAudit = `${outputAudit}${String(chunk)}`.slice(
+          -CRON_OUTPUT_AUDIT_LIMIT,
+        );
+      };
 
       proc.stdout.on("data", (chunk) => {
-        if (!runSettled) logStream.write(chunk);
+        if (!runSettled) {
+          recordOutput(chunk);
+          logStream.write(chunk);
+        }
       });
 
       proc.stderr.on("data", (chunk) => {
-        if (!runSettled) logStream.write(chunk);
+        if (!runSettled) {
+          recordOutput(chunk);
+          logStream.write(chunk);
+        }
       });
 
       // Reap a wedged run: if the child never exits within the timeout, kill it,
@@ -762,7 +885,23 @@ export async function runJobHeadless(
           // ignore
         }
         recordSkip(jobId, "timeout-reaped");
-        resolve(false);
+        void settleCronOutcomeRun(
+          outcomeRun,
+          {
+            status: "failed",
+            error: `Scheduled job exceeded the ${JOB_TIMEOUT_MS} ms runtime limit.`,
+          },
+          profile,
+        )
+          .catch((err) => {
+            log.error("scheduler", {
+              msg: "failed to settle reaped cron outcome",
+              jobId,
+              profile,
+              error: formatLogError(err),
+            });
+          })
+          .finally(() => resolve(false));
       }, JOB_TIMEOUT_MS);
       reapTimer.unref?.();
 
@@ -795,7 +934,11 @@ export async function runJobHeadless(
           durationMs: duration,
         });
 
-        if (code !== 0) {
+        const silentSuccess = code === 0 && outputAudit.includes("[SILENT]");
+        if (code !== 0 || silentSuccess) {
+          const failureReason = silentSuccess
+            ? "The scheduled job returned [SILENT]; no deliverable was produced."
+            : `Scheduled job exited with code ${code}.`;
           log.error("scheduler", {
             msg: "job failed; triggering Self-Healing Loop",
             jobId,
@@ -820,7 +963,7 @@ export async function runJobHeadless(
             jobName,
             logFilePath,
             profile,
-            `Exit Code ${code}`,
+            failureReason,
           ).catch((err) => {
             log.error("scheduler", {
               msg: "failed-job triage failed",
@@ -841,8 +984,21 @@ export async function runJobHeadless(
               });
             },
           );
+          await settleCronOutcomeRun(
+            outcomeRun,
+            { status: "failed", error: failureReason },
+            profile,
+          );
           resolve(false);
         } else {
+          await settleCronOutcomeRun(
+            outcomeRun,
+            {
+              status: "completed",
+              summary: `Scheduled job exited successfully in ${duration} ms; its transcript is preserved.`,
+            },
+            profile,
+          );
           resolve(true);
         }
       };
@@ -920,6 +1076,11 @@ export async function runJobHeadless(
             });
           },
         );
+        await settleCronOutcomeRun(
+          outcomeRun,
+          { status: "failed", error: `Process spawn failed: ${err.message}` },
+          profile,
+        );
         resolve(false);
       };
       proc.on("error", (err) => {
@@ -953,7 +1114,23 @@ export async function runJobHeadless(
         profile,
         error: formatLogError(err),
       });
-      resolve(false);
+      void settleCronOutcomeRun(
+        outcomeRun,
+        {
+          status: "failed",
+          error: `Scheduled job setup failed: ${err instanceof Error ? err.message : String(err)}`,
+        },
+        profile,
+      )
+        .catch((settleError) => {
+          log.error("scheduler", {
+            msg: "failed to settle cron setup error",
+            jobId,
+            profile,
+            error: formatLogError(settleError),
+          });
+        })
+        .finally(() => resolve(false));
     }
   });
 }

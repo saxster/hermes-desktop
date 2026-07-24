@@ -14,7 +14,7 @@ import {
   getConnectionConfig,
   getApiServerKey,
   getCompletionSound,
-  getAutoApprove,
+  getAutonomyMode,
 } from "../config";
 import {
   sshGatewayStatus,
@@ -30,7 +30,8 @@ import {
 import { saveAssistantMessageMetadata } from "../messages-metadata";
 import { adoptCouncilResponse } from "../sessions";
 import { recordUsage } from "../usage-store";
-import { canAutoApprove } from "../autonomy";
+import { approvalAutonomyInput, automaticApprovalChoice } from "../autonomy";
+import { decideAndRecordAutonomy } from "../autonomy-decision-store";
 import { appendAuditLog } from "../audit-log";
 import { appendActionReceipt } from "../action-receipts";
 import { validateChatReadiness } from "../validation";
@@ -43,6 +44,12 @@ import {
 import { getVoiceStatus, transcribeAudio, speakText } from "../voice";
 import { formatLogError, log } from "../log";
 import type { Attachment } from "../../shared/attachments";
+import {
+  appendHermesRunEvent,
+  getHermesRunResumeSnapshot,
+  listHermesRunEvents,
+} from "../run-event-store";
+import { createHumanAttentionItem } from "../human-attention";
 
 export const activeChatAborts = new Map<string, () => void>();
 
@@ -164,8 +171,47 @@ export function registerChatIpc(
 
       const sink: ChatTurnSink = {
         emit: (channel, payload) => {
-          if (event.sender.isDestroyed()) return false;
           try {
+            if (channel === "hermes-run-event") {
+              const runEvent = appendHermesRunEvent(payload, profile);
+              if (runEvent.kind === "run.approval.requested") {
+                const requestId = runEvent.payload.requestId;
+                if (typeof requestId === "string" && requestId) {
+                  const summary =
+                    typeof runEvent.payload.description === "string"
+                      ? runEvent.payload.description
+                      : typeof runEvent.payload.command === "string"
+                        ? runEvent.payload.command
+                        : "Hermes needs permission to continue this run.";
+                  void createHumanAttentionItem(
+                    {
+                      kind: "approval",
+                      source: "hermes-run-event",
+                      title: "Hermes needs approval",
+                      summary,
+                      idempotencyKey: `hermes-approval:${runEvent.runId}:${requestId}`,
+                      runId: runEvent.runId,
+                      sessionId: runEvent.sessionId,
+                      requestId,
+                      choices: [
+                        { id: "once", label: "Allow once", tone: "primary" },
+                        { id: "deny", label: "Deny", tone: "danger" },
+                      ],
+                      resume: { kind: "chat", ref: runEvent.runId },
+                    },
+                    profile,
+                  ).catch((attentionError) => {
+                    log.error("human-attention", {
+                      msg: "failed to park Hermes approval",
+                      runId: runEvent.runId,
+                      requestId,
+                      error: formatLogError(attentionError),
+                    });
+                  });
+                }
+              }
+            }
+            if (event.sender.isDestroyed()) return false;
             if (channel === "chat-tool-progress") {
               appendActionReceipt(
                 {
@@ -226,7 +272,13 @@ export function registerChatIpc(
           });
         },
         maybeAutoApprove: (req) => {
-          if (getAutoApprove(profile) && canAutoApprove(req)) {
+          const mode = getAutonomyMode(profile);
+          const decision = decideAndRecordAutonomy(
+            approvalAutonomyInput(req, mode, clientRunId || req.id),
+            profile,
+          );
+          const automaticChoice = automaticApprovalChoice(decision);
+          if (automaticChoice === "once") {
             respondRunApproval(req.id, "once", profile).catch((error) => {
               log.error("chat", {
                 msg: "auto-approval response failed",
@@ -258,6 +310,34 @@ export function registerChatIpc(
               runId: req.id,
               profile: profile || "default",
             });
+            return true;
+          }
+          if (automaticChoice === "deny") {
+            respondRunApproval(req.id, "deny", profile).catch((error) => {
+              log.error("chat", {
+                msg: "read-only denial response failed",
+                runId: req.id,
+                profile,
+                error: formatLogError(error),
+              });
+            });
+            appendAuditLog({
+              ts: Date.now(),
+              action: "auto-deny-read-only",
+              command: req.command,
+              runId: req.id,
+              profile: profile || "default",
+            });
+            appendActionReceipt(
+              {
+                source: "assistant",
+                action: "approval",
+                outcome: "denied-read-only",
+                summary: "Denied action in read-only mode",
+                refs: [{ kind: "run", id: req.id }],
+              },
+              profile,
+            );
             return true;
           }
           return false;
@@ -321,8 +401,21 @@ export function registerChatIpc(
     if (abort) {
       abort();
       activeChatAborts.delete(sessionKey);
+      return { stopped: true, sessionKey };
     }
+    return { stopped: false, sessionKey };
   });
+
+  safeHandle(
+    "list-hermes-run-events",
+    (_event, runId?: string, limit?: number, profile?: string) =>
+      listHermesRunEvents(runId, limit ?? 500, profile),
+  );
+  safeHandle(
+    "get-hermes-run-resume",
+    (_event, runId: string, profile?: string) =>
+      getHermesRunResumeSnapshot(runId, profile),
+  );
 
   safeHandle(
     "adopt-council-response",

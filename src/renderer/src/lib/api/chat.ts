@@ -113,6 +113,24 @@ export function onChatError(
   return window.hermesAPI.onChatError(...args);
 }
 
+export function listHermesRunEvents(
+  ...args: Parameters<Window["hermesAPI"]["listHermesRunEvents"]>
+): ReturnType<Window["hermesAPI"]["listHermesRunEvents"]> {
+  return window.hermesAPI.listHermesRunEvents(...args);
+}
+
+export function getHermesRunResume(
+  ...args: Parameters<Window["hermesAPI"]["getHermesRunResume"]>
+): ReturnType<Window["hermesAPI"]["getHermesRunResume"]> {
+  return window.hermesAPI.getHermesRunResume(...args);
+}
+
+export function onHermesRunEvent(
+  ...args: Parameters<Window["hermesAPI"]["onHermesRunEvent"]>
+): ReturnType<Window["hermesAPI"]["onHermesRunEvent"]> {
+  return window.hermesAPI.onHermesRunEvent(...args);
+}
+
 export function onChatToolProgress(
   ...args: Parameters<Window["hermesAPI"]["onChatToolProgress"]>
 ): ReturnType<Window["hermesAPI"]["onChatToolProgress"]> {
