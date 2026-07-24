@@ -11,6 +11,7 @@ import {
   writeFileSync,
   readFileSync,
   existsSync,
+  chmodSync,
 } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -20,12 +21,24 @@ mkdirSync(OUT, { recursive: true });
 const HOME = mkdtempSync(join(tmpdir(), "hermes-you-"));
 
 mkdirSync(join(HOME, "hermes-agent", "venv", "bin"), { recursive: true });
-writeFileSync(join(HOME, "hermes-agent", "venv", "bin", "python"), "");
+const pythonShim = join(HOME, "hermes-agent", "venv", "bin", "python");
+writeFileSync(
+  pythonShim,
+  `#!/usr/bin/env node
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+rl.on("line", (line) => {
+  const req = JSON.parse(line);
+  console.log(JSON.stringify({ id: req.id, result: { ok: true, results: [] } }));
+});
+`,
+);
+chmodSync(pythonShim, 0o755);
 writeFileSync(join(HOME, "hermes-agent", "hermes"), "");
 writeFileSync(join(HOME, ".env"), "ANTHROPIC_API_KEY=sk-ant-test-0000000000\n");
 writeFileSync(
   join(HOME, "config.yaml"),
-  "model:\n  provider: anthropic\n  model: claude-3-5-sonnet\n",
+  "model:\n  provider: anthropic\n  default: claude-3-5-sonnet\n",
 );
 writeFileSync(
   join(HOME, "desktop.json"),
@@ -42,6 +55,8 @@ writeFileSync(
     tree: [{ id: "home", children: [] }],
     meta: { home: { title: "Home" } },
     docs: { home: [] },
+    comments: [],
+    trash: [],
     page: "home",
   }),
 );
@@ -57,6 +72,7 @@ const app = await electron.launch({
 const win = await app.firstWindow();
 await win.waitForLoadState("domcontentloaded");
 await win.waitForSelector(".app", { timeout: 30000 });
+await win.waitForTimeout(1800);
 
 function fail(msg) {
   console.error("PROBE_FAIL:", msg);
@@ -64,14 +80,29 @@ function fail(msg) {
   process.exit(1);
 }
 
-// Open the You surface from the rail.
-await win.locator(".nav-item", { hasText: "My Alignment" }).first().click();
+// Open the You surface through the current profile-menu entry point. A seeded
+// launch may restore the admin overlay, so close it before using the rail.
+const closeSettings = win.getByRole("button", { name: "Close settings" });
+if (await closeSettings.isVisible()) await closeSettings.click();
+const profileMenuButton = win.getByRole("button", {
+  name: "Open profile menu",
+});
+try {
+  await profileMenuButton.waitFor({ state: "visible", timeout: 10000 });
+} catch {
+  await win.screenshot({ path: join(OUT, "you-startup-failure.png") });
+  const body = (await win.locator("body").innerText()).slice(0, 1200);
+  fail(`profile menu not shown; startup screen contained: ${body}`);
+}
+await profileMenuButton.click();
+await win.getByRole("menuitem", { name: "Personalize My Assistant" }).click();
 await win.waitForSelector(".settings-header", { timeout: 8000 });
 const header = await win.locator(".settings-header").first().textContent();
 if (!header || !header.includes("You"))
   fail(`You header not shown (got: ${header})`);
 
-// The rules manager + its suggestions should render.
+// The ordinary view starts with response-style presets and standing rules.
+await win.waitForSelector("text=Response style", { timeout: 8000 });
 await win.waitForSelector("text=How I like things", { timeout: 8000 });
 await win.screenshot({ path: join(OUT, "you-surface.png") });
 console.log("SHOT ok: you-surface");
@@ -95,6 +126,23 @@ for (let i = 0; i < 40; i++) {
   await new Promise((r) => setTimeout(r, 150));
 }
 if (!ok) fail(`rule did not persist to ${userMdPath}`);
+
+// Memory is a separate human-readable view; raw source and external backends
+// stay behind explicit disclosure.
+await win.getByRole("tab", { name: /What you remember/ }).click();
+await win.waitForSelector("text=Remembered facts", { timeout: 8000 });
+await win.waitForSelector("text=Edit MEMORY.md source", { timeout: 8000 });
+await win.screenshot({ path: join(OUT, "you-memory.png") });
+console.log("SHOT ok: you-memory");
+
+await win.getByRole("tab", { name: "Advanced" }).click();
+await win.waitForSelector("text=Memory backend", { timeout: 8000 });
+await win.waitForSelector(
+  "text=On — recommended. Local, editable, and portable.",
+  {
+    timeout: 8000,
+  },
+);
 
 await win.screenshot({ path: join(OUT, "you-surface-with-rule.png") });
 console.log("SHOT ok: you-surface-with-rule");

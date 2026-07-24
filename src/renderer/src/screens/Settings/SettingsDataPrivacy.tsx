@@ -1,13 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "../../components/useI18n";
-import { Check, Download, Upload } from "lucide-react";
+import { Download, Folder, Upload } from "lucide-react";
 import {
   getAnalyticsConsent,
   setAnalyticsConsent,
 } from "../../utils/analytics";
 import WorkspaceBackups from "./WorkspaceBackups";
-import { HealthSurface } from "../SpsAgent/health/HealthSurface";
-import { StorageSettings } from "../SpsAgent/tweaks/TweaksPanel";
 
 export function SettingsDataPrivacy({
   profile,
@@ -15,7 +13,10 @@ export function SettingsDataPrivacy({
   profile?: string;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const [healthExpanded, setHealthExpanded] = useState(false);
+  const [dataLocations, setDataLocations] = useState<{
+    hermesHome: string;
+    vault: string;
+  } | null>(null);
 
   // Backup / Import state
   const [backingUp, setBackingUp] = useState(false);
@@ -27,6 +28,17 @@ export function SettingsDataPrivacy({
   const [analyticsEnabled, setAnalyticsEnabled] = useState(() =>
     getAnalyticsConsent(),
   );
+
+  useEffect(() => {
+    Promise.all([
+      window.hermesAPI.getHermesHome(profile),
+      window.hermesAPI.spsGetVaultLocation?.(),
+    ])
+      .then(([hermesHome, vault]) => {
+        setDataLocations({ hermesHome, vault: vault?.dir ?? "Unavailable" });
+      })
+      .catch(() => setDataLocations(null));
+  }, [profile]);
 
   async function handleBackup(): Promise<void> {
     setBackingUp(true);
@@ -63,44 +75,25 @@ export function SettingsDataPrivacy({
 
   return (
     <>
-      {/* Vault Health Section */}
       <div className="settings-section" data-section-tab="dataPrivacy">
-        <div className="settings-section-title">
-          <span
-            style={{
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-            }}
-            onClick={() => setHealthExpanded(!healthExpanded)}
-          >
-            <Check size={14} style={{ marginRight: 6 }} />
-            Vault Health {healthExpanded ? "▾" : "▸"}
-          </span>
-        </div>
-        {healthExpanded && (
-          <div
-            className="settings-field"
-            style={{
-              borderTop: "1px solid var(--border)",
-              paddingTop: 16,
-              marginTop: 12,
-            }}
-          >
-            <HealthSurface profile={profile} embedded={true} />
+        <div className="settings-section-title">Where your data lives</div>
+        <div className="settings-field data-location-summary">
+          <Folder size={18} aria-hidden="true" />
+          <div>
+            <strong>Hermes data</strong>
+            <code>{dataLocations?.hermesHome ?? "Loading…"}</code>
+            <strong>Workspace documents</strong>
+            <code>{dataLocations?.vault ?? "Loading…"}</code>
+            <p className="settings-field-hint">
+              Your documents stay in these local folders. Storage migrations and
+              vault internals are available in Developer settings.
+            </p>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Workspace Backups Section (MED-11) */}
       <WorkspaceBackups profile={profile} />
-
-      <div className="settings-section" data-section-tab="dataPrivacy">
-        <div className="settings-section-title">Workspace storage</div>
-        <div className="settings-workspace-storage">
-          <StorageSettings />
-        </div>
-      </div>
 
       <div className="settings-section" data-section-tab="dataPrivacy">
         <div className="settings-section-title">

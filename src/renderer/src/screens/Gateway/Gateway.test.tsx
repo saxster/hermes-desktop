@@ -55,6 +55,20 @@ describe("Gateway", () => {
         added: 1,
         updated: 0,
       }),
+      getOwnerDeliverySettings: vi.fn().mockResolvedValue({
+        channels: { macos: true, telegram: false, email: false },
+        events: {
+          "daily-brief": true,
+          "scheduled-research": true,
+          "gateway-outage": true,
+          "follow-up": true,
+          "task-proposal": true,
+        },
+        quietHours: { enabled: false, start: "22:00", end: "07:00" },
+        minIntervalMinutes: 5,
+        maxPerHour: 10,
+      }),
+      setOwnerDeliverySettings: vi.fn(),
     };
 
     Object.defineProperty(window, "hermesAPI", {

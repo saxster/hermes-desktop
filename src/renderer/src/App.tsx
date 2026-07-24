@@ -135,13 +135,14 @@ function App(): React.JSX.Element {
   // install check resolves so we don't force Providers before we know.
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [adminInitialView, setAdminInitialView] =
-    useState<NormalizedAdminView>("overview");
+    useState<NormalizedAdminView>("preferences");
   const isMac = window.electron?.process?.platform === "darwin";
   const startupRunIdRef = useRef(0);
 
   // Pick the tab the overlay should open on when no explicit target is given.
   const defaultAdminView = useCallback(
-    (): NormalizedAdminView => (hasApiKey === false ? "aiSetup" : "overview"),
+    (): NormalizedAdminView =>
+      hasApiKey === false ? "aiSetup" : "preferences",
     [hasApiKey],
   );
 

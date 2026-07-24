@@ -563,12 +563,27 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
               type="button"
               role="menuitem"
               onClick={() => {
+                window.localStorage.setItem(
+                  "hermes.personalization.view",
+                  "how",
+                );
+                setSurface("you");
+                setProfileMenuOpen(false);
+              }}
+            >
+              <Icon name="sparkle" size={16} />
+              Personalize My Assistant
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
                 setTweaksOpen(!tweaksOpen);
                 setProfileMenuOpen(false);
               }}
             >
               <Icon name="sun" size={16} />
-              Workspace appearance
+              Appearance
             </button>
             <button
               type="button"

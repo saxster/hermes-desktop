@@ -523,19 +523,27 @@ await shot("02c-research-nudge", async () => {
   await win.waitForSelector(".gs-row", { timeout: 8000 });
 });
 
-// 02d — Settings opens the Control Center Overview with live AI readiness and
-// the active model from the seeded smoke config.
+// 02d — Settings opens the five-category Control Center on General.
 await shot("02d-control-center", async () => {
   await win.getByRole("button", { name: "Open profile menu" }).click();
   await win.getByRole("menuitem", { name: /Settings/ }).click();
   await win
     .getByRole("dialog", { name: "SPS Control Center" })
     .waitFor({ timeout: 8000 });
-  await win.getByText("claude-3-5-sonnet").waitFor({ timeout: 8000 });
+  await win
+    .getByRole("heading", { name: "General" })
+    .waitFor({ timeout: 8000 });
+  await win.getByText("LIVE PREVIEW").waitFor({ timeout: 8000 });
 });
-await shot("02e-settings-preferences", async () => {
-  await win.getByRole("button", { name: "Preferences", exact: true }).click();
-  await win.getByText("Authored content font").waitFor({ timeout: 8000 });
+await shot("02e-settings-assistant", async () => {
+  await win.getByRole("button", { name: "My Assistant", exact: true }).click();
+  const modelInput = win.locator(".settings-model-row input");
+  await modelInput.waitFor({ timeout: 8000 });
+  const activeModel = await modelInput.inputValue();
+  if (activeModel !== "claude-3-5-sonnet") {
+    throw new Error(`unexpected active model: ${activeModel}`);
+  }
+  await win.getByText("Action permissions").waitFor({ timeout: 8000 });
 });
 await shot("02f-settings-data-privacy", async () => {
   await win
@@ -545,7 +553,7 @@ await shot("02f-settings-data-privacy", async () => {
     .locator(
       '.settings-container[data-section="dataPrivacy"] .settings-section-title',
     )
-    .filter({ hasText: "Workspace storage" })
+    .filter({ hasText: "Where your data lives" })
     .waitFor({ timeout: 8000 });
 });
 await win
@@ -566,15 +574,16 @@ await win
   .catch(() => {});
 await win.waitForTimeout(500);
 
-// 04 — Tweaks panel (sidebar-section toggles + the new Storage section, F5).
-// Local workspace appearance is available from the profile menu.
+// 04 — The profile-menu Appearance action opens the same canonical editor.
 await shot("04-tweaks", async () => {
   await win.getByRole("button", { name: "Open profile menu" }).click();
-  await win.getByRole("menuitem", { name: "Workspace appearance" }).click();
+  await win.getByRole("menuitem", { name: "Appearance" }).click();
+  await win.getByText("LIVE PREVIEW").waitFor({ timeout: 8000 });
 });
 // 05 — toggle a sidebar section (Notion "customize sidebar").
 await shot("05-tweaks-section-toggled", async () => {
-  await win.locator('.twk-toggle[aria-label="Meetings"]').click();
+  await win.getByText("Customize sidebar sections").click();
+  await win.getByLabel("Meetings").click();
 });
 await win
   .locator(".twk-x")

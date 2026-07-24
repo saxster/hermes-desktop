@@ -9,137 +9,15 @@ import {
   type ReactNode,
 } from "react";
 import { useStore } from "../store";
-import { SECTION_ORDER, type SectionId } from "../store/storeTypes";
-import type { Tweaks } from "../lib/theme";
 import { getStorageMode, type StorageMode } from "../lib/storageMode";
 import { toggleStorageMode, getLastBackup } from "../lib/storageActions";
 import { commitChangeset } from "../inbox/ingestApply";
 import { workspaceParity, type ParityReport } from "../editor/workspaceVault";
 import type { Workspace } from "../types";
+import { AppearanceEditor } from "./AppearanceEditor";
 
 function Section({ label }: { label: string }) {
   return <div className="twk-sect">{label}</div>;
-}
-
-const SECTION_LABELS: Record<SectionId, string> = {
-  meetings: "Meetings",
-  recents: "Recents",
-  agents: "Assistants",
-  shared: "Shared",
-  private: "Private",
-  apps: "Notion apps",
-  aiAssistant: "My Assistant",
-  workspaceTools: "Workspace Tools",
-};
-
-/** Toggle individual sidebar sections on/off (Notion 3.1 "customize sidebar"). */
-function SidebarSections() {
-  const enabled = useStore((s) => s.sectionsEnabled);
-  const setSectionEnabled = useStore((s) => s.setSectionEnabled);
-  return (
-    <>
-      <Section label="Sidebar sections" />
-      {SECTION_ORDER.map((id) => (
-        <Toggle
-          key={id}
-          label={SECTION_LABELS[id]}
-          value={enabled[id]}
-          onChange={(v) => setSectionEnabled(id, v)}
-        />
-      ))}
-    </>
-  );
-}
-
-function Toggle({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="twk-row twk-row-h">
-      <span className="twk-lbl twk-flex-1">
-        <span>{label}</span>
-      </span>
-      <button
-        className="twk-toggle"
-        data-on={value ? "1" : "0"}
-        onClick={() => onChange(!value)}
-        aria-label={label}
-      >
-        <i />
-      </button>
-    </div>
-  );
-}
-
-function Segmented<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: T[];
-  onChange: (v: T) => void;
-}) {
-  const i = Math.max(0, options.indexOf(value));
-  const n = options.length;
-  return (
-    <div className="twk-row">
-      <span className="twk-lbl">
-        <span>{label}</span>
-      </span>
-      <div className="twk-seg" data-n={n} data-i={i}>
-        <div className="twk-seg-thumb" />
-        {options.map((o) => (
-          <button key={o} onClick={() => onChange(o)}>
-            {o}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Select<T extends string>({
-  label,
-  value,
-  options,
-  labels,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: T[];
-  labels?: Record<T, string>;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="twk-row twk-row-h">
-      <span className="twk-lbl twk-flex-1">
-        <span>{label}</span>
-      </span>
-      <select
-        className="twk-field twk-w-120"
-        title={label}
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {labels && labels[o] ? labels[o] : o}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
 }
 
 // Storage settings (F5): a discoverable home for the markdown-vault cutover —
@@ -407,10 +285,10 @@ function Shell({
   return (
     <div ref={ref} className="twk-panel">
       <div className="twk-hd" onMouseDown={onDragStart}>
-        <b>Workspace settings</b>
+        <b>Appearance</b>
         <button
           className="twk-x"
-          aria-label="Close tweaks"
+          aria-label="Close appearance"
           // Stop the header's drag handler from claiming this press — otherwise
           // a pixel of jitter moves the panel and the click misses the button.
           onMouseDown={(e) => e.stopPropagation()}
@@ -427,8 +305,6 @@ function Shell({
 export function TweaksPanel() {
   const open = useStore((s) => s.tweaksOpen);
   const setOpen = useStore((s) => s.setTweaksOpen);
-  const t = useStore((s) => s.t);
-  const setTweak = useStore((s) => s.setTweak);
 
   useEffect(() => {
     if (!open) return;
@@ -446,32 +322,7 @@ export function TweaksPanel() {
   if (!open) return null;
   return (
     <Shell onClose={() => setOpen(false)}>
-      <Section label="Layout" />
-      <Segmented<Tweaks["sidebar"]>
-        label="Sidebar"
-        value={t.sidebar}
-        options={["full", "icons", "hidden"]}
-        onChange={(v) => setTweak("sidebar", v)}
-      />
-      <Select<Tweaks["width"]>
-        label="Content width"
-        value={t.width}
-        options={["narrow", "comfortable", "wide", "full"]}
-        onChange={(v) => setTweak("width", v)}
-      />
-      <Select<Tweaks["homeSurface"]>
-        label="Home page"
-        value={t.homeSurface}
-        options={["doc", "cockpit", "chats", "inbox"]}
-        labels={{
-          doc: "Document Editor",
-          cockpit: "Cockpit Dashboard",
-          chats: "AI Chats",
-          inbox: "Inbox Review",
-        }}
-        onChange={(v) => setTweak("homeSurface", v)}
-      />
-      <SidebarSections />
+      <AppearanceEditor variant="panel" />
     </Shell>
   );
 }

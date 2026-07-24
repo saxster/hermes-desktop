@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useI18n } from "../../components/useI18n";
 import { getDevMode, setDevMode } from "../../lib/devMode";
-import { LearningSurface } from "../SpsAgent/learning/LearningSurface";
+import { openSettings } from "../../lib/openSettings";
+import { useStore as useSpsStore } from "../SpsAgent/store";
+import { StorageSettings } from "../SpsAgent/tweaks/TweaksPanel";
 import {
   generateApiServerKey,
   getApiServerKeyStatus,
@@ -26,8 +28,10 @@ function makeApiKeyMask(length: number): string {
 
 export function SettingsAdvanced({
   profile,
+  onClose,
 }: {
   profile?: string;
+  onClose?: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
   const [devModeOn, setDevModeOn] = useState(getDevMode());
@@ -179,6 +183,63 @@ export function SettingsAdvanced({
 
   return (
     <>
+      <div className="settings-section" data-section-tab="advanced">
+        <div className="settings-section-title">Developer tools</div>
+        <div className="developer-settings-grid">
+          <button
+            className="settings-task-card"
+            onClick={() => openSettings("models")}
+          >
+            <strong>Model library</strong>
+            <span>Install and inspect specialist models.</span>
+          </button>
+          <button
+            className="settings-task-card"
+            onClick={() => openSettings("council")}
+          >
+            <strong>Advanced model routing</strong>
+            <span>Configure the LLM Council.</span>
+          </button>
+          <button
+            className="settings-task-card"
+            onClick={() => {
+              useSpsStore.getState().setSurface("learning");
+              onClose?.();
+            }}
+          >
+            <strong>Skills and learning</strong>
+            <span>Open Learning to manage the skill registry.</span>
+          </button>
+          <button
+            className="settings-task-card"
+            onClick={() => {
+              window.localStorage.setItem(
+                "hermes.personalization.view",
+                "advanced",
+              );
+              useSpsStore.getState().setSurface("you");
+              onClose?.();
+            }}
+          >
+            <strong>Memory backend</strong>
+            <span>
+              Open advanced personalization and external memory providers.
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-section" data-section-tab="advanced">
+        <div className="settings-section-title">Workspace storage</div>
+        <p className="settings-field-hint">
+          These migration controls change the workspace storage substrate. A
+          parity check protects the cutover and keeps the previous blob backup.
+        </p>
+        <div className="settings-workspace-storage">
+          <StorageSettings />
+        </div>
+      </div>
+
       <div className="settings-section" data-section-tab="advanced">
         <div className="settings-section-title">
           {t("settings.connectionSection")}
@@ -467,11 +528,6 @@ export function SettingsAdvanced({
             </div>
           </>
         )}
-      </div>
-
-      <div className="settings-section" data-section-tab="advanced">
-        <div className="settings-section-title">Learning developer tools</div>
-        <LearningSurface profile={profile} developerOnly />
       </div>
 
       <div className="settings-section" data-section-tab="advanced">

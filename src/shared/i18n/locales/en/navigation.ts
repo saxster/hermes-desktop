@@ -14,6 +14,11 @@ export default {
   connectedApps: "Connected Apps",
   troubleshooting: "Troubleshooting",
   advanced: "Advanced",
+  general: "General",
+  assistant: "My Assistant",
+  connections: "Connections",
+  help: "Help",
+  developerSettings: "Developer settings…",
   // Admin overlay title + nav group headers (task-based IA).
   controlCenterTitle: "SPS Control Center",
   groupStart: "Start",

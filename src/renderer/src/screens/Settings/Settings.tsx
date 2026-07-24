@@ -16,9 +16,11 @@ import { SettingsAdvanced } from "./SettingsAdvanced";
 function Settings({
   profile,
   section,
+  onClose,
 }: {
   profile?: string;
   section: SettingsSection;
+  onClose?: () => void;
 }): React.JSX.Element {
   const sectionCopy = SETTINGS_SECTION_COPY[section];
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,11 +41,11 @@ function Settings({
 
       <SettingsTroubleshooting
         profile={profile}
-        active={section === "troubleshooting"}
+        active={section === "troubleshooting" || section === "advanced"}
       />
       <SettingsDataPrivacy profile={profile} />
-      <SettingsPreferences profile={profile} />
-      <SettingsAdvanced profile={profile} />
+      <SettingsPreferences />
+      <SettingsAdvanced profile={profile} onClose={onClose} />
     </div>
   );
 }

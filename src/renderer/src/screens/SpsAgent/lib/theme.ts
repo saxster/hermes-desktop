@@ -13,7 +13,9 @@ export type Tweaks = {
   sidebar: "full" | "icons" | "hidden";
   width: "narrow" | "comfortable" | "wide" | "full";
   density: "comfortable" | "compact";
-  bodyfont: "sans" | "serif" | "mono";
+  bodyfont: "sans" | "humanist" | "serif" | "mono";
+  textScale: "small" | "medium" | "large";
+  lineSpacing: "compact" | "comfortable" | "relaxed";
   homeSurface: "doc" | "cockpit" | "chats" | "inbox";
 };
 
@@ -25,10 +27,21 @@ export const TWEAK_DEFAULTS: Tweaks = {
   width: "comfortable",
   density: "comfortable",
   bodyfont: "sans",
+  textScale: "medium",
+  lineSpacing: "comfortable",
   homeSurface: "cockpit",
 };
 
-export const ACCENTS = ["#C79400", "#1B4F8A", "#A1202C", "#1F6B3A", "#5A3A8A"];
+export const ACCENTS = [
+  "#C79400",
+  "#1B4F8A",
+  "#A1202C",
+  "#1F6B3A",
+  "#5A3A8A",
+  "#0F6B78",
+  "#B45309",
+  "#9F3F77",
+];
 
 export const WIDTHS: Record<Tweaks["width"], string> = {
   comfortable: "740px",
@@ -144,6 +157,8 @@ export function applyTweaks(t: Tweaks): void {
     t.density === "compact" ? "compact" : "comfortable",
   );
   r.setAttribute("data-bodyfont", t.bodyfont);
+  r.setAttribute("data-text-scale", t.textScale);
+  r.setAttribute("data-line-spacing", t.lineSpacing);
   r.setAttribute("data-width", t.width === "full" ? "full" : "fixed");
   applyAccentVars(r, t.accent);
   r.style.setProperty("--content-w", WIDTHS[t.width] || "740px");

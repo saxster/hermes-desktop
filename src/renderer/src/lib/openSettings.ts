@@ -9,6 +9,11 @@
 /** Every view the admin overlay can be asked to show. Legacy aliases remain
  * accepted so old callers keep working while Layout renders task-based views. */
 export type AdminView =
+  | "general"
+  | "assistant"
+  | "connections"
+  | "help"
+  | "developer"
   | "overview"
   | "aiSetup"
   | "models"
@@ -25,10 +30,16 @@ export type AdminView =
   | "spsAgent"
   | "settings";
 
-export type NormalizedAdminView = Exclude<
-  AdminView,
-  "providers" | "gateway" | "spsAgent" | "settings"
->;
+export type NormalizedAdminView =
+  | "aiSetup"
+  | "models"
+  | "council"
+  | "personalization"
+  | "preferences"
+  | "dataPrivacy"
+  | "connectedApps"
+  | "troubleshooting"
+  | "advanced";
 
 export const OPEN_SETTINGS_EVENT = "hermes:open-settings";
 
@@ -58,7 +69,12 @@ export function openSettings(view?: AdminView): void {
 export const ADMIN_LAST_VIEW_KEY = "hermes.admin.lastView";
 
 const VIEW_ALIASES: Record<string, NormalizedAdminView> = {
-  overview: "overview",
+  general: "preferences",
+  assistant: "aiSetup",
+  connections: "connectedApps",
+  help: "troubleshooting",
+  developer: "advanced",
+  overview: "preferences",
   aiSetup: "aiSetup",
   providers: "aiSetup",
   models: "models",
@@ -70,18 +86,18 @@ const VIEW_ALIASES: Record<string, NormalizedAdminView> = {
   gateway: "connectedApps",
   troubleshooting: "troubleshooting",
   advanced: "advanced",
-  spsAgent: "overview",
-  settings: "overview",
+  spsAgent: "preferences",
+  settings: "preferences",
 };
 
 export function normalizeAdminView(
   view?: AdminView | string,
 ): NormalizedAdminView {
-  if (!view) return "overview";
-  return VIEW_ALIASES[view] ?? "overview";
+  if (!view) return "preferences";
+  return VIEW_ALIASES[view] ?? "preferences";
 }
 
-/** Last normalized admin view the user viewed, or "overview" if none/invalid. */
+/** Last normalized admin view the user viewed, or General if none/invalid. */
 export function readLastAdminView(): NormalizedAdminView {
   try {
     const stored = window.localStorage.getItem(ADMIN_LAST_VIEW_KEY);
@@ -89,7 +105,7 @@ export function readLastAdminView(): NormalizedAdminView {
   } catch {
     /* localStorage unavailable — fall through to default */
   }
-  return "overview";
+  return "preferences";
 }
 
 export function writeLastAdminView(view: AdminView): void {

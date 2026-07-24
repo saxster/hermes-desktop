@@ -14,14 +14,19 @@ describe("openSettings view normalization", () => {
   it("maps legacy admin tabs to task-based Control Center views", () => {
     expect(normalizeAdminView("providers")).toBe("aiSetup");
     expect(normalizeAdminView("gateway")).toBe("connectedApps");
-    expect(normalizeAdminView("settings")).toBe("overview");
-    expect(normalizeAdminView("spsAgent")).toBe("overview");
+    expect(normalizeAdminView("settings")).toBe("preferences");
+    expect(normalizeAdminView("spsAgent")).toBe("preferences");
     expect(normalizeAdminView("models")).toBe("models");
+    expect(normalizeAdminView("general")).toBe("preferences");
+    expect(normalizeAdminView("assistant")).toBe("aiSetup");
+    expect(normalizeAdminView("connections")).toBe("connectedApps");
+    expect(normalizeAdminView("help")).toBe("troubleshooting");
+    expect(normalizeAdminView("developer")).toBe("advanced");
   });
 
-  it("falls back to overview for missing or unknown values", () => {
-    expect(normalizeAdminView()).toBe("overview");
-    expect(normalizeAdminView("not-real")).toBe("overview");
+  it("falls back to General for missing or unknown values", () => {
+    expect(normalizeAdminView()).toBe("preferences");
+    expect(normalizeAdminView("not-real")).toBe("preferences");
   });
 
   it("reads and writes only normalized last views", () => {

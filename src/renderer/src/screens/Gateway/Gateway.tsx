@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { GATEWAY_SECTIONS, GATEWAY_PLATFORMS } from "../../constants";
 import { useI18n } from "../../components/useI18n";
+import { OwnerDeliverySettings } from "../Settings/OwnerDeliverySettings";
 import { useGatewayHealth } from "../../hooks/useGatewayHealth";
 import PlatformCard from "./components/PlatformCard";
 import WhatsAppCloudSetup from "./components/WhatsAppCloudSetup";
@@ -292,7 +293,7 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
 
   return (
     <div className="settings-container">
-      <h1 className="settings-header">{t("gateway.title")}</h1>
+      <h1 className="settings-header">Connections</h1>
 
       <ConnectedApps profile={profile} />
 
@@ -598,6 +599,8 @@ function Gateway({ profile }: { profile?: string }): React.JSX.Element {
           </div>
         )}
       </div>
+
+      <OwnerDeliverySettings profile={profile} />
     </div>
   );
 }

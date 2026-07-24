@@ -1,4 +1,3 @@
-import { useI18n } from "../../components/useI18n";
 import { useModelConfig } from "./useModelConfig";
 import { useProviderEnv } from "./useProviderEnv";
 import { ProviderModelSection } from "./ProviderModelSection";
@@ -9,6 +8,7 @@ import {
   ProviderCredentialsSections,
   type ProviderSetup,
 } from "./ProviderCredentialsSections";
+import { AssistantBehaviorSettings } from "../Settings/AssistantBehaviorSettings";
 
 /**
  * Providers screen composition root. Owns only the cross-section state:
@@ -19,11 +19,12 @@ import {
 function Providers({
   profile,
   visible,
+  onPersonalize,
 }: {
   profile?: string;
   visible?: boolean;
+  onPersonalize?: () => void;
 }): React.JSX.Element {
-  const { t } = useI18n();
   const model = useModelConfig(profile, visible);
   const envApi = useProviderEnv(profile);
 
@@ -49,12 +50,18 @@ function Providers({
 
   return (
     <div className="settings-container">
-      <h1 className="settings-header">{t("providers.title")}</h1>
+      <h1 className="settings-header">My Assistant</h1>
       <p className="models-subtitle" style={{ marginBottom: 16 }}>
-        {t("providers.subtitle")}
+        Choose the active AI, personalize how it works with you, and decide what
+        it may do without asking.
       </p>
 
       <ProviderModelSection profile={profile} visible={visible} model={model} />
+
+      <AssistantBehaviorSettings
+        profile={profile}
+        onPersonalize={onPersonalize ?? (() => {})}
+      />
 
       <ProviderPoolSection profile={profile} />
 

@@ -43,6 +43,12 @@ export function removeMemoryEntry(
   return window.hermesAPI.removeMemoryEntry(...args);
 }
 
+export function updateMemoryEntry(
+  ...args: Parameters<Window["hermesAPI"]["updateMemoryEntry"]>
+): ReturnType<Window["hermesAPI"]["updateMemoryEntry"]> {
+  return window.hermesAPI.updateMemoryEntry(...args);
+}
+
 export function addMemoryEntry(
   ...args: Parameters<Window["hermesAPI"]["addMemoryEntry"]>
 ): ReturnType<Window["hermesAPI"]["addMemoryEntry"]> {

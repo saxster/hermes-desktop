@@ -9,8 +9,10 @@ interface PromptSizeBreakdown {
 
 export function PromptBudgetSection({
   profile,
+  sectionTab = "troubleshooting",
 }: {
   profile?: string;
+  sectionTab?: string;
 }): React.JSX.Element {
   const [promptSize, setPromptSize] = useState<PromptSizeBreakdown | null>(
     null,
@@ -52,7 +54,7 @@ export function PromptBudgetSection({
   }
 
   return (
-    <div className="settings-section" data-section-tab="troubleshooting">
+    <div className="settings-section" data-section-tab={sectionTab}>
       <div className="settings-section-title">Context Window</div>
       <div className="settings-field">
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>

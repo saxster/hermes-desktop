@@ -4,7 +4,6 @@ const Gateway = lazy(() => import("../Gateway/Gateway"));
 const Models = lazy(() => import("../Models/Models"));
 const CouncilSettings = lazy(() => import("../Council/CouncilSettings"));
 const Providers = lazy(() => import("../Providers/Providers"));
-const ControlCenterOverview = lazy(() => import("./ControlCenterOverview"));
 import RemoteNotice from "../../components/RemoteNotice";
 import VerifyWarningBanner from "../../components/VerifyWarningBanner";
 import hermeslogo from "../../assets/hermes.png";
@@ -12,14 +11,10 @@ import {
   ChevronDown,
   Settings as SettingsIcon,
   Signal,
-  Layers,
-  KeyRound,
   Download,
 } from "../../assets/icons";
 import {
   Activity,
-  BrainCircuit,
-  Home,
   Shield,
   SlidersHorizontal,
   Wand2,
@@ -47,61 +42,16 @@ interface NavItem {
   icon: LucideIcon;
   labelKey: string;
 }
-interface NavGroup {
-  id: string;
-  headerKey: string;
-  items: NavItem[];
-}
-
-const NAV_GROUPS: NavGroup[] = [
+const NAV_ITEMS: NavItem[] = [
   {
-    id: "start",
-    headerKey: "navigation.groupStart",
-    items: [
-      { view: "overview", icon: Home, labelKey: "navigation.overview" },
-      { view: "aiSetup", icon: KeyRound, labelKey: "navigation.aiSetup" },
-      {
-        view: "personalization",
-        icon: Wand2,
-        labelKey: "navigation.personalization",
-      },
-    ],
+    view: "preferences",
+    icon: SlidersHorizontal,
+    labelKey: "navigation.general",
   },
-  {
-    id: "workspace",
-    headerKey: "navigation.groupWorkspace",
-    items: [
-      {
-        view: "preferences",
-        icon: SlidersHorizontal,
-        labelKey: "navigation.preferences",
-      },
-      {
-        view: "dataPrivacy",
-        icon: Shield,
-        labelKey: "navigation.dataPrivacy",
-      },
-      {
-        view: "connectedApps",
-        icon: Signal,
-        labelKey: "navigation.connectedApps",
-      },
-    ],
-  },
-  {
-    id: "power",
-    headerKey: "navigation.groupPowerUser",
-    items: [
-      { view: "models", icon: Layers, labelKey: "navigation.models" },
-      { view: "council", icon: BrainCircuit, labelKey: "navigation.council" },
-      {
-        view: "troubleshooting",
-        icon: Activity,
-        labelKey: "navigation.troubleshooting",
-      },
-      { view: "advanced", icon: SettingsIcon, labelKey: "navigation.advanced" },
-    ],
-  },
+  { view: "aiSetup", icon: Wand2, labelKey: "navigation.assistant" },
+  { view: "connectedApps", icon: Signal, labelKey: "navigation.connections" },
+  { view: "dataPrivacy", icon: Shield, labelKey: "navigation.dataPrivacy" },
+  { view: "troubleshooting", icon: Activity, labelKey: "navigation.help" },
 ];
 
 function normalizeReleaseNotes(notes: unknown): string {
@@ -145,7 +95,7 @@ function Layout({
   // Tabs lazy-mount on first visit, then stay mounted (display:none toggle).
   // Keeps IPC refetch / DOM rebuild off the tab-switch hot path.
   const [visitedViews, setVisitedViews] = useState<Set<View>>(
-    () => new Set<View>(["overview", normalizeAdminView(initialView)]),
+    () => new Set<View>([normalizeAdminView(initialView)]),
   );
   // Remote-only mode — SSH tunnel has full access; only pure HTTP remote mode restricts screens
   const [remoteMode, setRemoteMode] = useState(false);
@@ -164,6 +114,7 @@ function Layout({
   }, []);
 
   const openPersonalization = useCallback(() => {
+    window.localStorage.setItem("hermes.personalization.view", "how");
     useSpsStore.getState().setSurface("you");
     onClose?.();
   }, [onClose]);
@@ -387,41 +338,35 @@ function Layout({
             />
             {t("navigation.controlCenterTitle")}
           </button>
-          {adminOpen &&
-            NAV_GROUPS.map((group) => (
-              <div
-                key={group.id}
-                className="sidebar-nav-section"
-                role="group"
-                aria-label={t(group.headerKey)}
+          {adminOpen && (
+            <div
+              className="sidebar-nav-section"
+              role="group"
+              aria-label="Settings"
+            >
+              {NAV_ITEMS.filter(
+                ({ view: v }) =>
+                  !(remoteMode && (v === "aiSetup" || v === "connectedApps")),
+              ).map(({ view: v, icon: Icon, labelKey }) => (
+                <button
+                  key={v}
+                  className={`sidebar-nav-item ${view === v ? "active" : ""}`}
+                  onClick={() => goTo(v)}
+                >
+                  <Icon size={16} />
+                  {t(labelKey)}
+                </button>
+              ))}
+              <div className="sidebar-nav-developer-divider" />
+              <button
+                className={`sidebar-nav-item sidebar-nav-item-secondary ${view === "advanced" || view === "models" || view === "council" ? "active" : ""}`}
+                onClick={() => goTo("advanced")}
               >
-                <div className="sidebar-nav-group-header">
-                  {t(group.headerKey)}
-                </div>
-                {group.items
-                  .filter(
-                    ({ view: v }) =>
-                      !(
-                        remoteMode &&
-                        (v === "aiSetup" || v === "connectedApps")
-                      ),
-                  )
-                  .map(({ view: v, icon: Icon, labelKey }) => (
-                    <button
-                      key={v}
-                      className={`sidebar-nav-item ${view === v ? "active" : ""}`}
-                      onClick={() =>
-                        v === "personalization"
-                          ? openPersonalization()
-                          : goTo(v)
-                      }
-                    >
-                      <Icon size={16} />
-                      {t(labelKey)}
-                    </button>
-                  ))}
-              </div>
-            ))}
+                <SettingsIcon size={16} />
+                {t("navigation.developerSettings")}
+              </button>
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -511,17 +456,6 @@ function Layout({
               onDismiss={onDismissVerifyWarning}
             />
           )}
-          {visitedViews.has("overview") && (
-            <div style={paneStyle("overview")}>
-              <ControlCenterOverview
-                profile={activeProfile}
-                remoteMode={remoteMode}
-                onNavigate={goTo}
-                onClose={onClose ?? (() => {})}
-              />
-            </div>
-          )}
-
           {visitedViews.has("models") && (
             <div style={paneStyle("models")}>
               <Models visible={view === "models"} />
@@ -542,6 +476,7 @@ function Layout({
                 <Providers
                   profile={activeProfile}
                   visible={view === "aiSetup"}
+                  onPersonalize={onClose ?? (() => {})}
                 />
               )}
             </div>
@@ -559,25 +494,41 @@ function Layout({
 
           {visitedViews.has("preferences") && (
             <div style={paneStyle("preferences")}>
-              <Settings profile={activeProfile} section="preferences" />
+              <Settings
+                profile={activeProfile}
+                section="preferences"
+                onClose={onClose}
+              />
             </div>
           )}
 
           {visitedViews.has("dataPrivacy") && (
             <div style={paneStyle("dataPrivacy")}>
-              <Settings profile={activeProfile} section="dataPrivacy" />
+              <Settings
+                profile={activeProfile}
+                section="dataPrivacy"
+                onClose={onClose}
+              />
             </div>
           )}
 
           {visitedViews.has("troubleshooting") && (
             <div style={paneStyle("troubleshooting")}>
-              <Settings profile={activeProfile} section="troubleshooting" />
+              <Settings
+                profile={activeProfile}
+                section="troubleshooting"
+                onClose={onClose}
+              />
             </div>
           )}
 
           {visitedViews.has("advanced") && (
             <div style={paneStyle("advanced")}>
-              <Settings profile={activeProfile} section="advanced" />
+              <Settings
+                profile={activeProfile}
+                section="advanced"
+                onClose={onClose}
+              />
             </div>
           )}
         </main>

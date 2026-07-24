@@ -6,7 +6,11 @@ import { useI18n } from "../../components/useI18n";
 // (<HERMES_HOME>/logs/hermes-errors.jsonl). Read-only and strictly local:
 // crash/error records are written by the main process and nothing here (or
 // there) sends data off the machine.
-export default function Diagnostics(): React.JSX.Element {
+export default function Diagnostics({
+  sectionTab = "troubleshooting",
+}: {
+  sectionTab?: string;
+}): React.JSX.Element {
   const { t } = useI18n();
   const [records, setRecords] = useState<string[]>([]);
   const [busy, setBusy] = useState("");
@@ -50,7 +54,7 @@ export default function Diagnostics(): React.JSX.Element {
   }
 
   return (
-    <div className="settings-section" data-section-tab="troubleshooting">
+    <div className="settings-section" data-section-tab={sectionTab}>
       <div className="settings-section-title">
         <Stethoscope size={14} style={{ marginRight: 6 }} />
         {t("settings.diagnosticsSection")}

@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe("StorageSettings", () => {
-  it("retains the storage migration controls for Data & Privacy", async () => {
+  it("retains the storage migration controls for Developer settings", async () => {
     await act(async () => render(<StorageSettings />));
 
     expect(screen.getByText("JSON blob")).toBeTruthy();
@@ -32,15 +32,14 @@ describe("StorageSettings", () => {
 });
 
 describe("TweaksPanel", () => {
-  it("contains local layout controls without global appearance or storage", async () => {
+  it("uses the same complete appearance editor as General settings", async () => {
     await act(async () => render(<TweaksPanel />));
 
-    expect(screen.getByText("Layout")).toBeTruthy();
+    expect(screen.getByText("LIVE PREVIEW")).toBeTruthy();
+    expect(screen.getByText("Theme")).toBeTruthy();
+    expect(screen.getByText("Reading font")).toBeTruthy();
     expect(screen.getByLabelText("Content width")).toBeTruthy();
     expect(screen.getByLabelText("Home page")).toBeTruthy();
-    expect(screen.getByText("Sidebar sections")).toBeTruthy();
-    expect(screen.queryByText("Appearance")).toBeNull();
-    expect(screen.queryByText("Typography")).toBeNull();
     expect(screen.queryByText("Storage")).toBeNull();
   });
 });

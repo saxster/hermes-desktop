@@ -41,6 +41,10 @@ describe("Providers", () => {
     const hermesAPI = {
       getLocale: vi.fn().mockResolvedValue("en"),
       setLocale: vi.fn().mockResolvedValue("en"),
+      getAutonomyMode: vi.fn().mockResolvedValue("INTERACTIVE"),
+      setAutonomyMode: vi.fn().mockResolvedValue(undefined),
+      getConfig: vi.fn().mockResolvedValue("0"),
+      setConfig: vi.fn().mockResolvedValue(undefined),
       getEnv: vi.fn().mockResolvedValue({ XAI_API_KEY: "xai-test-key" }),
       getModelConfig: vi.fn().mockResolvedValue({
         provider: "xai",
@@ -224,7 +228,7 @@ describe("Providers", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "AI Setup" }),
+        screen.getByRole("heading", { name: "My Assistant" }),
       ).toBeInTheDocument();
       expect(screen.getByText("xAI (Grok) API Key")).toBeInTheDocument();
     });

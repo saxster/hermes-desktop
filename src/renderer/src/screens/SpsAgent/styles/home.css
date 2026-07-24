@@ -957,6 +957,10 @@
   font-family: var(--font-serif);
   font-weight: 600;
 }
+.sps-scope[data-bodyfont="humanist"] .doc-title,
+.sps-scope[data-bodyfont="humanist"] .blocks {
+  font-family: "Avenir Next", Avenir, "Segoe UI", ui-sans-serif, sans-serif;
+}
 .sps-scope .doc-title:empty::before {
   content: "Untitled";
   color: var(--tx-4);
@@ -981,11 +985,18 @@
 }
 .sps-scope[data-bodyfont="serif"] .blocks {
   font-family: var(--font-serif);
-  font-size: 17.5px;
 }
 .sps-scope[data-bodyfont="mono"] .blocks {
   font-family: var(--font-mono);
-  font-size: 14.5px;
+}
+.sps-scope[data-text-scale="small"] .blocks {
+  font-size: 14px;
+}
+.sps-scope[data-text-scale="medium"] .blocks {
+  font-size: 16px;
+}
+.sps-scope[data-text-scale="large"] .blocks {
+  font-size: 18px;
 }
 
 .sps-scope .block-wrap {
@@ -1037,8 +1048,17 @@
   border-radius: 4px;
   outline: none;
   color: var(--tx-1);
-  line-height: 1.55;
+  line-height: var(--doc-line-height, 1.55);
   position: relative;
+}
+.sps-scope[data-line-spacing="compact"] {
+  --doc-line-height: 1.4;
+}
+.sps-scope[data-line-spacing="comfortable"] {
+  --doc-line-height: 1.55;
+}
+.sps-scope[data-line-spacing="relaxed"] {
+  --doc-line-height: 1.75;
 }
 .sps-scope .block:hover {
   background: var(--block-hover);

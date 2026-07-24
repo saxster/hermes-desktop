@@ -1,7 +1,7 @@
 // parts.tsx — shared building blocks for the personalization surfaces. Used by
 // the admin Personalization screen (overlay) and the in-workspace "You" surface
 // (SpsAgent/you/YouSurface). Kept dependency-free (no IPC) so both can reuse it.
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 
 export interface HookStatus {
   configured: boolean;
@@ -26,6 +26,7 @@ export function EditorSection({
   value,
   charLimit,
   placeholder,
+  headerAction,
   onSave,
 }: {
   title: string;
@@ -33,6 +34,7 @@ export function EditorSection({
   value: string;
   charLimit?: number;
   placeholder?: string;
+  headerAction?: ReactNode;
   onSave: (content: string) => Promise<SaveResult>;
 }): React.JSX.Element {
   const [val, setVal] = useState(value);
@@ -61,13 +63,16 @@ export function EditorSection({
 
   return (
     <div className="settings-section">
-      <div className="settings-section-title">
-        {title}
-        {saved && (
-          <span className="settings-saved" style={{ marginLeft: 8 }}>
-            Saved
-          </span>
-        )}
+      <div className="settings-section-title editor-section-heading">
+        <span>
+          {title}
+          {saved && (
+            <span className="settings-saved" style={{ marginLeft: 8 }}>
+              Saved
+            </span>
+          )}
+        </span>
+        {headerAction}
       </div>
       <div className="settings-field">
         <div className="settings-field-hint" style={{ marginBottom: 8 }}>

@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useI18n } from "../../components/useI18n";
-import { RefreshCw, FileText } from "lucide-react";
+import { RefreshCw, FileText, Send } from "lucide-react";
 import { ConfigHealth } from "./ConfigHealth";
 import CapabilitySummary from "./CapabilitySummary";
 import McpServersManager from "./McpServersManager";
 import ResearchReachSummary from "./ResearchReachSummary";
 import Diagnostics from "./Diagnostics";
 import { PromptBudgetSection } from "./PromptBudgetSection";
+import { HealthSurface } from "../SpsAgent/health/HealthSurface";
+
+const TELEGRAM_COMMUNITY_URL = "https://t.me/hermes_agent_desktop";
 
 type DesktopUpdateRoutineState = Awaited<
   ReturnType<Window["hermesAPI"]["getDesktopUpdateRoutine"]>
@@ -196,6 +199,20 @@ export function SettingsTroubleshooting({
 
   return (
     <>
+      <div className="settings-section" data-section-tab="troubleshooting">
+        <div className="settings-section-title">Start here</div>
+        <div className="settings-field">
+          <p className="settings-field-hint">
+            Run the health check below first. It identifies configuration issues
+            and gives you the shortest available fix.
+          </p>
+          <details className="settings-technical-details">
+            <summary>Check workspace files</summary>
+            <HealthSurface profile={profile} embedded={true} />
+          </details>
+        </div>
+      </div>
+
       <div data-section-tab="troubleshooting">
         <ConfigHealth />
       </div>
@@ -468,13 +485,32 @@ export function SettingsTroubleshooting({
         )}
       </div>
 
-      <PromptBudgetSection profile={profile} />
+      <div className="settings-section" data-section-tab="troubleshooting">
+        <div className="settings-section-title">Community help</div>
+        <div className="settings-field">
+          <p className="settings-field-hint">
+            Ask questions, report issues, and compare setups with other Hermes
+            users.
+          </p>
+          <button
+            className="btn btn-secondary"
+            onClick={() =>
+              window.hermesAPI.openExternal(TELEGRAM_COMMUNITY_URL)
+            }
+          >
+            <Send size={14} aria-hidden="true" />
+            Join Telegram Community
+          </button>
+        </div>
+      </div>
+
+      <PromptBudgetSection profile={profile} sectionTab="advanced" />
 
       {/* Diagnostics Section (MED-10) */}
-      <Diagnostics />
+      <Diagnostics sectionTab="advanced" />
 
       {/* Security Audit Section */}
-      <div className="settings-section" data-section-tab="troubleshooting">
+      <div className="settings-section" data-section-tab="advanced">
         <div className="settings-section-title">Dependency Security Scan</div>
         <div className="settings-field">
           <div className="settings-field-hint" style={{ marginBottom: 12 }}>
@@ -521,20 +557,20 @@ export function SettingsTroubleshooting({
       <CapabilitySummary
         profile={profile}
         active={active}
-        sectionTab="troubleshooting"
+        sectionTab="advanced"
       />
       <McpServersManager
         profile={profile}
         active={active}
-        sectionTab="troubleshooting"
+        sectionTab="advanced"
       />
       <ResearchReachSummary
         profile={profile}
         active={active}
-        sectionTab="troubleshooting"
+        sectionTab="advanced"
       />
 
-      <div className="settings-section" data-section-tab="troubleshooting">
+      <div className="settings-section" data-section-tab="advanced">
         <div className="settings-section-title">
           <span
             style={{ cursor: "pointer" }}

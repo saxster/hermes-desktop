@@ -25,6 +25,8 @@ describe("SPS theme accent foreground", () => {
     document.documentElement.removeAttribute("data-skin");
     document.documentElement.removeAttribute("data-density");
     document.documentElement.removeAttribute("data-bodyfont");
+    document.documentElement.removeAttribute("data-text-scale");
+    document.documentElement.removeAttribute("data-line-spacing");
     document.documentElement.removeAttribute("data-width");
     document.documentElement.removeAttribute("style");
     document.body.innerHTML = "";
@@ -53,5 +55,18 @@ describe("SPS theme accent foreground", () => {
     expect(
       document.documentElement.style.getPropertyValue("--accent-on").trim(),
     ).toBe("#1b1d21");
+  });
+
+  it("applies reading size and spacing attributes to the workspace", () => {
+    applyTweaks({
+      ...TWEAK_DEFAULTS,
+      bodyfont: "humanist",
+      textScale: "large",
+      lineSpacing: "relaxed",
+    });
+
+    expect(document.documentElement.dataset.bodyfont).toBe("humanist");
+    expect(document.documentElement.dataset.textScale).toBe("large");
+    expect(document.documentElement.dataset.lineSpacing).toBe("relaxed");
   });
 });

@@ -1,5 +1,5 @@
 // verify-admin-overlay.mjs — focused visual check for the task-based Control
-// Center. Opens the real SPS Settings gear, verifies the Overview default, and
+// Center. Opens the real SPS Settings gear, verifies the General default, and
 // checks legacy deep-link aliases still land on their new task destinations.
 import { _electron as electron } from "playwright";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
@@ -23,7 +23,7 @@ writeFileSync(
 );
 writeFileSync(
   join(HOME, "config.yaml"),
-  "model:\n  provider: anthropic\n  model: claude-3-5-sonnet\n",
+  "model:\n  provider: anthropic\n  default: claude-3-5-sonnet\n",
 );
 
 async function launchApp() {
@@ -78,12 +78,26 @@ async function shot(name, fn) {
 }
 
 // Open the admin overlay through the actual SPS rail Settings gear.
-await shot("a1-control-center-overview", async () => {
-  await win.locator('[aria-label="Settings"]').click();
-  await win.getByRole("heading", { name: "Control Center" }).waitFor({
+await shot("a1-general", async () => {
+  const generalHeading = win.getByRole("heading", { name: "General" });
+  if (!(await generalHeading.isVisible())) {
+    const settingsButton = win.locator('[aria-label="Settings"]');
+    if (await settingsButton.isVisible()) {
+      await settingsButton.click();
+    } else {
+      await win.evaluate(() =>
+        window.dispatchEvent(
+          new CustomEvent("hermes:open-settings", {
+            detail: { view: "preferences" },
+          }),
+        ),
+      );
+    }
+  }
+  await generalHeading.waitFor({
     timeout: 10000,
   });
-  await win.getByRole("button", { name: "Open AI Setup" }).waitFor({
+  await win.getByText("LIVE PREVIEW").waitFor({
     timeout: 10000,
   });
 });
@@ -97,7 +111,7 @@ await shot("a2-legacy-providers-ai-setup", async () => {
       }),
     ),
   );
-  await win.getByRole("heading", { name: "AI Setup" }).waitFor({
+  await win.getByRole("heading", { name: "My Assistant" }).waitFor({
     timeout: 10000,
   });
 });
@@ -109,25 +123,25 @@ await shot("a3-legacy-gateway-connected-apps", async () => {
       new CustomEvent("hermes:open-settings", { detail: { view: "gateway" } }),
     ),
   );
-  await win.getByRole("heading", { name: "Connected Apps" }).waitFor({
+  await win.getByRole("heading", { name: "Connections" }).waitFor({
     timeout: 10000,
   });
 });
 
-// Legacy settings deep-link -> Overview, not the old nested Settings taxonomy.
-await shot("a4-legacy-settings-overview", async () => {
+// Legacy settings deep-link -> General.
+await shot("a4-legacy-settings-general", async () => {
   await win.evaluate(() =>
     window.dispatchEvent(
       new CustomEvent("hermes:open-settings", { detail: { view: "settings" } }),
     ),
   );
-  await win.getByRole("heading", { name: "Control Center" }).waitFor({
+  await win.getByRole("heading", { name: "General" }).waitFor({
     timeout: 10000,
   });
 });
 
-// Preferences is a flat section: no second-level Settings tab strip.
-await shot("a5-preferences-no-subnav", async () => {
+// General is a flat section with one canonical appearance editor.
+await shot("a5-general-no-subnav", async () => {
   await win.evaluate(() =>
     window.dispatchEvent(
       new CustomEvent("hermes:open-settings", {
@@ -135,7 +149,7 @@ await shot("a5-preferences-no-subnav", async () => {
       }),
     ),
   );
-  await win.getByRole("heading", { name: "Preferences" }).waitFor({
+  await win.getByRole("heading", { name: "General" }).waitFor({
     timeout: 10000,
   });
   await win.getByText("Display zoom").waitFor({ timeout: 10000 });
@@ -160,19 +174,31 @@ console.log(
   `ZOOM_FACTOR=${zoomFactor} DESKTOP_ZOOM=${desktopConfig.appZoomFactor}`,
 );
 
-// Assertions: grouped headers exist, old Settings sub-nav is gone.
-const groupCount = await win.$$eval(
-  ".sidebar-nav-group-header",
-  (els) => els.length,
-);
-const subnavCount = await win.$$eval(".settings-subnav", (els) => els.length);
-if (groupCount !== 3) {
-  throw new Error(`Expected 3 Control Center nav groups, got ${groupCount}`);
+// Assertions: exactly five ordinary categories plus one subdued developer entry.
+const ordinaryLabels = [
+  "General",
+  "My Assistant",
+  "Connections",
+  "Data & Privacy",
+  "Help",
+];
+for (const label of ordinaryLabels) {
+  await win
+    .getByRole("button", { name: label, exact: true })
+    .waitFor({ timeout: 5000 });
 }
+await win
+  .getByRole("button", { name: "Developer settings…", exact: true })
+  .waitFor({
+    timeout: 5000,
+  });
+const subnavCount = await win.$$eval(".settings-subnav", (els) => els.length);
 if (subnavCount !== 0) {
   throw new Error(`Expected no Settings subnav, got ${subnavCount}`);
 }
-console.log(`GROUPS=${groupCount} SETTINGS_SUBNAV=${subnavCount}`);
+console.log(
+  `ORDINARY_CATEGORIES=${ordinaryLabels.length} SETTINGS_SUBNAV=${subnavCount}`,
+);
 console.log(`SHOTS_OK: ${shots.length} — ${shots.join(", ")}`);
 
 await app.close();

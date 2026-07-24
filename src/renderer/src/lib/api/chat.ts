@@ -21,7 +21,7 @@
 // screens/SpsAgent/shell/ChatSurface.tsx,
 // screens/SpsAgent/sidebar/SidebarRecents.tsx,
 // screens/SpsAgent/cockpit/CockpitSurface.tsx,
-// screens/Layout/ControlCenterOverview.tsx.
+// readiness panels and chat entry points.
 
 // ── Turns ──
 

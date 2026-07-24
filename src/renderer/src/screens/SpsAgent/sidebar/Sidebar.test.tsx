@@ -146,13 +146,14 @@ describe("Sidebar", () => {
     expect(screen.getByText("Notes")).toBeTruthy();
   });
 
-  it("puts workspace appearance and global Settings in one profile menu", () => {
+  it("puts personalization, appearance, and Settings in one profile menu", () => {
     render(<Sidebar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
     expect(
-      screen.getByRole("menuitem", { name: "Workspace appearance" }),
+      screen.getByRole("menuitem", { name: "Personalize My Assistant" }),
     ).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Appearance" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Settings/ }));
     expect(openSettings).toHaveBeenCalledOnce();

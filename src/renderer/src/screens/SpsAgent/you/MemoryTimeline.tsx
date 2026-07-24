@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
-import { Clock, Trash2, MessageSquare } from "lucide-react";
+import { Clock, Trash2, MessageSquare, Pencil } from "lucide-react";
 import type {
   MemoryTimeline as Timeline,
   TimelineEntry,
 } from "../../../../../shared/memoryTimeline";
-import { getMemoryTimeline, removeMemoryEntry } from "../../../lib/api/memory";
+import {
+  getMemoryTimeline,
+  removeMemoryEntry,
+  updateMemoryEntry,
+} from "../../../lib/api/memory";
 
 /**
  * Agent-curated memory timeline (idea A4). Lists memory entries in file order
@@ -54,6 +58,17 @@ export function MemoryTimeline({
     [handleRemove],
   );
 
+  const editEntry = useCallback(
+    async (index: number, content: string): Promise<boolean> => {
+      const result = await updateMemoryEntry(index, content, profile);
+      if (!result.success) return false;
+      load();
+      onRefresh();
+      return true;
+    },
+    [load, onRefresh, profile],
+  );
+
   if (loading) {
     return <div className="memory-timeline-empty">Loading…</div>;
   }
@@ -74,6 +89,7 @@ export function MemoryTimeline({
           key={entry.index}
           entry={entry}
           onRemove={() => removeEntry(entry.index)}
+          onEdit={(content) => editEntry(entry.index, content)}
           onOpenSession={onOpenSession}
         />
       ))}
@@ -84,13 +100,33 @@ export function MemoryTimeline({
 function TimelineRow({
   entry,
   onRemove,
+  onEdit,
   onOpenSession,
 }: {
   entry: TimelineEntry;
   onRemove: () => void;
+  onEdit: (content: string) => Promise<boolean>;
   onOpenSession?: (sessionId: string) => void;
 }): React.JSX.Element {
   const prov = entry.provenance;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(entry.content);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function saveEdit(): Promise<void> {
+    if (!draft.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const ok = await onEdit(draft.trim());
+      if (ok) setEditing(false);
+      else setError("Could not update this memory.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="memory-timeline-row">
       <div className="memory-timeline-rail">
@@ -98,7 +134,34 @@ function TimelineRow({
         <span className="memory-timeline-line" />
       </div>
       <div className="memory-timeline-card">
-        <div className="memory-timeline-content">{entry.content}</div>
+        {editing ? (
+          <div className="memory-timeline-edit">
+            <textarea
+              aria-label="Edit memory"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={3}
+            />
+            <div>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={saving || !draft.trim()}
+                onClick={() => void saveEdit()}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+            {error && <span className="memory-error">{error}</span>}
+          </div>
+        ) : (
+          <div className="memory-timeline-content">{entry.content}</div>
+        )}
         <div className="memory-timeline-meta">
           {prov ? (
             <button
@@ -118,6 +181,14 @@ function TimelineRow({
               Origin unknown
             </span>
           )}
+          <button
+            type="button"
+            className="memory-timeline-remove"
+            onClick={() => setEditing(true)}
+            title="Edit this memory"
+          >
+            <Pencil size={13} />
+          </button>
           <button
             type="button"
             className="memory-timeline-remove"

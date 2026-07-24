@@ -10,19 +10,20 @@ export const SETTINGS_SECTION_COPY: Record<
   { title: string; subtitle: string }
 > = {
   preferences: {
-    title: "Preferences",
-    subtitle: "Language, appearance, and daily assistant behavior.",
+    title: "General",
+    subtitle: "Appearance, display size, and everyday app behavior.",
   },
   dataPrivacy: {
     title: "Data & Privacy",
-    subtitle: "Analytics, backups, vault health, and local workspace data.",
+    subtitle: "Analytics, backups, exports, and local workspace data.",
   },
   troubleshooting: {
-    title: "Troubleshooting",
-    subtitle: "Health checks, versions, logs, and diagnostic reports.",
+    title: "Help",
+    subtitle: "Health checks, updates, community, and diagnostic reports.",
   },
   advanced: {
-    title: "Advanced",
-    subtitle: "Remote access, SSH, network proxy, and developer controls.",
+    title: "Developer settings",
+    subtitle:
+      "Remote access, storage internals, model routing, and diagnostics.",
   },
 };
