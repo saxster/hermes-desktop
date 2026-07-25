@@ -46,6 +46,41 @@ describe("daily brief capsules", () => {
     expect(markdown).toContain("# Daily Brief - 2026-06-26");
   });
 
+  // Regression, 2026-07-25: the Dream Cycle prompt names `context: review`, so the
+  // model opened its response with its own frontmatter block and the wrapper added
+  // a second one. Real artifact: ~/.hermes/sps-agent/vault/Daily Brief - 2026-07-25.md
+  it("does not double-wrap frontmatter the model emitted itself", () => {
+    const markdown = buildDailyBriefMarkdown({
+      date: new Date("2026-07-25T12:00:00.000Z"),
+      body: "---\ncontext: review\n---\n\n## Open Loops\n\nNone.",
+    });
+
+    const fenceCount = markdown.split("\n").filter((l) => l === "---").length;
+    expect(fenceCount).toBe(2);
+    expect(markdown).not.toContain("---\n---");
+    expect(markdown).toContain("## Open Loops");
+    expect(markdown).toContain('title: "Daily Brief - 2026-07-25"');
+  });
+
+  it("keeps the opt-in flag readable when the model emitted its own frontmatter", () => {
+    const optedIn = buildDailyBriefMarkdown({
+      date: new Date("2026-07-25T12:00:00.000Z"),
+      body: "---\ncontext: review\n---\n\nBody text.",
+    }).replace("context: review", "context: include");
+
+    expect(extractOptedInDailyBrief(optedIn)).toBe("Body text.");
+  });
+
+  it("leaves a leading horizontal rule alone", () => {
+    const markdown = buildDailyBriefMarkdown({
+      date: new Date("2026-07-25T12:00:00.000Z"),
+      body: "---\n\nJust a rule, not frontmatter.",
+    });
+
+    expect(markdown).toContain("Just a rule, not frontmatter.");
+    expect(markdown).toContain("---\n---\n\nJust a rule");
+  });
+
   it("only extracts a daily brief for assistant context after markdown opt-in", () => {
     const review = buildDailyBriefMarkdown({
       date: new Date("2026-06-26T12:00:00.000Z"),
