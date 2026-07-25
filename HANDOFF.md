@@ -101,6 +101,45 @@ resident and open", or add a headless control server. Not yet decided.
   once a real build ships, or MCP breaks if this worktree is removed.
 - Deleted stale `~/.hermes/bin/hermes-cron.js` (13 Jul).
 
+## IN FLIGHT at hand-off (2026-07-25 ~23:40) — the install, NOT finished
+
+Owner said "proceed and use your best judgement". The plan was: build a real app, install
+it, repoint `config.yaml` off the worktree, leave it running for the 07:00 run.
+
+**Status: `npm run build:mac` was STILL RUNNING when the session ended.** The app bundle
+had been emitted at
+`.worktrees/harness-thin-slice/dist/mac-arm64/Hermes Agent.app` but the command had not
+exited (signing stage). Build log:
+`<session-scratchpad>/build-mac.log` (scratchpad is ephemeral — just re-run if gone).
+
+**Nothing was installed. `config.yaml` was NOT repointed. It still points at the worktree
+bundle.** The system is exactly as described under "Machine state changed outside the
+repo" below.
+
+### Resume here — remaining steps in order
+
+1. Finish / re-run `npm run build:mac` in the worktree. Verify exit 0.
+2. **Move the old app aside rather than overwrite** — `/Applications/Hermes Agent.app`
+   (809 MB, dated 24 Jul) is the last known-good build and the only rollback. Rename to
+   `Hermes Agent.old.app`; disk had 32 GiB free.
+3. Copy `dist/mac-arm64/Hermes Agent.app` → `/Applications/`.
+4. Repoint `~/.hermes/config.yaml` → `mcp_servers.desktop.args[0]` to
+   `/Applications/Hermes Agent.app/Contents/Resources/app.asar.unpacked/resources/desktop-mcp.cjs`
+   (that is the path pattern the app itself uses — see the `installed bundled cron
+artifact` log lines in `~/.hermes/logs/desktop.log`). Back up config.yaml first.
+5. Launch the installed app. Confirm the control server is listening on **8645**
+   (`lsof -nP -iTCP:8645 -sTCP:LISTEN`).
+6. **RE-PROVE THE DOOR from the installed bundle** — do not assume the swap was
+   transparent. `hermes cron run 472aa86544a3`, then confirm a fresh
+   `daily-brief-<today>.md` appears in the vault. Repointing the MCP path is exactly the
+   kind of change that looks fine and silently breaks the write path.
+7. Leave the app running so the 07:00 job writes a page (see the constraint above).
+
+Expect **two** briefs tomorrow: the engine's `daily-brief-YYYY-MM-DD.md` and
+`dream-cycle`'s `Daily Brief - YYYY-MM-DD.md` (it wrote one at 21:40 tonight, minutes
+after the engine's). That is the three-copies problem made visible — the concrete
+argument for W4.
+
 ## Phase 2 onward — RECOMMENDED ORDER: W6 before W4/W5
 
 The proof changes the priority. The vault's only user-authored content, ever, is the
