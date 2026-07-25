@@ -25,6 +25,7 @@ import type { CronJob } from "../shared/cronjobs";
 import {
   OWNER_DAILY_BRIEF_JOB_NAME,
   OWNER_DAILY_BRIEF_SCHEDULE,
+  dailyBriefPrompt,
   ownerDailyBriefDeliveryTarget,
   syncOwnerDailyBriefCron,
 } from "./owner-daily-brief";
@@ -34,7 +35,7 @@ function job(overrides: Partial<CronJob> = {}): CronJob {
     id: "job-1",
     name: OWNER_DAILY_BRIEF_JOB_NAME,
     schedule: OWNER_DAILY_BRIEF_SCHEDULE,
-    prompt: "brief",
+    prompt: dailyBriefPrompt("/vault/work"),
     state: "active",
     enabled: true,
     next_run_at: null,
@@ -95,6 +96,47 @@ describe("owner daily brief cron", () => {
       action: "unchanged",
     });
     expect(deps.create).not.toHaveBeenCalled();
+  });
+
+  // The comparison used to cover only schedule and delivery targets, so an
+  // existing job was "unchanged" forever and every edit to dailyBriefPrompt was
+  // silently dropped — including the one that makes the engine write the page.
+  it("recreates the job when the prompt has drifted from the current one", async () => {
+    const deps = dependencies([job({ prompt: "an older brief prompt" })]);
+
+    await expect(syncOwnerDailyBriefCron("work", deps)).resolves.toEqual({
+      success: true,
+      action: "updated",
+    });
+    expect(deps.remove).toHaveBeenCalledWith("job-1", "work");
+    expect(deps.create).toHaveBeenCalledWith(
+      "0 7 * * *",
+      expect.stringContaining("sps_write_page"),
+      OWNER_DAILY_BRIEF_JOB_NAME,
+      "local,telegram,email",
+      "work",
+    );
+  });
+
+  it("tolerates an Operating rules block appended by augmentPrompt", async () => {
+    const augmented = `${dailyBriefPrompt("/vault/work")}\n\nOperating rules:\n- Do not fabricate results.`;
+    const deps = dependencies([job({ prompt: augmented })]);
+
+    await expect(syncOwnerDailyBriefCron("work", deps)).resolves.toEqual({
+      success: true,
+      action: "unchanged",
+    });
+    expect(deps.create).not.toHaveBeenCalled();
+  });
+
+  it("instructs the engine to write the brief as a vault page", () => {
+    const prompt = dailyBriefPrompt("/vault/work");
+
+    expect(prompt).toContain("sps_write_page");
+    expect(prompt).toContain("daily-brief-YYYY-MM-DD");
+    // Page ids reject spaces, so the prompt must not ask for the old
+    // "Daily Brief - <date>" filename shape.
+    expect(prompt).not.toContain("pageId 'Daily Brief");
   });
 
   it("pauses the job when daily briefs are disabled", async () => {

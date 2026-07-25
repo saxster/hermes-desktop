@@ -50,13 +50,19 @@ export function ownerDailyBriefDeliveryTarget(
   return targets.join(",");
 }
 
-function dailyBriefPrompt(vaultDir: string): string {
+export function dailyBriefPrompt(vaultDir: string): string {
   return [
     "Create the owner's concise 7:00 daily operator brief.",
-    `Read the SPS markdown workspace at ${vaultDir} without modifying it.`,
+    `Read the SPS markdown workspace at ${vaultDir} without editing the notes you find there.`,
     "Report: today's and overdue tasks, active follow-up reminders, inbox/triage items awaiting review, pending approvals or proposals, the latest Daily Brief or scheduled-research changes, and any material engine/gateway or equity alerts visible in the workspace.",
     "Use short sections, name the source file paths for actionable items, and end with the three highest-leverage next actions.",
     "If a category has no evidence, say none; never invent status.",
+    // The brief is only useful if it lands somewhere the owner can read, search
+    // and link it. Delivery alone drops it into a channel once; the page makes
+    // it part of the workspace.
+    "Then save the finished brief into the workspace by calling the sps_write_page tool.",
+    "Use pageId 'daily-brief-YYYY-MM-DD' with today's local date (letters, digits and hyphens only), and pass the whole brief as markdown beginning with a frontmatter block containing title: \"Daily Brief - YYYY-MM-DD\", kind: daily-brief and context: review.",
+    "Finish your reply with one line naming the page id you wrote.",
   ].join(" ");
 }
 
@@ -85,10 +91,16 @@ export async function syncOwnerDailyBriefCron(
 
   const deliver = ownerDailyBriefDeliveryTarget(profile, dependencies.now());
   const expectedDelivery = deliver.split(",");
+  const expectedPrompt = dailyBriefPrompt(dependencies.vaultDir(profile));
+  // The prompt has to take part in the comparison, or an existing job counts as
+  // "unchanged" forever and every edit to dailyBriefPrompt is silently dropped.
+  // Containment rather than equality because createCronJob may append an
+  // "Operating rules:" block via augmentPrompt.
   const matches =
     existing?.schedule === OWNER_DAILY_BRIEF_SCHEDULE &&
     expectedDelivery.every((target) => existing.deliver.includes(target)) &&
-    existing.deliver.length === expectedDelivery.length;
+    existing.deliver.length === expectedDelivery.length &&
+    existing.prompt.includes(expectedPrompt);
 
   if (existing && matches) {
     if (existing.state === "paused") {
@@ -114,7 +126,7 @@ export async function syncOwnerDailyBriefCron(
 
   const created = await dependencies.create(
     OWNER_DAILY_BRIEF_SCHEDULE,
-    dailyBriefPrompt(dependencies.vaultDir(profile)),
+    expectedPrompt,
     OWNER_DAILY_BRIEF_JOB_NAME,
     deliver,
     profile,
