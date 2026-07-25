@@ -130,6 +130,8 @@ function extractInlineTags(body: string): string[] {
   return [...tags];
 }
 const INDEX_DB_FILE = ".note-index.db";
+/** How often a live index folds its write-ahead log back into the db file. */
+const WAL_CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000;
 
 function isRecoverableSqliteCorruption(error: unknown): boolean {
   const code =
@@ -328,6 +330,7 @@ export class NoteIndex {
   private indexedMtimes = new Map<string, number>();
   private watcherPending = new Map<string, "upsert" | "unlink">();
   private watcherDrainTimer: ReturnType<typeof setTimeout> | null = null;
+  private checkpointTimer: ReturnType<typeof setInterval> | null = null;
 
   private constructor(
     public readonly root: string,
@@ -1098,6 +1101,7 @@ export class NoteIndex {
 
   startWatcher(): void {
     if (this.watcher) return;
+    this.startCheckpointTimer();
     this.watcher = chokidar.watch(this.root, {
       ignoreInitial: true,
       ignored: (path) => shouldIgnoreNoteIndexPath(this.root, path),
@@ -1163,16 +1167,50 @@ export class NoteIndex {
     if (changed) semanticManager.triggerIndex(this.root);
   }
 
+  /**
+   * Fold the write-ahead log back into the main database file.
+   *
+   * Observed 2026-07-25: `.note-index.db` was 61 KB and untouched since 14 Jul
+   * while `.note-index.db-wal` had grown to 1.79 MB — 29x the database. SQLite's
+   * default autocheckpoint is 1000 pages, which this index reaches only slowly,
+   * so an unclean exit could discard days of indexing work and any reader
+   * opening the file without its WAL sees a stale index.
+   */
+  checkpointWal(): void {
+    try {
+      this.db.pragma("wal_checkpoint(TRUNCATE)");
+    } catch (error) {
+      log.warn("note-index", {
+        msg: "wal checkpoint failed",
+        root: this.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private startCheckpointTimer(): void {
+    if (this.checkpointTimer) return;
+    this.checkpointTimer = setInterval(() => {
+      this.checkpointWal();
+    }, WAL_CHECKPOINT_INTERVAL_MS);
+    this.checkpointTimer.unref?.();
+  }
+
   async close(): Promise<void> {
     if (this.watcherDrainTimer) {
       clearTimeout(this.watcherDrainTimer);
       this.watcherDrainTimer = null;
+    }
+    if (this.checkpointTimer) {
+      clearInterval(this.checkpointTimer);
+      this.checkpointTimer = null;
     }
     this.watcherPending.clear();
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
     }
+    this.checkpointWal();
     this.db.close();
   }
 }

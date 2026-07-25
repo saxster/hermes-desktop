@@ -550,6 +550,46 @@ async function main(): Promise<void> {
     await rm(watcherParent, { recursive: true, force: true });
   }
 
+  // Regression, 2026-07-25: the owner's .note-index.db was 61 KB and untouched
+  // since 14 Jul while .note-index.db-wal had grown to 1.79 MB — 29x the db.
+  console.log("\nWAL — checkpoint folds the write-ahead log back into the db:");
+  {
+    const walParent = await mkdtemp(join(tmpdir(), "note-index-wal-verify-"));
+    await mkdir(walParent, { recursive: true });
+    const walIndex = await NoteIndex.open(walParent);
+    const walPath = join(walParent, ".note-index.db-wal");
+
+    for (let n = 0; n < 200; n += 1) {
+      await writeFile(
+        join(walParent, `wal-probe-${n}.md`),
+        `# Probe ${n}\n\nCarmine wal probe body ${n}.\n`,
+      );
+    }
+    await walIndex.rebuild();
+
+    const grownWal = await stat(walPath).catch(() => null);
+    assert(
+      grownWal !== null && grownWal.size > 0,
+      `indexing grows the write-ahead log (got ${grownWal?.size ?? 0} bytes)`,
+    );
+
+    walIndex.checkpointWal();
+
+    const truncatedWal = await stat(walPath).catch(() => null);
+    const truncatedSize = truncatedWal?.size ?? 0;
+    assert(
+      truncatedSize < (grownWal?.size ?? 0),
+      `checkpointWal() truncates it (${grownWal?.size ?? 0} -> ${truncatedSize} bytes)`,
+    );
+    assert(
+      walIndex.search("carmine").length > 0,
+      "index is still queryable after the checkpoint",
+    );
+
+    await walIndex.close();
+    await rm(walParent, { recursive: true, force: true });
+  }
+
   await closeAllNoteIndexes();
   console.log("\nALL NOTE-INDEX CHECKS PASSED");
 }
