@@ -21,6 +21,7 @@ vi.mock("electron", () => {
 // Mocking dependencies
 const mockSpawn = vi.fn();
 const mockListCronJobs = vi.fn();
+const mockEngineCronTickerIsAlive = vi.fn(async () => false);
 const mockTriggerSelfHealing = vi.fn();
 const mockProfileHome = vi.fn((_profile: string) => "/tmp/hermes-test-profile");
 const mockWriteDesktopConfig = vi.fn();
@@ -117,6 +118,7 @@ vi.mock("../src/main/skills", () => ({
 
 vi.mock("../src/main/cronjobs", () => ({
   listCronJobs: () => mockListCronJobs(),
+  engineCronTickerIsAlive: () => mockEngineCronTickerIsAlive(),
 }));
 
 vi.mock("../src/main/self-healing", () => ({
@@ -181,6 +183,7 @@ import {
 describe("Scheduler Service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEngineCronTickerIsAlive.mockResolvedValue(false);
     mockMaybeRunHermesAgentUpdateRoutine.mockResolvedValue(null);
     mockMaybeRunHermesUpstreamWatchRoutine.mockResolvedValue(null);
     mockMaybeRunDesktopUpdateRoutine.mockResolvedValue(null);
@@ -266,6 +269,57 @@ describe("Scheduler Service", () => {
     await tickScheduler("test-profile");
 
     // job-1 should be triggered
+    expect(mockSpawn).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mockLogEnd).toHaveBeenCalled());
+  });
+
+  // Regression, 2026-07-24 21:39:52: the gateway runs its own 60s cron_tick() over
+  // the same jobs.json, so with the app open two processes raced for every due job
+  // and app launch fired the whole overdue backlog — 18 jobs within 250ms.
+  it("defers job dispatch while the engine cron ticker is alive", async () => {
+    mockEngineCronTickerIsAlive.mockResolvedValue(true);
+    const dueJob = {
+      id: "job-due",
+      name: "Due job",
+      enabled: true,
+      state: "idle",
+      next_run_at: new Date(Date.now() - 5000).toISOString(),
+    };
+    mockListCronJobs.mockResolvedValue([dueJob]);
+
+    await tickScheduler("test-profile");
+
+    expect(mockSpawn).not.toHaveBeenCalled();
+    expect(mockListCronJobs).not.toHaveBeenCalled();
+  });
+
+  // Deferring dispatch must not short-circuit the rest of the tick: the nag
+  // engine, email monitor and inbox digest all run after the cron block.
+  it("still runs the rest of the tick while deferring dispatch", async () => {
+    mockEngineCronTickerIsAlive.mockResolvedValue(true);
+    mockListCronJobs.mockResolvedValue([]);
+
+    await tickScheduler("test-profile");
+
+    expect(mockMaybeRunHermesAgentUpdateRoutine).toHaveBeenCalled();
+    expect(mockMaybeRunDesktopUpdateRoutine).toHaveBeenCalled();
+    expect(mockRetryQueuedOwnerDeliveries).toHaveBeenCalled();
+  });
+
+  it("dispatches due jobs when the engine ticker is stale (gateway down)", async () => {
+    mockEngineCronTickerIsAlive.mockResolvedValue(false);
+    mockListCronJobs.mockResolvedValueOnce([
+      {
+        id: "job-backstop",
+        name: "Backstop job",
+        enabled: true,
+        state: "idle",
+        next_run_at: new Date(Date.now() - 5000).toISOString(),
+      },
+    ]);
+
+    await tickScheduler("test-profile");
+
     expect(mockSpawn).toHaveBeenCalled();
     await vi.waitFor(() => expect(mockLogEnd).toHaveBeenCalled());
   });

@@ -24,7 +24,7 @@ import {
 } from "./scheduler-lock";
 import { formatLogError, log } from "./log";
 import { getActiveProfileNameSync, profileHome, safeWriteFile } from "./utils";
-import { listCronJobs } from "./cronjobs";
+import { listCronJobs, engineCronTickerIsAlive } from "./cronjobs";
 import { triggerSelfHealing } from "./self-healing";
 import {
   getConnectionConfig,
@@ -332,6 +332,11 @@ let lastEmailTickMs = 0;
 // scheduler tick; this records the local date key of the last triggered day.
 let lastInboxDigestDate = "";
 
+// The tick runs every 10s but the engine ticker only beats every 60s, so log the
+// hand-off at most once a minute instead of six times.
+const ENGINE_DISPATCH_LOG_THROTTLE_MS = 60_000;
+let lastEngineDispatchLogMs = 0;
+
 export async function tickScheduler(profile?: string): Promise<void> {
   const activeProfile = profile ?? getActiveProfileNameSync();
 
@@ -429,40 +434,61 @@ export async function tickScheduler(profile?: string): Promise<void> {
   );
 
   try {
-    const jobs = await listCronJobs(true, activeProfile);
+    // The gateway runs its own 60s cron_tick() over the same jobs.json. When it
+    // is alive it owns dispatch; dispatching from here too means two processes
+    // race for every due job, and on app launch the whole overdue backlog fires
+    // at once (observed 2026-07-24: 18 jobs in 250ms). The desktop tick stays as
+    // the backstop for a down gateway; headless/cron-runner.ts covers app-closed.
+    const engineOwnsDispatch = await engineCronTickerIsAlive(activeProfile);
     const now = Date.now();
 
-    for (const job of jobs) {
-      if (!job.enabled || job.state === "paused" || job.state === "completed") {
-        continue;
-      }
-
-      if (!job.next_run_at) {
-        continue;
-      }
-
-      const nextRunTime = new Date(job.next_run_at).getTime();
-      if (isNaN(nextRunTime)) {
-        continue;
-      }
-
-      // Check if job is due and not currently running
-      if (nextRunTime <= now && !activeRuns.has(job.id)) {
+    if (engineOwnsDispatch) {
+      if (now - lastEngineDispatchLogMs >= ENGINE_DISPATCH_LOG_THROTTLE_MS) {
+        lastEngineDispatchLogMs = now;
         log.info("scheduler", {
-          msg: "triggering due job",
-          jobId: job.id,
-          jobName: job.name,
+          msg: "engine cron ticker is live; deferring job dispatch",
           profile: activeProfile,
         });
-        runJobHeadless(job.id, job.name, activeProfile).catch((err) => {
-          log.error("scheduler", {
-            msg: "due job execution failed",
+      }
+    } else {
+      const jobs = await listCronJobs(true, activeProfile);
+
+      for (const job of jobs) {
+        if (
+          !job.enabled ||
+          job.state === "paused" ||
+          job.state === "completed"
+        ) {
+          continue;
+        }
+
+        if (!job.next_run_at) {
+          continue;
+        }
+
+        const nextRunTime = new Date(job.next_run_at).getTime();
+        if (isNaN(nextRunTime)) {
+          continue;
+        }
+
+        // Check if job is due and not currently running
+        if (nextRunTime <= now && !activeRuns.has(job.id)) {
+          log.info("scheduler", {
+            msg: "triggering due job",
             jobId: job.id,
             jobName: job.name,
             profile: activeProfile,
-            error: formatLogError(err),
           });
-        });
+          runJobHeadless(job.id, job.name, activeProfile).catch((err) => {
+            log.error("scheduler", {
+              msg: "due job execution failed",
+              jobId: job.id,
+              jobName: job.name,
+              profile: activeProfile,
+              error: formatLogError(err),
+            });
+          });
+        }
       }
     }
   } catch (err) {

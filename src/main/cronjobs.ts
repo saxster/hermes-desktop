@@ -24,6 +24,42 @@ function jobsFilePath(profile?: string): string {
   return join(profileHome(profile), "cron", "jobs.json");
 }
 
+function tickerHeartbeatPath(profile?: string): string {
+  return join(profileHome(profile), "cron", "ticker_heartbeat");
+}
+
+/**
+ * How stale the engine's heartbeat may be before the desktop resumes dispatch.
+ * The gateway ticker beats every 60s, so this tolerates three missed beats.
+ */
+const ENGINE_TICKER_STALE_MS = 180_000;
+
+/**
+ * True when the Hermes gateway's own cron ticker is dispatching due jobs.
+ *
+ * The gateway runs a 60s `cron_tick()` (hermes-agent/cron/scheduler_provider.py)
+ * over the same `<profile>/cron/jobs.json` the desktop scheduler reads, so while
+ * the app is open both processes race to fire the same job — they only avoid
+ * duplicates by whoever advances `next_run_at` first. Observed 2026-07-24
+ * 21:39:52: 18 jobs started within 250ms on app launch.
+ *
+ * The engine owns dispatch whenever it is alive. The desktop tick is a backstop
+ * for a down gateway; `headless/cron-runner.ts` covers the app-closed case.
+ */
+export async function engineCronTickerIsAlive(
+  profile?: string,
+): Promise<boolean> {
+  try {
+    const raw = await readFile(tickerHeartbeatPath(profile), "utf-8");
+    const beatSeconds = Number.parseFloat(raw.trim());
+    if (!Number.isFinite(beatSeconds)) return false;
+    const ageMs = Date.now() - beatSeconds * 1000;
+    return ageMs < ENGINE_TICKER_STALE_MS;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeDeliveryTargets(deliver: unknown): string[] {
   const values = Array.isArray(deliver) ? deliver : [deliver];
   const targets: string[] = [];
