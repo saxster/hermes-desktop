@@ -54,6 +54,7 @@ vi.mock("../src/main/log", () => ({
 vi.mock("os", () => {
   const fns = {
     homedir: () => "/tmp/hermes-test-home",
+    tmpdir: () => "/var/folders/qj/test/T",
   };
   return { ...fns, default: fns };
 });

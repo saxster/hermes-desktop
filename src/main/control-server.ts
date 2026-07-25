@@ -16,8 +16,8 @@ import {
   copyFileSync,
   renameSync,
 } from "fs";
-import { homedir } from "os";
-import { join, basename } from "path";
+import { homedir, tmpdir } from "os";
+import { join, basename, resolve, relative, isAbsolute } from "path";
 import { getActiveProfileNameSync, safeWriteFile } from "./utils";
 import {
   HERMES_HOME,
@@ -1035,6 +1035,49 @@ function escapePlistXml(value: string): string {
   });
 }
 
+function isInsideDirectory(child: string, parent: string): boolean {
+  const relativePath = relative(parent, child);
+  if (relativePath === "") return true;
+  if (relativePath.startsWith("..")) return false;
+  return !isAbsolute(relativePath);
+}
+
+/**
+ * True when `home` resolves inside a temp directory.
+ *
+ * `dev:fresh` and the verify harnesses (e.g. `scripts/verify-admin-overlay.mjs`,
+ * which does `mkdtempSync(join(tmpdir(), "hermes-admin-"))`) boot the app with a
+ * throwaway HERMES_HOME. The LaunchAgent is machine-global, so installing one for
+ * a throwaway home silently replaces the owner's real scheduler and then fails
+ * forever once macOS reaps the temp directory. Observed 2026-07-25: the owner's
+ * agent was repointed at /var/folders/.../T/hermes-admin-zYipEu and logged 316
+ * consecutive EACCES failures.
+ */
+export function isEphemeralHermesHome(home: string): boolean {
+  const resolvedHome = resolve(home);
+  // The literal roots already cover macOS and Linux, so a platform where
+  // os.tmpdir() is unavailable degrades to those rather than throwing — this
+  // runs from the server's `listening` handler, where an exception would
+  // abort LaunchAgent management entirely.
+  let systemTemp = "";
+  try {
+    systemTemp = tmpdir() || "";
+  } catch {
+    systemTemp = "";
+  }
+  const candidateRoots = [
+    systemTemp,
+    "/tmp",
+    "/private/tmp",
+    "/var/folders",
+    process.env.TMPDIR?.trim() ?? "",
+  ];
+  const tempRoots = candidateRoots.filter((root) => root.length > 0);
+  return tempRoots.some((root) =>
+    isInsideDirectory(resolvedHome, resolve(root)),
+  );
+}
+
 export function manageLaunchAgent(enabled: boolean): void {
   if (process.platform !== "darwin") return;
 
@@ -1045,6 +1088,16 @@ export function manageLaunchAgent(enabled: boolean): void {
   const logsDir = join(hermesHome, "logs");
   const guiTarget = launchdGuiTarget();
   if (!guiTarget) return;
+
+  // Must precede the `bootout` below: an ephemeral run may neither install its
+  // own agent nor tear down the real one.
+  if (isEphemeralHermesHome(hermesHome)) {
+    log.warn("control-server", {
+      msg: "refusing to touch the machine-global LaunchAgent for an ephemeral HERMES_HOME",
+      hermesHome,
+    });
+    return;
+  }
 
   if (!existsSync(plistDir)) {
     try {

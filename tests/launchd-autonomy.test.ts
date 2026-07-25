@@ -11,7 +11,7 @@ const mockExecFile = vi.fn((...args: unknown[]) => {
   if (typeof cb === "function") cb(null, "success", "");
 });
 const mockUnlinkSync = vi.fn();
-const mockHermesHome = vi.fn(() => "/tmp/hermes-test-home/.hermes");
+const mockHermesHome = vi.fn(() => "/Users/test-owner/.hermes");
 const mockGetApiServerKey = vi.fn(() => "desk-auth-token");
 const mockCreateActiveWorkRun = vi.fn(async (..._args: unknown[]) => ({
   contractVersion: 2,
@@ -119,6 +119,7 @@ vi.mock("child_process", () => {
 vi.mock("os", () => {
   const fns = {
     homedir: () => "/tmp/hermes-test-home",
+    tmpdir: () => "/var/folders/qj/test/T",
   };
   return { ...fns, default: fns };
 });
@@ -157,7 +158,7 @@ vi.mock("../src/main/utils", async (importOriginal) => {
   return {
     ...actual,
     getActiveProfileNameSync: () => "test-profile",
-    profileHome: (p: string) => `/tmp/hermes-test-home/.hermes/${p}`,
+    profileHome: (p: string) => `/Users/test-owner/.hermes/${p}`,
     safeWriteFile: (p: string, content: string) => {
       filesInMemory.set(p, content);
       mockWriteFileSync(p, content);
@@ -199,7 +200,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     vi.clearAllMocks();
     lockExists = false;
     lockContent = "{}";
-    mockHermesHome.mockReturnValue("/tmp/hermes-test-home/.hermes");
+    mockHermesHome.mockReturnValue("/Users/test-owner/.hermes");
     mockExistsSync.mockImplementation((p: string) => {
       // Mock plist directory and standard paths exists
       if (p.includes("Library/LaunchAgents") || p.includes(".hermes")) {
@@ -227,11 +228,11 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     );
     expect(plistContent).toContain("<key>StartInterval</key>");
     expect(plistContent).toContain(
-      "<string>/tmp/hermes-test-home/.hermes/bin/hermes-cron.cjs</string>",
+      "<string>/Users/test-owner/.hermes/bin/hermes-cron.cjs</string>",
     );
     expect(plistContent).toContain("<key>HERMES_HOME</key>");
     expect(plistContent).toContain(
-      "<string>/tmp/hermes-test-home/.hermes</string>",
+      "<string>/Users/test-owner/.hermes</string>",
     );
     expect(plistContent).toContain("<key>ELECTRON_RUN_AS_NODE</key>");
     expect(mockExec).not.toHaveBeenCalled();
@@ -251,6 +252,52 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     Object.defineProperty(process, "platform", { value: originalPlatform });
   });
 
+  // Regression, 2026-07-25: `scripts/verify-admin-overlay.mjs` boots the app with
+  // HERMES_HOME=mkdtempSync(join(tmpdir(), "hermes-admin-")). The app installed a
+  // machine-global LaunchAgent pointing into that throwaway home, replacing the
+  // owner's real scheduler; it then logged 316 consecutive EACCES failures.
+  it.each([
+    ["os.tmpdir() child", "/var/folders/qj/test/T/hermes-admin-zYipEu"],
+    ["/tmp child", "/tmp/hermes-fresh-abc123"],
+    ["/private/tmp child", "/private/tmp/hermes-fresh-abc123"],
+  ])(
+    "refuses to touch the machine-global LaunchAgent for an ephemeral HERMES_HOME (%s)",
+    (_label, ephemeralHome) => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "darwin" });
+      mockHermesHome.mockReturnValue(ephemeralHome);
+
+      manageLaunchAgent(true);
+
+      expect(
+        mockWriteFileSync.mock.calls.filter(([path]) =>
+          String(path).endsWith("com.nousresearch.hermes-scheduler.plist"),
+        ),
+      ).toEqual([]);
+      // Critically it must not `bootout` either — a throwaway run may not tear
+      // down the real owner's agent on its way past.
+      expect(mockExecFile).not.toHaveBeenCalled();
+      expect(mockUnlinkSync).not.toHaveBeenCalled();
+
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    },
+  );
+
+  it("still installs the LaunchAgent for a real, non-ephemeral HERMES_HOME", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    mockHermesHome.mockReturnValue("/Users/test-owner/.hermes");
+
+    manageLaunchAgent(true);
+
+    const [, plistContent] = launchAgentWrite();
+    expect(plistContent).toContain(
+      "<string>/Users/test-owner/.hermes</string>",
+    );
+
+    Object.defineProperty(process, "platform", { value: originalPlatform });
+  });
+
   it("stores the resolved gateway key in a mode-0600 headless token file, not the plist", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "darwin" });
@@ -258,7 +305,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     manageLaunchAgent(true);
 
     expect(
-      filesInMemory.get("/tmp/hermes-test-home/.hermes/headless-gateway.token"),
+      filesInMemory.get("/Users/test-owner/.hermes/headless-gateway.token"),
     ).toBe("desk-auth-token\n");
     const [, plistContent] = launchAgentWrite();
     expect(plistContent).not.toContain("desk-auth-token");
@@ -280,7 +327,7 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
     expect(plistContent).toContain("<string>/opt/homebrew/bin/node</string>");
     expect(plistContent).toContain("<key>HERMES_HOME</key>");
     expect(plistContent).toContain(
-      "<string>/tmp/hermes-test-home/.hermes</string>",
+      "<string>/Users/test-owner/.hermes</string>",
     );
     expect(plistContent).not.toContain("<key>ELECTRON_RUN_AS_NODE</key>");
 
@@ -290,13 +337,15 @@ describe("launchd Daemon & File-based Single Flight Locking", () => {
   it("XML-escapes custom Hermes home paths in the LaunchAgent plist", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "darwin" });
-    mockHermesHome.mockReturnValue(`/tmp/Hermes & <custom> 'quoted' "home"`);
+    mockHermesHome.mockReturnValue(
+      `/Users/test-owner/Hermes & <custom> 'quoted' "home"`,
+    );
 
     manageLaunchAgent(true);
 
     const [, plistContent] = launchAgentWrite();
     const escapedHome =
-      "/tmp/Hermes &amp; &lt;custom&gt; &apos;quoted&apos; &quot;home&quot;";
+      "/Users/test-owner/Hermes &amp; &lt;custom&gt; &apos;quoted&apos; &quot;home&quot;";
     expect(plistContent).toContain(`<string>${escapedHome}</string>`);
     expect(plistContent).toContain(
       `<string>${escapedHome}/bin/hermes-cron.cjs</string>`,
