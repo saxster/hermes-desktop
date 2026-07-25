@@ -101,7 +101,71 @@ resident and open", or add a headless control server. Not yet decided.
   once a real build ships, or MCP breaks if this worktree is removed.
 - Deleted stale `~/.hermes/bin/hermes-cron.js` (13 Jul).
 
-## IN FLIGHT at hand-off (2026-07-25 ~23:40) — the install, NOT finished
+## ⛔ BLOCKER FOUND AFTER THE INSTALL — the capability gate closes the door
+
+**The install is DONE** (see below). But the door is shut again, by our own newest feature.
+
+`admitMcpCapability` (`src/main/capability-risk-store.ts:604`):
+
+```ts
+const allowed = initial.reviewState === "reviewed" && initial.status !== "blocked";
+const effective = { ...requested, enabled: requested.enabled && allowed };
+```
+
+Commit **`7fb862cf` "trustworthy delegated work controls"** (newest commit on `main`,
+landed independently of this branch) **force-writes `enabled: false` into `config.yaml`
+for any MCP server whose capability-risk report is not `reviewed`.** And
+`reviewStateFor` (`:280-295`) resets to `needsReview` whenever the bundle fingerprint
+changes — which the worktree→`/Applications` swap just did.
+
+Live registry (`~/.hermes/sps-agent/capability-risk-report.json`):
+
+```json
+{"id": "mcp:desktop", "reviewState": "needsReview", "status": "safe", "enabled": false}
+```
+
+### The catch-22 this creates
+
+- **App closed** → no control server on 8645 → `sps_write_page` has nothing to POST to.
+- **App open** → the capability scan re-disables `mcp:desktop` → the engine never gets the
+  tool at all.
+
+The 21:40 proof landed in the narrow window where the app was up and a rescan had not yet
+run. **W1 (the MCP door) and `7fb862cf` (capability controls) were built independently and
+are in direct conflict. Resolving this is now the top Phase 2 item — ahead of W6.**
+
+### What was deliberately NOT done
+
+**The registry was not hand-edited to `"reviewed"`.** That field is a human security
+approval for a capability that can write into the vault; forging it while the owner was
+away would defeat the entire point of the feature. `config.yaml`'s `enabled` flag (owner
+*intent*) was restored to `true`; `reviewState` (owner *approval*) was left untouched.
+
+### Owner action required — one click
+
+Approve the **desktop** MCP capability in the app's capability-review surface. Once
+`reviewState` is `reviewed`, config `enabled: true` + `status: safe` means
+`admitMcpCapability` will let it through and the door stays open across restarts.
+
+Also note `mcp:openalex` is `unreviewed`/disabled and two skills are `unreviewed`
+(`native-mcp` is `status: blocked`) — same gate, worth a look in the same pass.
+
+## The install — DONE (2026-07-26 ~00:10)
+
+- `npm run build:mac` → **exit 0**. Signed with the real Developer ID
+  (`Amar Sukhi, LJA377LKZF`), hardened runtime. 821 MB.
+- Old app preserved as **`/Applications/Hermes Agent.old.app`** (24 Jul build) — the only
+  rollback. Delete it once the new build has proven itself.
+- New app installed via `ditto` to `/Applications/Hermes Agent.app`;
+  `codesign --verify --deep --strict` passes; its bundled `desktop-mcp.cjs` contains
+  `sps_write_page`.
+- `~/.hermes/config.yaml` → `mcp_servers.desktop.args[0]` now
+  `/Applications/Hermes Agent.app/Contents/Resources/app.asar.unpacked/resources/desktop-mcp.cjs`.
+  74 top-level keys intact. Backup: `<scratchpad>/config.yaml.pre-repoint.bak`.
+- **The app was NOT launched** and the 07:00 run will NOT write a page until the
+  capability above is approved.
+
+## Superseded: the earlier in-flight note (build has since finished)
 
 Owner said "proceed and use your best judgement". The plan was: build a real app, install
 it, repoint `config.yaml` off the worktree, leave it running for the 07:00 run.
