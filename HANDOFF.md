@@ -240,6 +240,64 @@ Expect **two** briefs tomorrow: the engine's `daily-brief-YYYY-MM-DD.md` and
 after the engine's). That is the three-copies problem made visible — the concrete
 argument for W4.
 
+## W6 — VERIFIED WORK ORDER (claims checked at source 2026-07-26, ready to execute)
+
+The audit claims were re-verified rather than trusted (one item in the same list,
+"Enter never splits a block", was already fixed in `76747db0` — so the list was known
+stale). Two of four confirmed with exact mechanisms; two not yet checked.
+
+### W6.1 — arrow keys escape the block on first press ✅ CONFIRMED
+
+`Editable.tsx:160-162` calls `onArrow` on ArrowUp/ArrowDown with **no caret-boundary
+guard** — so in any multi-line block the first ↓ jumps to the next block instead of moving
+down a visual line. `Editor.tsx:308-318`'s `onArrow` unconditionally focuses the adjacent
+block and calls `placeCaretEnd`.
+
+**The tell:** the Backspace branch immediately above (`Editable.tsx:153-157`) _does_ guard,
+with `isCaretAtStart(el)`. Adjacent branches, one guarded, one not.
+
+**Fix shape:** guard ArrowUp with the existing `isCaretAtStart(el)`
+(`selection.ts:149`, already unit-tested in `selection.test.ts`) and ArrowDown with a
+caret-at-end predicate. **`selection.ts` has `placeCaretEnd` (`:101`) but NO
+`isCaretAtEnd` predicate — that one small helper is the only new code needed.** Note a
+correct fix should compare _visual line_ position, not just block start/end, or ↓ in a
+wrapped 3-line paragraph still escapes early; block-boundary guarding is the minimum bar.
+
+### W6.2 — undo silently stops working after any typing ✅ CONFIRMED
+
+`blockEditing.ts:37-39`:
+
+```ts
+function sameBlocks(left: Block[], right: Block[]): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+```
+
+`undo(current)` (`:171-177`) returns `null` unless `sameBlocks(current, entry.after)`.
+Typing mutates blocks without pushing a history entry, so `current` diverges from
+`entry.after` and **undo returns null — silently, no feedback**. Same for `redo`.
+
+**Fix direction:** the fingerprint equality gate is the bug. Either push history entries
+for text mutations (coalesced/debounced so one word ≠ 20 entries), or drop the
+`sameBlocks` precondition and reconcile against current state. Prefer the former; the
+latter risks restoring stale structure over newer edits. This one is data-loss-adjacent —
+**highest severity of the four for user trust.**
+
+### W6.3 / W6.4 — NOT YET VERIFIED
+
+Multi-block selection (claimed absent) and markdown clipboard round-trip (claimed missing
+though `markdownToBlocks` exists at `blockMarkdown.ts:525`). **Verify at source before
+building — the W6.x list has already proven stale once.**
+
+### Method (repo Bug-Fix Protocol, CLAUDE.md)
+
+Each of these is a bug, not a feature: Frame (user story + acceptance criteria) →
+reproduce with a failing test → fix → prove. Renderer-logic tier: `npx vitest run <file>`
+then `npm run typecheck`. Editor behaviour that needs a real caret/selection may not be
+provable in jsdom — check whether it belongs in `scripts/sps-smoke.mjs` instead.
+**Out of scope (Lazy-Dev Ladder):** virtualization/memoization and the O(n²)
+`orderedListNumber`. Premature at a four-file vault.
+
 ## Phase 2 onward — RECOMMENDED ORDER: W6 before W4/W5
 
 The proof changes the priority. The vault's only user-authored content, ever, is the
