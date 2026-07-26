@@ -15,7 +15,7 @@ import { homedir } from "os";
 import { HERMES_HOME, HERMES_REPO } from "./installer";
 import { isValidNamedProfileName, profileHome } from "./utils";
 import { runHermesCliSync } from "./hermes-cli-runner";
-import { getApiUrl, getRemoteAuthHeader } from "./hermes";
+import { getApiUrl, getGatewayAuthHeader } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 import {
   recordSkillCapability,
@@ -1034,7 +1034,7 @@ export async function generateSkillFromRepo(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getRemoteAuthHeader(),
+          ...getGatewayAuthHeader(profile),
         },
         signal: AbortSignal.timeout(120000),
         body: JSON.stringify({

@@ -18,7 +18,7 @@ import {
 } from "../shared/teach-capture";
 import {
   getApiUrl,
-  getRemoteAuthHeader,
+  getGatewayAuthHeader,
   isRemoteMode,
   buildRetrievalSystemMessage,
 } from "./hermes";
@@ -523,7 +523,10 @@ export async function spsAssistant(
       : undefined;
     const res = await gatewayFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+      headers: {
+        "Content-Type": "application/json",
+        ...getGatewayAuthHeader(profile),
+      },
       signal: AbortSignal.timeout(120000),
       body: JSON.stringify({
         model: "hermes-agent",
@@ -703,7 +706,10 @@ export async function spsIngestInbox(profile?: string): Promise<IngestResult> {
     const url = `${getApiUrl(profile)}/v1/chat/completions`;
     const res = await gatewayFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+      headers: {
+        "Content-Type": "application/json",
+        ...getGatewayAuthHeader(profile),
+      },
       signal: AbortSignal.timeout(180000),
       body: JSON.stringify({ model: "hermes-agent", stream: false, messages }),
     });
@@ -749,7 +755,7 @@ Return ONLY a JSON array, with no other prose or markdown formatting (no code fe
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    ...getRemoteAuthHeader(),
+                    ...getGatewayAuthHeader(profile),
                   },
                   signal: AbortSignal.timeout(60000),
                   body: JSON.stringify({
@@ -889,7 +895,10 @@ export async function spsFileAnswer(
     const url = `${getApiUrl(profile)}/v1/chat/completions`;
     const res = await gatewayFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+      headers: {
+        "Content-Type": "application/json",
+        ...getGatewayAuthHeader(profile),
+      },
       signal: AbortSignal.timeout(180000),
       body: JSON.stringify({ model: "hermes-agent", stream: false, messages }),
     });
@@ -968,7 +977,7 @@ export async function spsFileResearch(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getRemoteAuthHeader(),
+          ...getGatewayAuthHeader(profile),
         },
         signal: AbortSignal.timeout(180000),
         body: JSON.stringify({
@@ -1049,7 +1058,7 @@ export async function spsExternalSaveToKb(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getRemoteAuthHeader(),
+          ...getGatewayAuthHeader(profile),
         },
         signal: AbortSignal.timeout(180000),
         body: JSON.stringify({
@@ -1153,7 +1162,10 @@ export async function spsLintWiki(
     const url = `${getApiUrl(profile)}/v1/chat/completions`;
     const res = await gatewayFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+      headers: {
+        "Content-Type": "application/json",
+        ...getGatewayAuthHeader(profile),
+      },
       signal: AbortSignal.timeout(180000),
       body: JSON.stringify({ model: "hermes-agent", stream: false, messages }),
     });

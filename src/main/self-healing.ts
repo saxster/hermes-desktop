@@ -4,7 +4,7 @@ import type { BrowserWindow } from "electron";
 import { profileHome, safeAppendFile, safeWriteFile } from "./utils";
 import { listInstalledSkills } from "./skills";
 import { readDesktopConfig, readEnv } from "./config";
-import { getApiUrl, getRemoteAuthHeader } from "./hermes";
+import { getApiUrl, getGatewayAuthHeader } from "./hermes";
 import { gatewayFetch, publicFetch } from "./security/network-policy";
 import { formatLogError, log } from "./log";
 
@@ -402,7 +402,7 @@ async function callTriageLLM(
     const apiUrl = getApiUrl(profile);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...getRemoteAuthHeader(),
+      ...getGatewayAuthHeader(profile),
     };
 
     let userContent: unknown = prompt;

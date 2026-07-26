@@ -10,6 +10,7 @@ export {
   setSshRemoteApiKey,
   clearSshRemoteApiKey,
   getRemoteAuthHeader,
+  getGatewayAuthHeader,
   resolveRemoteApiKey,
 } from "./hermes/gateway-process";
 

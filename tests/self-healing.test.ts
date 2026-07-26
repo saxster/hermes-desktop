@@ -18,7 +18,7 @@ vi.mock("../src/main/config", () => ({
 
 vi.mock("../src/main/hermes", () => ({
   getApiUrl: () => "http://127.0.0.1:8642",
-  getRemoteAuthHeader: () => ({}),
+  getGatewayAuthHeader: () => ({}),
 }));
 
 vi.mock("../src/main/security/network-policy", () => ({

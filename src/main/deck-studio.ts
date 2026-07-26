@@ -16,7 +16,7 @@ import {
   type DeckQaIssue,
   type DeckProject,
 } from "../shared/deck-studio";
-import { getApiUrl, getRemoteAuthHeader, isRemoteOnlyMode } from "./hermes";
+import { getApiUrl, getGatewayAuthHeader, isRemoteOnlyMode } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 
 interface ModelParseResult {
@@ -81,7 +81,10 @@ async function callDeckModel(
 ): Promise<string> {
   const res = await gatewayFetch(`${getApiUrl(profile)}/v1/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+    headers: {
+      "Content-Type": "application/json",
+      ...getGatewayAuthHeader(profile),
+    },
     signal: AbortSignal.timeout(120000),
     body: JSON.stringify({
       model: "hermes-agent",

@@ -36,7 +36,7 @@ import { maybeRunHermesAgentUpdateRoutine } from "./hermes-agent-updates";
 import { maybeRunHermesUpstreamWatchRoutine } from "./hermes-upstream-watch";
 import { maybeRunDesktopUpdateRoutine } from "./desktop-update-routine";
 import { maybeRunAppLaunchSchedules } from "./app-launcher";
-import { getApiUrl, getRemoteAuthHeader } from "./hermes";
+import { getApiUrl, getGatewayAuthHeader } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 import { createLearningProposal } from "./learning-proposals";
 import { listInstalledSkills, getSkillContent } from "./skills";
@@ -669,7 +669,10 @@ Your output must be a single, concise explanation representing the study card bo
     const url = `${getApiUrl(profile)}/v1/chat/completions`;
     const res = await gatewayFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+      headers: {
+        "Content-Type": "application/json",
+        ...getGatewayAuthHeader(profile),
+      },
       signal: AbortSignal.timeout(60000),
       body: JSON.stringify({
         model: "hermes-agent",

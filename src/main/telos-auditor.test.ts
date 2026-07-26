@@ -23,7 +23,7 @@ vi.mock("./sps-storage", () => {
 vi.mock("./hermes", () => {
   return {
     getApiUrl: () => "http://localhost:8000",
-    getRemoteAuthHeader: () => ({ Authorization: "Bearer test-key" }),
+    getGatewayAuthHeader: () => ({ Authorization: "Bearer test-key" }),
   };
 });
 

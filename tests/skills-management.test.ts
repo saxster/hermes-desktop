@@ -41,7 +41,7 @@ vi.mock("../src/main/process-options", () => ({
 // heavy hermes module graph isn't pulled into these fs tests.
 vi.mock("../src/main/hermes", () => ({
   getApiUrl: () => "http://127.0.0.1:8642",
-  getRemoteAuthHeader: () => ({}),
+  getGatewayAuthHeader: () => ({}),
 }));
 
 // os.homedir() reads $HOME on POSIX — point it at our temp home so the

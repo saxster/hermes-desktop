@@ -171,7 +171,16 @@ export function clearSshRemoteApiKey(): void {
   chatTransportCacheGeneration += 1;
 }
 
-export function getRemoteAuthHeader(): Record<string, string> {
+/**
+ * The Authorization header for a direct gateway fetch, scoped to a profile.
+ *
+ * `getRemoteAuthHeader()` is this with no profile, which resolves the DEFAULT
+ * profile's api_server_key — fine for the single-profile case, wrong for a
+ * non-default profile that configures its own key (getApiServerKey reads
+ * `API_SERVER_KEY`/`api_server.token` per profile, config/api-server-key.ts).
+ * Callers that already know which profile they are talking to should pass it.
+ */
+export function getGatewayAuthHeader(profile?: string): Record<string, string> {
   const conn = getConnectionConfig();
   if (conn.mode === "ssh") {
     if (_sshRemoteApiKey)
@@ -187,9 +196,14 @@ export function getRemoteAuthHeader(): Record<string, string> {
   // file-answer/file-research/lint, cronjobs, self-healing, skills) 401s against
   // a key-protected local gateway while streaming chat works. No-op (returns {})
   // when no key is configured, so keyless local gateways are unaffected.
-  const localKey = getApiServerKey();
+  const localKey = getApiServerKey(profile);
   if (localKey) return { Authorization: `Bearer ${localKey}` };
   return {};
+}
+
+/** Profile-less {@link getGatewayAuthHeader}; kept as the name most call sites use. */
+export function getRemoteAuthHeader(): Record<string, string> {
+  return getGatewayAuthHeader();
 }
 
 export function resolveRemoteApiKey(url: string, apiKey?: string): string {

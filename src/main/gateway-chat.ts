@@ -4,7 +4,7 @@
 // instead of re-pasting the fetch+parse dance. Kept dependency-light on
 // purpose: the older private copies in scheduled-research.ts/sps-agent.ts
 // duplicated this only to avoid a heavy import — new code should import here.
-import { getApiUrl, getRemoteAuthHeader } from "./hermes";
+import { getApiUrl, getGatewayAuthHeader } from "./hermes";
 import { gatewayFetch } from "./security/network-policy";
 
 const GATEWAY_TIMEOUT_MS = 240_000;
@@ -21,9 +21,15 @@ export async function gatewayChat(
   profile?: string,
 ): Promise<string> {
   const url = `${getApiUrl(profile)}/v1/chat/completions`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    // Profile-scoped: getRemoteAuthHeader() would resolve the DEFAULT
+    // profile's api_server_key even when this call targets another profile.
+    ...getGatewayAuthHeader(profile),
+  };
   const res = await gatewayFetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getRemoteAuthHeader() },
+    headers,
     signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     body: JSON.stringify({
       model: "hermes-agent",
