@@ -401,11 +401,64 @@ provable in jsdom — check whether it belongs in `scripts/sps-smoke.mjs` instea
 **Out of scope (Lazy-Dev Ladder):** virtualization/memoization and the O(n²)
 `orderedListNumber`. Premature at a four-file vault.
 
-## Phase 2 onward — W6 is done; W3/W4/W5 remain
+## Phase 2 — W7 CLOSED, W4b CLOSED. W4a and W5 are BLOCKED, and the plan was wrong about why.
 
-**Next unblocked item is W4** (delete the reimplementations). W3 is gated on the owner's
-Google Cloud OAuth, and W5 wants the `pre-subtraction-<version>` tag + `docs/DELETED.md`
-written before a line is removed. The original ordering argument follows.
+Landed 2026-07-26, `main` @ `48511a14` (4 commits, pushed, gate green):
+
+| Commit     | What                                                                          |
+| ---------- | ----------------------------------------------------------------------------- |
+| `b383c995` | `fix(gateway)` — profile-scoped `api_server_key`, 13 call sites (this is W4b) |
+| `c19a2470` | `fix(nav)` — the route home is restored; one name per destination             |
+| `2ddb865e` | `test` — descending ceilings on the surface and IPC channel counts (W7)       |
+| `48511a14` | `chore` — `npm run verify` runs the full gate                                 |
+
+Gate: typecheck (all three projects) · eslint · **vitest 3200 passed / 7 skipped, exit 0**
+(3188 baseline + 12 new) · `verify:note-index` · build · **80 smoke shots** · launchd plist
+hash `dae5697e…` unchanged. Tag **`pre-subtraction-v0.7.0`** is created and pushed at
+`defeee1c`, so anything deleted later is a `git checkout pre-subtraction-v0.7.0 -- <path>`.
+
+### ⛔ W4a is blocked, and NOT for the reason the plan gives
+
+The plan says delete ~10k LOC "only after the engine path is live for each". The engine
+path is not live (the `desktop` MCP capability is still unapproved, W3's email half is on
+the owner's OAuth). But a full dependency map of all ten modules found something worse:
+
+**All ten are live and reachable from `src/main/index.ts`. None is dead code.** The memory
+note that "six flagship loops have zero executions" is about runtime, not wiring — they are
+fully wired, they just never fired. Deleting them is not hygiene, it is feature removal.
+
+Specifics that must be resolved before a line goes:
+
+- **`assistant-recipes.ts` is a dependency of two modules that are NOT on the deletion
+  list** — `src/main/outcome-kits.ts:23` and `src/main/local-experts/index.ts:17`. Deleting
+  it breaks both, and neither has a replacement.
+- Five IPC files die entirely with them (`ipc/scheduled-research.ts`, `ipc/research-reach.ts`,
+  `ipc/substack-radar.ts`, `ipc/sps/email-monitor.ts`, `ipc/source-intake.ts`) and two are
+  gutted in half (`ipc/health-rss.ts`, `ipc/sps/learning.ts`) — roughly 40 channels plus
+  their preload bridge methods and renderer callers.
+- Two modules become orphans: `src/shared/substack.ts` (0 importers left) and
+  `src/main/telegram-delivery.ts` (its only importer dies with the batch).
+- `crawl4ai` / `research-reach` / `substack-radar` / `rss-discovery` are **tool
+  integrations**, not tool-less LLM reimplementations. They do not fit the stated rationale
+  for W4 and should be re-triaged separately rather than swept in.
+
+### ⛔ W5 needs construction before subtraction
+
+The 23→8 cut is not subtraction alone: two of the eight target destinations (**Today** and
+**Schedules**) do not exist yet, and eleven surfaces are supposed to _merge_ into them.
+`git rm` on `journal`/`work`/`activeWork`/`review`/`dashboard`/`cockpit` without building
+Today first deletes the features rather than relocating them. Sequence it as: build Today
+and Schedules → migrate → then delete. The ceilings test in `2ddb865e` will track it.
+
+### Two of the plan's W5 sub-claims are already false — do not "fix" them
+
+- _"`GetStarted` can never render"_ — it renders. `sps-smoke.mjs` captures it every run as
+  shot `09-getstarted`. The gate at `shell/DocHeader.tsx:121` fires on any untitled empty
+  page; only the seeded page (titled "Home") is excluded, which is correct.
+- _"onboarding references a gear button that was deleted"_ — no such reference exists. The
+  only "gear" in the renderer is a CSS comment at `styles/home.css:733`.
+
+The original ordering argument follows.
 
 ### (original) RECOMMENDED ORDER: W6 before W4/W5
 
@@ -432,9 +485,13 @@ gain, and they don't touch the editor, so they don't make W6 cheaper.
   (`~/.hermes/skills/gmail-triage/references/oauth-setup.md`) — nothing in the repo can
   unblock this.
 - **W4** delete ~10k LOC of reimplementation, only after each engine path is live.
+  ⚠ See the blocked section above — the premise that these are dead is wrong.
 - **W5** the 23→8 surface cut (owner keeps Graph + Obsidian). Tag
   `pre-subtraction-<version>` + `docs/DELETED.md` so revival is a `git checkout`.
-- **W7** gates — `noImplicitAny: true` costs only **5 errors repo-wide** (verified).
+  ⚠ Tag exists (`pre-subtraction-v0.7.0`). Today + Schedules must be BUILT first.
+- **W7** gates — ✅ done. `noImplicitAny: true` was already set in both
+  `tsconfig.node.json:11` and `tsconfig.web.json:11` before this pass, so that item
+  cost nothing. The ceilings test and `npm run verify` are the parts that landed.
 
 ## Gotchas earned here
 
