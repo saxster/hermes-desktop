@@ -1,0 +1,16 @@
+/* block-selection.css — the highlight for a selected run of blocks.
+   Written pre-scoped on purpose: scripts/scope-sps-css.mjs is a one-shot pass
+   over the four prototype sheets and would double-prefix anything added here,
+   so this file stays out of its list and carries its own `.sps-scope`. */
+
+.sps-scope .block-wrap[data-selected] {
+  background: rgba(35, 131, 226, 0.14);
+  border-radius: 4px;
+}
+
+/* The block keeps its own text selection styling from when it was focused, and
+   two overlapping blue washes read as a rendering fault rather than a
+   selection. The block-level highlight is the one that counts here. */
+.sps-scope .block-wrap[data-selected] ::selection {
+  background: transparent;
+}

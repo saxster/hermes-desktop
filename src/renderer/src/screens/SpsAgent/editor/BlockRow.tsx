@@ -16,6 +16,7 @@ interface Props {
   computeIndent: (clientX: number) => void;
   onMenu: (rect: DOMRect) => void;
   onAdd: (rect: DOMRect) => void;
+  selected?: boolean;
 }
 
 export function BlockRow({
@@ -30,6 +31,7 @@ export function BlockRow({
   computeIndent,
   onMenu,
   onAdd,
+  selected,
 }: Props) {
   const pad = (block.indent || 0) * 24;
   const showGutter = block.type !== "divider";
@@ -40,6 +42,7 @@ export function BlockRow({
       id={`bw-${block.id}`}
       data-bg={block.bg || undefined}
       data-diff={block.diff ? block.diff.proposalId : undefined}
+      data-selected={selected || undefined}
       style={{ marginLeft: pad }}
       onDragOver={(e) => {
         e.preventDefault();

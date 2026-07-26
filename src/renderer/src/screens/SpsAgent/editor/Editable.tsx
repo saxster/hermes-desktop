@@ -23,6 +23,8 @@ export interface EditableProps {
   onUndoStructure?: () => boolean;
   onRedoStructure?: () => boolean;
   onArrow?: (id: string, dir: number, el: HTMLElement) => boolean;
+  onSelectBlock?: (id: string) => void;
+  onSelectNeighbour?: (id: string, dir: number) => boolean;
   registerRef?: (
     id: string,
     ref: React.RefObject<HTMLDivElement | null>,
@@ -54,6 +56,8 @@ export function Editable({
   onUndoStructure,
   onRedoStructure,
   onArrow,
+  onSelectBlock,
+  onSelectNeighbour,
   registerRef,
 }: EditableProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -157,16 +161,27 @@ export function Editable({
         ) {
           e.preventDefault();
           onBackspaceAtStart(block.id);
-        } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && onArrow) {
+        } else if (e.key === "Escape" && onSelectBlock) {
+          // Escape leaves text editing and selects the block itself, which is
+          // the only way to reach the block-level commands (delete, copy as
+          // markdown) without a mouse.
+          onSelectBlock(block.id);
+        } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
           // Only hand the caret to the neighbouring block once it is already at
           // this block's edge -- otherwise the first press ejects the user from
           // the middle of a multi-line block instead of moving within it.
           const goingUp = e.key === "ArrowUp";
           const atEdge = goingUp ? isCaretAtStart(el) : isCaretAtEnd(el);
-          if (atEdge) {
-            const moved = onArrow(block.id, goingUp ? -1 : 1, el);
-            if (moved) e.preventDefault();
+          if (!atEdge) return;
+          const dir = goingUp ? -1 : 1;
+          if (e.shiftKey && onSelectNeighbour) {
+            // A text selection cannot span two contentEditable hosts, so once
+            // Shift+Arrow reaches the edge it has to become a block selection
+            // or it silently does nothing at all.
+            if (onSelectNeighbour(block.id, dir)) e.preventDefault();
+            return;
           }
+          if (onArrow && onArrow(block.id, dir, el)) e.preventDefault();
         }
       }}
     />

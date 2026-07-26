@@ -30,6 +30,8 @@ export interface BlockInnerProps {
   onUndoStructure?: () => boolean;
   onRedoStructure?: () => boolean;
   onArrow: (id: string, dir: number, el: HTMLElement) => boolean;
+  onSelectBlock?: (id: string) => void;
+  onSelectNeighbour?: (id: string, dir: number) => boolean;
   toggleTodo: (id: string) => void;
   toggleCollapse: (id: string) => void;
   registerRef: (id: string, ref: RefObject<HTMLDivElement | null>) => void;
@@ -59,6 +61,8 @@ export function BlockInner(props: BlockInnerProps) {
     onUndoStructure: props.onUndoStructure,
     onRedoStructure: props.onRedoStructure,
     onArrow: props.onArrow,
+    onSelectBlock: props.onSelectBlock,
+    onSelectNeighbour: props.onSelectNeighbour,
     registerRef: props.registerRef,
     color: block.color,
   };

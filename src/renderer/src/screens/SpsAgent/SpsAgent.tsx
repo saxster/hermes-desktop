@@ -18,6 +18,7 @@ import "@fontsource/source-serif-4/600.css";
 import "./styles/sps-tokens.css";
 import "./styles/home.css";
 import "./styles/notion.css";
+import "./styles/block-selection.css";
 import "./styles/v3.css";
 import "./styles/ask.css";
 import "./styles/equity.css";

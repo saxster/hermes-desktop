@@ -35,6 +35,16 @@ import {
   pasteBlocksAtCaret,
   splitBlockAtCaret,
 } from "./blockEditing";
+import {
+  deleteRange,
+  extendRange,
+  moveRange,
+  rangeBlockIds,
+  rangeBlocks,
+  wholeDocumentRange,
+  type BlockRange,
+} from "./blockSelection";
+import { blocksToMarkdown } from "./blockMarkdown";
 import type { Block, BlockType, DbView, Task } from "../types";
 
 interface MenuState {
@@ -47,6 +57,14 @@ interface MenuState {
 type Row =
   | { kind: "block"; block: Block }
   | { kind: "proposal"; proposalId: string; label?: string; blocks: Block[] };
+
+/** Take the caret out of the document so a block selection owns the keyboard. */
+function blurActiveEditable(): void {
+  const active = document.activeElement as HTMLElement | null;
+  // The attribute, not `isContentEditable`: the latter reports the computed
+  // editing host, which not every DOM implementation fills in.
+  if (active?.closest?.("[contenteditable]")) active.blur();
+}
 
 export function Editor() {
   const blocks = useStore(selectCurrentBlocks);
@@ -67,6 +85,7 @@ export function Editor() {
 
   useEffect(() => {
     historyRef.current.clear();
+    setSelection(null);
   }, [page]);
 
   // Copy an Obsidian block ref and mark the block so markdown keeps its ^id.
@@ -92,6 +111,7 @@ export function Editor() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [overIndent, setOverIndent] = useState(0);
+  const [selection, setSelection] = useState<BlockRange | null>(null);
 
   const registerRef = useCallback(
     (id: string, r: RefObject<HTMLDivElement | null>) => {
@@ -321,6 +341,128 @@ export function Editor() {
       return true;
     }
     return false;
+  };
+
+  // ── multi-block selection ─────────────────────────────────────────────────
+  // A text selection cannot span two contentEditable hosts, so acting on more
+  // than one block at a time needs its own selection model: a contiguous range,
+  // kept here, with the caret taken out of the document while it is live.
+
+  const selectedIds = new Set(
+    selection ? rangeBlockIds(blocks, selection) : [],
+  );
+
+  const onSelectBlock = (id: string): void => {
+    // Escape belongs to an open menu first — it closes itself.
+    if (slash || mention) return;
+    blurActiveEditable();
+    setSelection({ anchorId: id, headId: id });
+  };
+
+  const onSelectNeighbour = (id: string, dir: number): boolean => {
+    const index = blocks.findIndex((block) => block.id === id);
+    const neighbour = blocks[index + dir];
+    if (!neighbour) return false;
+    blurActiveEditable();
+    setSelection({ anchorId: id, headId: neighbour.id });
+    return true;
+  };
+
+  const copySelection = (range: BlockRange): void => {
+    const covered = rangeBlocks(blocks, range);
+    if (covered.length === 0) return;
+    const markdown = blocksToMarkdown(covered);
+    const noun = covered.length === 1 ? "block" : "blocks";
+    navigator.clipboard
+      ?.writeText(markdown)
+      .then(() => onToast(`Copied ${covered.length} ${noun} as markdown`))
+      .catch(() => onToast("Couldn't copy", { tone: "warn" }));
+  };
+
+  const deleteSelection = (range: BlockRange): void => {
+    const removed = new Set(rangeBlockIds(blocks, range));
+    if (removed.size === 0) {
+      setSelection(null);
+      return;
+    }
+    const firstIndex = blocks.findIndex((block) => removed.has(block.id));
+    const next = deleteRange(blocks, range, uid("b"));
+    // The block that slid up into the gap is where the caret belongs; at the
+    // end of the page that is the new last block instead.
+    const focusTarget = next[Math.min(firstIndex, next.length - 1)];
+    commitStructure(() => next);
+    setSelection(null);
+    if (focusTarget) focusSoon(focusTarget.id);
+  };
+
+  // While a range is selected no contentEditable is focused, so the block
+  // commands have to be read off the window — there is nothing else to carry
+  // them. Anything typed into a real input elsewhere is left alone.
+  useEffect(() => {
+    if (!selection) return;
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("input, textarea, [contenteditable='true']"))
+        return;
+      if (event.key === "Escape") {
+        setSelection(null);
+        return;
+      }
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        deleteSelection(selection);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const covered = rangeBlockIds(blocks, selection);
+        const lastId = covered[covered.length - 1];
+        setSelection(null);
+        if (lastId) setFocusReq(lastId);
+        return;
+      }
+      const chord = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
+      if (chord && key === "a") {
+        event.preventDefault();
+        setSelection(wholeDocumentRange(blocks));
+        return;
+      }
+      if (chord && (key === "c" || key === "x")) {
+        event.preventDefault();
+        copySelection(selection);
+        if (key === "x") deleteSelection(selection);
+        return;
+      }
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const dir = event.key === "ArrowUp" ? -1 : 1;
+        const next = event.shiftKey
+          ? extendRange(blocks, selection, dir)
+          : moveRange(blocks, selection, dir);
+        if (next) setSelection(next);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // copySelection/deleteSelection are rebuilt every render and close over the
+    // same `blocks`, so listing them would resubscribe on each keystroke for no
+    // behavioural gain; setFocusReq is a stable store action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, blocks]);
+
+  // One handler covers both mouse gestures: Shift+click extends the live range
+  // to the clicked block, a plain click anywhere in the page dismisses it.
+  const onBlocksMouseDown = (event: React.MouseEvent<HTMLDivElement>): void => {
+    if (!selection) return;
+    const wrap = (event.target as HTMLElement).closest(".block-wrap");
+    const clickedId = wrap?.id.startsWith("bw-") ? wrap.id.slice(3) : null;
+    if (event.shiftKey && clickedId) {
+      event.preventDefault();
+      setSelection({ anchorId: selection.anchorId, headId: clickedId });
+      return;
+    }
+    setSelection(null);
   };
 
   const applySlash = (item: SlashItem) => {
@@ -615,6 +757,8 @@ export function Editor() {
     onUndoStructure,
     onRedoStructure,
     onArrow,
+    onSelectBlock,
+    onSelectNeighbour,
     toggleTodo,
     toggleCollapse,
     registerRef,
@@ -628,12 +772,13 @@ export function Editor() {
   };
 
   return (
-    <div className="blocks" ref={blocksRef}>
+    <div className="blocks" ref={blocksRef} onMouseDown={onBlocksMouseDown}>
       {rows.map((row) =>
         row.kind === "block" ? (
           <BlockRow
             key={row.block.id}
             block={row.block}
+            selected={selectedIds.has(row.block.id)}
             dragId={dragId}
             overId={overId}
             overIndent={overIndent}
