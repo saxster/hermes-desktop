@@ -294,7 +294,28 @@ Expect **two** briefs tomorrow: the engine's `daily-brief-YYYY-MM-DD.md` and
 after the engine's). That is the three-copies problem made visible — the concrete
 argument for W4.
 
-## W6 — VERIFIED WORK ORDER (claims checked at source 2026-07-26, ready to execute)
+## ✅ W6 — CLOSED 2026-07-26. All four items shipped.
+
+| Item                        | Commit                                           |
+| --------------------------- | ------------------------------------------------ |
+| W6.1 arrow keys escape      | `3b5a07e3` caret-edge guard + `isCaretAtEnd`     |
+| W6.2 undo dies after typing | `aba9aaf1` decline-once, then rewind drift       |
+| W6.4 paste (in)             | `c0420e68` `parsePlainText` → `markdownToBlocks` |
+| W6.3 multi-block selection  | `b520a82a` `blockSelection.ts` + `Editor` keymap |
+
+W6.3 shipped the range model the other three did not need: Escape selects the block,
+Shift+Arrow at an edge grows into the neighbour, Shift+click extends, and a live range
+answers Arrow / Shift+Arrow / Cmd+A / Backspace / Cmd+C-and-X (markdown via
+`blocksToMarkdown`). Deleting to empty leaves one paragraph — a page with no
+contentEditable cannot be refocused from the keyboard — and the window keymap ignores
+events from real inputs so a Backspace in the Ask pane cannot eat blocks. **Still not
+built:** drag-select hit-testing, and range-wide indent / type-change. Copy-out
+(W6.4's second leg) is done and no longer blocked.
+
+Gate: eslint 0 · all three typechecks 0 · vitest **3188 passed** (3164 + 24 new) exit 0 ·
+`npm run build` exit 0 · `sps-smoke.mjs` 80 shots exit 0 · launchd plist hash unchanged.
+
+### The original work order, kept for its evidence trail
 
 The audit claims were re-verified rather than trusted (one item in the same list,
 "Enter never splits a block", was already fixed in `76747db0` — so the list was known
@@ -380,7 +401,13 @@ provable in jsdom — check whether it belongs in `scripts/sps-smoke.mjs` instea
 **Out of scope (Lazy-Dev Ladder):** virtualization/memoization and the O(n²)
 `orderedListNumber`. Premature at a four-file vault.
 
-## Phase 2 onward — RECOMMENDED ORDER: W6 before W4/W5
+## Phase 2 onward — W6 is done; W3/W4/W5 remain
+
+**Next unblocked item is W4** (delete the reimplementations). W3 is gated on the owner's
+Google Cloud OAuth, and W5 wants the `pre-subtraction-<version>` tag + `docs/DELETED.md`
+written before a line is removed. The original ordering argument follows.
+
+### (original) RECOMMENDED ORDER: W6 before W4/W5
 
 The proof changes the priority. The vault's only user-authored content, ever, is the
 single character `/` in `home.md` — the one gesture onboarding teaches. That is not a
