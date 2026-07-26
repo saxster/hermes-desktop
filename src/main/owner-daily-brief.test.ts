@@ -176,7 +176,11 @@ describe("owner daily brief cron", () => {
   ])("throws when the $mutation mutation fails", async (testCase) => {
     testCase.configure();
     const deps = dependencies(testCase.jobs);
-    vi.mocked(deps[testCase.mutation]).mockResolvedValue({
+    const mutation = testCase.mutation as keyof typeof deps;
+    // deps[mutation] is a union of mocks whose resolve types differ, so the
+    // dynamic lookup is narrowed to the mock surface this case actually uses.
+    const failing = deps[mutation] as ReturnType<typeof vi.fn>;
+    failing.mockResolvedValue({
       success: false,
       error: `${testCase.mutation} failed`,
     });

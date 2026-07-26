@@ -402,9 +402,9 @@ export function TaskDrawer({ task, onClose }: Props) {
                     title="Status"
                     aria-label="Status"
                   >
-                    {Object.keys(STATUS).map((key) => (
+                    {Object.entries(STATUS).map(([key, status]) => (
                       <option key={key} value={key}>
-                        {STATUS[key].label}
+                        {status.label}
                       </option>
                     ))}
                   </select>
@@ -443,9 +443,9 @@ export function TaskDrawer({ task, onClose }: Props) {
                     title="Priority"
                     aria-label="Priority"
                   >
-                    {Object.keys(PRIO).map((key) => (
+                    {Object.entries(PRIO).map(([key, prio]) => (
                       <option key={key} value={key}>
-                        {PRIO[key].label}
+                        {prio.label}
                       </option>
                     ))}
                   </select>

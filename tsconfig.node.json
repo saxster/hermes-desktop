@@ -8,6 +8,7 @@
     "src/mcp/**/*"
   ],
   "compilerOptions": {
+    "noImplicitAny": true,
     "composite": true,
     "types": ["electron-vite/node"]
   }

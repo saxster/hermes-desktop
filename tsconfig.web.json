@@ -8,6 +8,7 @@
     "src/preload/*.d.ts"
   ],
   "compilerOptions": {
+    "noImplicitAny": true,
     "composite": true,
     "jsx": "react-jsx",
     "types": ["vitest/globals"],
