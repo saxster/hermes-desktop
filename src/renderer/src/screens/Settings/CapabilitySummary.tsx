@@ -50,6 +50,8 @@ function CapabilitySummary({
   const [data, setData] = useState<CapabilitySnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!active || loaded) return;
@@ -116,12 +118,27 @@ function CapabilitySummary({
     }
   }
 
+  /**
+   * Granting a capability is a security decision, so a click that does nothing
+   * must never look like a click that worked. The row only leaves the list once
+   * the main process has written the review to disk; a rejection is surfaced
+   * verbatim rather than swallowed.
+   */
   async function markReviewed(report: CapabilityRiskReport): Promise<void> {
-    const risk = await window.hermesAPI.reviewCapabilityRisk(
-      report.id,
-      profile,
-    );
-    setData((current) => (current ? { ...current, risk } : current));
+    setReviewingId(report.id);
+    setReviewError(null);
+    try {
+      const risk = await window.hermesAPI.reviewCapabilityRisk(
+        report.id,
+        profile,
+      );
+      setData((current) => (current ? { ...current, risk } : current));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setReviewError(`Couldn't review ${report.name}: ${detail}`);
+    } finally {
+      setReviewingId(null);
+    }
   }
 
   async function revokeGrant(grant: AutonomyGrant): Promise<void> {
@@ -243,7 +260,21 @@ function CapabilitySummary({
             )}
             {notableRisks.length > 0 && (
               <div className="cap-summary-row">
-                <span className="cap-summary-label">Review needed:</span>{" "}
+                <span className="cap-summary-label">
+                  Review needed ({notableRisks.length}):
+                </span>{" "}
+                {reviewError && (
+                  <span
+                    role="alert"
+                    style={{
+                      display: "block",
+                      marginTop: 6,
+                      color: "var(--error)",
+                    }}
+                  >
+                    {reviewError}
+                  </span>
+                )}
                 {notableRisks.map((report) => (
                   <span
                     key={report.id}
@@ -263,12 +294,17 @@ function CapabilitySummary({
                       type="button"
                       className="btn btn-secondary btn-sm"
                       style={{ marginLeft: 8 }}
-                      disabled={report.status === "blocked"}
+                      aria-label={`Mark ${report.name} reviewed`}
+                      disabled={
+                        report.status === "blocked" || reviewingId !== null
+                      }
                       onClick={() => void markReviewed(report)}
                     >
                       {report.status === "blocked"
                         ? "Blocked"
-                        : "Mark reviewed"}
+                        : reviewingId === report.id
+                          ? "Reviewing…"
+                          : "Mark reviewed"}
                     </button>
                   </span>
                 ))}

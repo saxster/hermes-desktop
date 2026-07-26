@@ -202,6 +202,16 @@ async function finalizeReport(
   };
 }
 
+/**
+ * Record the owner's review of one capability and, for MCP servers, turn it on.
+ *
+ * Every risk check force-disables an enabled MCP server that is not reviewed
+ * (see checkCapabilityRisks above), so this is the only path that opens one for
+ * good. The review is persisted before the server is enabled, so a failure to
+ * write config.yaml cannot also lose the review; and that failure is thrown
+ * rather than dropped, because a capability that silently stayed off behind a
+ * UI reporting success is exactly how this door stayed shut.
+ */
 export function reviewCapabilityRisk(
   id: string,
   profile?: string,
@@ -226,11 +236,20 @@ export function reviewCapabilityRisk(
       : report,
   );
   const reviewed = reports.find((report) => report.id === id);
+  writeCapabilityRiskReports(
+    reports,
+    profile,
+    registry.scanners || scannerStatuses(),
+  );
   if (reviewed?.kind === "mcp" && reviewed.status !== "blocked") {
     const name = reviewed.id.slice("mcp:".length);
-    setMcpServerEnabled(name, true, profile);
+    if (!setMcpServerEnabled(name, true, profile)) {
+      throw new Error(
+        `Reviewed "${name}", but it is no longer in config.yaml so it could not be enabled.`,
+      );
+    }
   }
-  const saved = writeCapabilityRiskReports(reports, profile);
+  const saved = readCapabilityRiskRegistry(profile);
   return buildCapabilityRiskSummary(
     saved.reports,
     saved.updatedAt,

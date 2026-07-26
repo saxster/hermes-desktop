@@ -1,6 +1,48 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type {
+  CapabilityRiskReport,
+  CapabilityRiskSummary,
+} from "../../../../shared/capability-risk";
 import CapabilitySummary from "./CapabilitySummary";
+
+function riskReport(
+  overrides: Partial<CapabilityRiskReport> = {},
+): CapabilityRiskReport {
+  return {
+    id: "mcp:desktop",
+    kind: "mcp",
+    name: "desktop",
+    enabled: false,
+    installedFingerprint: "abc",
+    source: { localPath: "/opt/homebrew/bin/node" },
+    status: "safe",
+    updateStatus: "rescanPassed",
+    reviewState: "needsReview",
+    findings: [],
+    summary: "No deterministic risk findings.",
+    lastCheckedAt: 1,
+    scanner: "deterministic-v1",
+    ...overrides,
+  };
+}
+
+function riskSummary(reports: CapabilityRiskReport[]): CapabilityRiskSummary {
+  return {
+    checkedAt: 1,
+    reports,
+    scanners: [],
+    stats: {
+      total: reports.length,
+      safe: reports.filter((r) => r.status === "safe").length,
+      warning: 0,
+      blocked: 0,
+      unreviewed: reports.filter((r) => r.reviewState !== "reviewed").length,
+      updates: 0,
+      failed: 0,
+    },
+  };
+}
 
 const api = {
   listInstalledSkills: vi.fn(),
@@ -78,5 +120,61 @@ describe("CapabilitySummary autonomy visibility", () => {
       ),
     );
     expect(screen.getByText("0 active scoped grants")).toBeInTheDocument();
+  });
+});
+
+describe("CapabilitySummary capability review", () => {
+  it("reviews the capability whose button was pressed and drops the row", async () => {
+    const desktop = riskReport();
+    const other = riskReport({ id: "mcp:openalex", name: "openalex" });
+    api.getCapabilityRiskSummary.mockResolvedValue(
+      riskSummary([other, desktop]),
+    );
+    api.reviewCapabilityRisk.mockResolvedValue(
+      riskSummary([
+        other,
+        riskReport({ reviewState: "reviewed", updateStatus: "current" }),
+      ]),
+    );
+
+    render(<CapabilitySummary active profile="default" />);
+    await screen.findByText("Review needed (2):");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mark desktop reviewed" }),
+    );
+
+    await waitFor(() =>
+      expect(api.reviewCapabilityRisk).toHaveBeenCalledWith(
+        "mcp:desktop",
+        "default",
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Review needed (1):")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Mark desktop reviewed" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("surfaces a failed review instead of silently leaving the row unchanged", async () => {
+    api.getCapabilityRiskSummary.mockResolvedValue(riskSummary([riskReport()]));
+    api.reviewCapabilityRisk.mockRejectedValue(new Error("registry is locked"));
+
+    render(<CapabilitySummary active profile="default" />);
+    await screen.findByText("Review needed (1):");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mark desktop reviewed" }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Couldn't review desktop: registry is locked",
+    );
+    expect(
+      screen.getByRole("button", { name: "Mark desktop reviewed" }),
+    ).toBeInTheDocument();
   });
 });
