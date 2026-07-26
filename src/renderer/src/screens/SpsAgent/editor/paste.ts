@@ -1,5 +1,6 @@
 import { sanitizeHtml, sanitizePastedHtml } from "../lib/sanitize";
 import { escapeHtml } from "../lib/html";
+import { markdownToBlocks } from "./blockMarkdown";
 import type { Block, BlockType } from "../types";
 
 interface ClipboardContent {
@@ -82,21 +83,17 @@ function visitElement(
 }
 
 function parsePlainText(text: string, id: () => string): Block[] {
-  const lines = text.replace(/\r\n?/g, "\n").split("\n");
-  while (lines.length > 1 && !lines[0].trim()) lines.shift();
-  while (lines.length > 1 && !lines[lines.length - 1].trim()) lines.pop();
-  return lines.map((line) => {
-    const match = line.match(/^(\s*)(?:([-*+])|(\d+)\.)\s+(.*)$/);
-    const type: BlockType = match ? (match[3] ? "numli" : "li") : "p";
-    const value = match ? match[4] : line;
-    return {
-      id: id(),
-      type,
-      text: value,
-      html: escapeHtml(value),
-      indent: match ? Math.floor(match[1].replace(/\t/g, "  ").length / 2) : 0,
-    };
-  });
+  const body = text.replace(/\r\n?/g, "\n").replace(/^\n+|\n+$/g, "");
+  // markdownToBlocks is the substrate's own parser -- the inverse of the
+  // serializer that writes every vault page -- so markdown pasted as plain text
+  // lands as the blocks it describes rather than flat paragraphs. The clipboard
+  // is untrusted, so the html it yields is re-sanitized here just like the html
+  // clipboard path; a block that carries none falls back to escaped text.
+  return markdownToBlocks(body).map((block) => ({
+    ...block,
+    id: id(),
+    html: block.html ? sanitizeHtml(block.html) : escapeHtml(block.text ?? ""),
+  }));
 }
 
 export function parseClipboardBlocks(
