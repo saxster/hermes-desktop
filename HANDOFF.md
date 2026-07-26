@@ -101,17 +101,71 @@ resident and open", or add a headless control server. Not yet decided.
   once a real build ships, or MCP breaks if this worktree is removed.
 - Deleted stale `~/.hermes/bin/hermes-cron.js` (13 Jul).
 
-## ✅✅ THE SCHEDULED PROOF LANDED — 2026-07-26 07:00, UNATTENDED
+## ❌ RETRACTED — the 2026-07-26 07:00 run did NOT write to the vault
 
-`~/.hermes/sps-agent/vault/daily-brief-2026-07-26.md` (1948 B, single frontmatter block),
-written by the **engine** at 07:00 by the **scheduled** cron run — no human present, no
-manual trigger, against the **installed `/Applications` build**. Job output alongside it at
-`~/.hermes/cron/output/472aa86544a3/2026-07-26_07-00-55.md`.
+**This section previously claimed an unattended 07:00 proof. The logs say otherwise.**
+Checked 2026-07-26 16:00 against `~/.hermes/logs/agent.log` and `desktop.log`:
 
-This is the original success criterion of the whole thin slice. The architecture works
-end to end, unattended, from a real installed app.
+```
+07:00:44  WARNING [cron_472aa86544a3_20260726_070015] agent.tool_executor:
+          Tool mcp__desktop__sps_write_page returned error (0.07s):
+          {"error": "Desktop MCP error: fetch failed"}
+```
 
-### CORRECTION to the "catch-22" claim below — it was overstated
+`fetch failed` = the control server was unreachable. It did not bind until
+`2026-07-26T02:23:32Z` — **07:53 IST**, ~53 minutes after the cron fired. The scheduled run
+executed and produced its own job output (`cron/output/472aa86544a3/2026-07-26_07-00-55.md`),
+but its vault write was refused. `vault/daily-brief-2026-07-25.md` then appeared at 07:54 —
+a catch-up once the app was open, carrying the known UTC-vs-local filename bug (written on
+the 26th, named for the 25th).
+
+Do not trust file mtime/birth time here: the Dream Cycle rewrites briefs atomically to add
+`summary:` frontmatter (`desktop.log` 10:11:45Z), which resets birth time. The tool-call log
+line is the direct evidence.
+
+**What this means:** the KNOWN CONSTRAINT below is not a footnote, it is the live failure
+mode. The engine can only write while the desktop app is running, and on a normal night the
+app is closed at 07:00. **The thin slice's unattended success criterion is NOT yet met.**
+Either the cron has to move to a time the app is reliably open, or the closed-app lane needs
+a headless control server.
+
+### RESOLVED 2026-07-26 — what actually shuts the door, and why the click never worked
+
+Both earlier accounts (the "catch-22" below, and the "overstated" correction after it) are
+superseded. Read at source:
+
+1. **The door-closer is `checkCapabilityRisks`, not `admitMcpCapability`.**
+   `src/main/capability-risk.ts:154-159` force-disables any MCP server that is enabled but
+   whose `reviewState !== "reviewed"`, on every risk check (6-hourly + at startup). It wrote
+   `enabled: false` into `config.yaml` at 07:54 today. **This is correct policy, not a bug** —
+   an unreviewed server that grants vault-write should be off. The only cure is a real review.
+
+2. **`reviewCapabilityRisk` does NOT consult the gate.** It calls the _synchronous_
+   `setMcpServerEnabled` from `installer/mcp.ts:164` (the `./installer` barrel re-export),
+   which writes `enabled: true` straight to config. There is no catch-22 in the review path.
+   The `admitMcpCapability`-based `setMcpServerEnabled` in `mcp-servers.ts:587` is a
+   different function used by the MCP Servers manager. Two same-named exports — easy to
+   misread, and both earlier diagnoses did.
+
+3. **The owner's click never reached the handler.** Decisive evidence: `lastReviewedAt` is
+   written unconditionally by `reviewCapabilityRisk` and is preserved across rescans
+   (`capability-risk-store.ts:494/537/577`), yet **0 of 138 reports have it**. No
+   `capability-risk` line appears in `desktop.log`, and IPC failures do log. There is exactly
+   one caller in the whole tree (`CapabilitySummary.tsx:120`).
+
+4. **Why it never reached it:** the surface rendered **138 identical unlabeled "Mark
+   reviewed" buttons** in one flowing div under a single "Review needed:" label, with no
+   pending state, no success feedback, and `void` swallowing rejections. A hit, a miss, and a
+   failure were indistinguishable. Fixed on `fix/capability-review-feedback`: per-row
+   `aria-label`, a visible count, a "Reviewing…" state, and errors surfaced via `role="alert"`.
+   `reviewCapabilityRisk` now saves the review before enabling, throws instead of dropping a
+   failed enable, and no longer wipes `registry.scanners`.
+
+**Still required: the owner clicks once.** Settings (⌘,) → Application Health → "Review
+needed" → the `desktop (mcp) - safe` row. Nothing else opens it, and an agent must not open
+it for you.
+
+### (superseded) CORRECTION to the "catch-22" claim below — it was overstated
 
 The section below asserts that an open app re-disables `mcp:desktop` before the engine can
 use it. **That is wrong, and it was inferred from a single observation.** What is actually
