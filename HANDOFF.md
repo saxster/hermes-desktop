@@ -442,13 +442,35 @@ Specifics that must be resolved before a line goes:
   integrations**, not tool-less LLM reimplementations. They do not fit the stated rationale
   for W4 and should be re-triaged separately rather than swept in.
 
-### ⛔ W5 needs construction before subtraction
+### ✅ W5 step 1 done — Today and Schedules are BUILT (`92cc9cc0`, `6c5342a9`)
 
-The 23→8 cut is not subtraction alone: two of the eight target destinations (**Today** and
-**Schedules**) do not exist yet, and eleven surfaces are supposed to _merge_ into them.
-`git rm` on `journal`/`work`/`activeWork`/`review`/`dashboard`/`cockpit` without building
-Today first deletes the features rather than relocating them. Sequence it as: build Today
-and Schedules → migrate → then delete. The ceilings test in `2ddb865e` will track it.
+The 23→8 cut was never subtraction alone: two of the eight destinations did not exist and
+eleven surfaces are supposed to _merge_ into them, so `git rm` would have deleted features
+rather than relocating them. Both destinations now exist.
+
+| Surface | What it does | Where |
+| --- | --- | --- |
+| **Today** | brief (+ how stale when missing) · tasks needing attention · untriaged inbox · next runs | `screens/SpsAgent/today/` |
+| **Schedules** | monitors + launch recipes + agent jobs in one list · pause/resume · **Run now** · **Delete** · failing-run alert | `screens/SpsAgent/schedules/` |
+
+Zero new IPC channels — cron CRUD and `useVaultQuery` already existed. The shared task
+panel and date helpers were EXTRACTED from `MyWorkSurface`, not copied, so there is still
+one implementation and `work` now renders the same component Today does.
+
+The ceilings test rose 23 → **25** — the one sanctioned raise, and the comment in
+`tests/surface-ceilings.test.ts` says why and names the repayment. Its extractor also had
+a real bug: it stripped no comments, so a comment quoting `"today"` counted as a union
+member and read 27.
+
+**Next, and now unblocked — the deletions.** Start with `work`: its five tabs are Today,
+Today, Schedules, `activeWork`, and `review`, so it is already a redundant wrapper around
+surfaces that exist independently. Then `journal` / `dashboard` / `cockpit` fold into
+Today. Lower `MAX_SURFACES` in the same commit as each deletion. Revival is
+`git checkout pre-subtraction-v0.7.0 -- <path>`.
+
+⚠ `cockpit` is the DEFAULT `homeSurface` (`lib/theme.ts:28`). Deleting it without
+repointing the default strands anyone who never changed the setting. Today is already
+offered in Tweaks; switching the default is a product call, left to the owner.
 
 ### Two of the plan's W5 sub-claims are already false — do not "fix" them
 
