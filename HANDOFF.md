@@ -101,14 +101,45 @@ resident and open", or add a headless control server. Not yet decided.
   once a real build ships, or MCP breaks if this worktree is removed.
 - Deleted stale `~/.hermes/bin/hermes-cron.js` (13 Jul).
 
-## ⛔ BLOCKER FOUND AFTER THE INSTALL — the capability gate closes the door
+## ✅✅ THE SCHEDULED PROOF LANDED — 2026-07-26 07:00, UNATTENDED
+
+`~/.hermes/sps-agent/vault/daily-brief-2026-07-26.md` (1948 B, single frontmatter block),
+written by the **engine** at 07:00 by the **scheduled** cron run — no human present, no
+manual trigger, against the **installed `/Applications` build**. Job output alongside it at
+`~/.hermes/cron/output/472aa86544a3/2026-07-26_07-00-55.md`.
+
+This is the original success criterion of the whole thin slice. The architecture works
+end to end, unattended, from a real installed app.
+
+### CORRECTION to the "catch-22" claim below — it was overstated
+
+The section below asserts that an open app re-disables `mcp:desktop` before the engine can
+use it. **That is wrong, and it was inferred from a single observation.** What is actually
+true:
+
+- The gate **did** write `enabled: false` into `config.yaml` once (observed pre-repoint).
+- It has **not** done so since. `config.yaml` has held `enabled: true` throughout, the
+  engine loaded `desktop-mcp.cjs` from the installed bundle (PID 63677), and the 07:00 run
+  wrote its page normally.
+- The registry still reads `{"id":"mcp:desktop","reviewState":"needsReview","enabled":false}`
+  — so the **report** says disabled while the **config** says enabled, and the engine
+  follows the config.
+
+So the risk is real but **intermittent and not currently blocking**: some code path can
+write `enabled: false` into config, and when it fires the door shuts. Worth pinning down
+exactly which path and when — but it is NOT the hard blocker described below, and it did
+NOT prevent the proof. Approving the `desktop` capability in the review UI remains the
+clean fix.
+
+## (SUPERSEDED, overstated) BLOCKER FOUND AFTER THE INSTALL — the capability gate
 
 **The install is DONE** (see below). But the door is shut again, by our own newest feature.
 
 `admitMcpCapability` (`src/main/capability-risk-store.ts:604`):
 
 ```ts
-const allowed = initial.reviewState === "reviewed" && initial.status !== "blocked";
+const allowed =
+  initial.reviewState === "reviewed" && initial.status !== "blocked";
 const effective = { ...requested, enabled: requested.enabled && allowed };
 ```
 
@@ -121,7 +152,12 @@ changes — which the worktree→`/Applications` swap just did.
 Live registry (`~/.hermes/sps-agent/capability-risk-report.json`):
 
 ```json
-{"id": "mcp:desktop", "reviewState": "needsReview", "status": "safe", "enabled": false}
+{
+  "id": "mcp:desktop",
+  "reviewState": "needsReview",
+  "status": "safe",
+  "enabled": false
+}
 ```
 
 ### The catch-22 this creates
@@ -139,7 +175,7 @@ are in direct conflict. Resolving this is now the top Phase 2 item — ahead of 
 **The registry was not hand-edited to `"reviewed"`.** That field is a human security
 approval for a capability that can write into the vault; forging it while the owner was
 away would defeat the entire point of the feature. `config.yaml`'s `enabled` flag (owner
-*intent*) was restored to `true`; `reviewState` (owner *approval*) was left untouched.
+_intent_) was restored to `true`; `reviewState` (owner _approval_) was left untouched.
 
 ### Owner action required — one click
 
