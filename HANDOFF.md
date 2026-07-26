@@ -283,11 +283,39 @@ for text mutations (coalesced/debounced so one word ≠ 20 entries), or drop the
 latter risks restoring stale structure over newer edits. This one is data-loss-adjacent —
 **highest severity of the four for user trust.**
 
-### W6.3 / W6.4 — NOT YET VERIFIED
+### W6.3 — multi-block selection ✅ CONFIRMED ABSENT (and it is a feature, not a bug)
 
-Multi-block selection (claimed absent) and markdown clipboard round-trip (claimed missing
-though `markdownToBlocks` exists at `blockMarkdown.ts:525`). **Verify at source before
-building — the W6.x list has already proven stale once.**
+`grep -rn "selectedBlockIds\|selectedIds\|multiSelect\|blockSelection\|selectedBlocks" src/`
+returns **nothing**. `SelectionToolbar.tsx` is inline text formatting _within_ one block
+(bold/italic/link/colour/Ask-AI), not block selection. `Editor.tsx` carries no selection
+state at all.
+
+**Scope warning:** this is not a defect with a small fix — it is selection state, shift-click
+and shift-arrow ranges, drag-select hit-testing, a rendered highlight, and then every
+operation that must respect a range (delete, indent, drag, type-change, copy). Treat it as a
+feature and brief it separately; do not fold it into a bug-fix pass.
+
+### W6.4 — markdown clipboard round-trip ⚠️ PARTLY WRONG, and sharper than claimed
+
+The claim was "missing". Both legs checked:
+
+- **Paste (in): the capable parser existed and the paste path did not call it.**
+  `Editable.tsx:99` → `parseClipboardBlocks` (`paste.ts:102`) prefers `text/html`; plain text
+  fell to `parsePlainText`, which handled **only** `-`/`*`/`1.` list markers and indent.
+  Headings, quotes, callouts, todos, fenced code and every inline mark arrived as literal
+  characters in a `p` — while `markdownToBlocks` (`blockMarkdown.ts:525`), the inverse of the
+  serializer that writes every vault page and golden-tested in `blockMarkdown.test.ts`, sat
+  one import away. **FIXED** — `parsePlainText` now delegates to it.
+- **Copy (out): genuinely absent.** No `onCopy`/`onCut` handler exists anywhere in `editor/`,
+  so copying yields browser-default html. Multi-block copy-as-markdown is blocked on W6.3
+  regardless, so it belongs with that feature, not with the paste fix.
+
+**Security note for whoever touches this next:** `markdownToBlocks` decodes tier-2
+`<!-- sps:… -->` comments through `decodeMeta` (`blockMarkdown.ts:42`), which `JSON.parse`s a
+base64 payload straight into a `Block` — **including its `html`**. Clipboard content is
+untrusted, so `parsePlainText` re-sanitizes every produced block's html. `paste.test.ts` has a
+regression guard that pastes a crafted `<!-- sps:… -->` carrying `<script>`/`onerror` and
+asserts neither survives. Do not drop that sanitize step.
 
 ### Method (repo Bug-Fix Protocol, CLAUDE.md)
 
