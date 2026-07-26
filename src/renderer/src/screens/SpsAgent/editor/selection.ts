@@ -157,6 +157,17 @@ export function isCaretAtStart(el: HTMLElement): boolean {
   return (before.cloneContents().textContent || "").length === 0;
 }
 
+export function isCaretAtEnd(el: HTMLElement): boolean {
+  const selection = window.getSelection();
+  if (!selection?.isCollapsed || !selection.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  if (!el.contains(range.startContainer)) return false;
+  const after = document.createRange();
+  after.selectNodeContents(el);
+  after.setStart(range.startContainer, range.startOffset);
+  return (after.cloneContents().textContent || "").length === 0;
+}
+
 export function placeCaretAtTextOffset(
   el: HTMLElement,
   requestedOffset: number,

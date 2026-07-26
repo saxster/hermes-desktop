@@ -4,7 +4,7 @@ import { escapeHtml } from "../lib/html";
 import { sanitizeHtml } from "../lib/sanitize";
 import { isImeComposing } from "../../Chat/keyboard";
 import { uid } from "../lib/ids";
-import { isCaretAtStart } from "./selection";
+import { isCaretAtEnd, isCaretAtStart } from "./selection";
 import { parseClipboardBlocks } from "./paste";
 import type { Block } from "../types";
 
@@ -158,8 +158,15 @@ export function Editable({
           e.preventDefault();
           onBackspaceAtStart(block.id);
         } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && onArrow) {
-          const moved = onArrow(block.id, e.key === "ArrowUp" ? -1 : 1, el);
-          if (moved) e.preventDefault();
+          // Only hand the caret to the neighbouring block once it is already at
+          // this block's edge -- otherwise the first press ejects the user from
+          // the middle of a multi-line block instead of moving within it.
+          const goingUp = e.key === "ArrowUp";
+          const atEdge = goingUp ? isCaretAtStart(el) : isCaretAtEnd(el);
+          if (atEdge) {
+            const moved = onArrow(block.id, goingUp ? -1 : 1, el);
+            if (moved) e.preventDefault();
+          }
         }
       }}
     />
