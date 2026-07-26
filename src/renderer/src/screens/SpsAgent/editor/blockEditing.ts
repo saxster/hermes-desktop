@@ -156,6 +156,10 @@ export interface StructuralHistory {
 export function createStructuralHistory(limit = 100): StructuralHistory {
   const undoStack: HistoryEntry[] = [];
   const redoStack: HistoryEntry[] = [];
+  // The document as it looked the last time a drifted undo was declined, so a
+  // second press on an unmoved document can tell that the browser's own undo
+  // is not going to rewind it.
+  let declined: Block[] | null = null;
   return {
     apply(before, update) {
       const after = update(before);
@@ -166,11 +170,33 @@ export function createStructuralHistory(limit = 100): StructuralHistory {
       });
       if (undoStack.length > limit) undoStack.shift();
       redoStack.length = 0;
+      declined = null;
       return after;
     },
     undo(current) {
       const entry = undoStack[undoStack.length - 1];
-      if (!entry || !sameBlocks(current, entry.after)) return null;
+      if (!entry) return null;
+      if (!sameBlocks(current, entry.after)) {
+        // Text typed straight into a block never reaches this stack, and the
+        // browser's own undo rewinds it with far better granularity than one
+        // coarse step. So decline the first press and let it try. If the
+        // document has not moved by the next press that native stack is gone
+        // (rewriting innerHTML clears it, which the markdown shortcuts do), and
+        // declining again would leave every entry below unreachable for the
+        // rest of the session -- so rewind the drift here instead, keeping it
+        // on the redo stack so nothing is discarded.
+        if (!declined || !sameBlocks(current, declined)) {
+          declined = cloneBlocks(current);
+          return null;
+        }
+        declined = null;
+        redoStack.push({
+          before: cloneBlocks(entry.after),
+          after: cloneBlocks(current),
+        });
+        return cloneBlocks(entry.after);
+      }
+      declined = null;
       undoStack.pop();
       redoStack.push(entry);
       return cloneBlocks(entry.before);
@@ -178,6 +204,7 @@ export function createStructuralHistory(limit = 100): StructuralHistory {
     redo(current) {
       const entry = redoStack[redoStack.length - 1];
       if (!entry || !sameBlocks(current, entry.before)) return null;
+      declined = null;
       redoStack.pop();
       undoStack.push(entry);
       return cloneBlocks(entry.after);
@@ -185,6 +212,7 @@ export function createStructuralHistory(limit = 100): StructuralHistory {
     clear() {
       undoStack.length = 0;
       redoStack.length = 0;
+      declined = null;
     },
   };
 }

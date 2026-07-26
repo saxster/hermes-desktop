@@ -114,8 +114,17 @@ export function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusReq]);
 
+  // Every change to a block's shape -- type, order, indent, done, colour --
+  // goes through here so it lands on the undo stack. Text/html edits are the
+  // deliberate exception: the browser's own undo already handles those with
+  // per-word granularity and free caret restoration.
+  const commitStructure = (update: (current: Block[]) => Block[]) =>
+    setBlocks((current) => historyRef.current.apply(current, update));
+
   const setType = (id: string, patch: Partial<Block>) =>
-    setBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    commitStructure((bs) =>
+      bs.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    );
 
   const focusSoon = (id: string) =>
     requestAnimationFrame(() => {
@@ -131,11 +140,8 @@ export function Editor() {
       placeCaretAtTextOffset(el, offset);
     });
 
-  const commitStructure = (update: (current: Block[]) => Block[]) =>
-    setBlocks((current) => historyRef.current.apply(current, update));
-
   const insertAfter = (id: string, nb: Block) =>
-    setBlocks((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       const next = [...bs];
       const indent = bs[i] ? bs[i].indent || 0 : 0;
@@ -491,11 +497,11 @@ export function Editor() {
   };
 
   const toggleTodo = (id: string) =>
-    setBlocks((bs) =>
+    commitStructure((bs) =>
       bs.map((b) => (b.id === id ? { ...b, done: !b.done } : b)),
     );
   const toggleCollapse = (id: string) =>
-    setBlocks((bs) =>
+    commitStructure((bs) =>
       bs.map((b) => (b.id === id ? { ...b, collapsed: !b.collapsed } : b)),
     );
   const setView = (id: string, view: DbView) => setType(id, { view });
@@ -517,7 +523,7 @@ export function Editor() {
     id: string,
     patch: { color?: string | null; bg?: string | null },
   ) =>
-    setBlocks((bs) =>
+    commitStructure((bs) =>
       bs.map((b) =>
         b.id === id
           ? {

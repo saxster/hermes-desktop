@@ -112,7 +112,7 @@ describe("block editing transformations", () => {
     ]);
   });
 
-  it("undoes structure only while the document still matches that operation", () => {
+  it("undoes a structural operation and redoes it", () => {
     const history = createStructuralHistory();
     const before = [paragraph("a", "Alpha")];
     const after = history.apply(before, (blocks) => [
@@ -122,10 +122,57 @@ describe("block editing transformations", () => {
 
     expect(history.undo(after)).toEqual(before);
     expect(history.redo(before)).toEqual(after);
+  });
 
+  it("defers a drifted undo once so the browser's own undo can rewind typing", () => {
+    const history = createStructuralHistory();
+    const before = [paragraph("a", "Alpha")];
+    const after = history.apply(before, (blocks) => [
+      { ...blocks[0], text: "Al" },
+      paragraph("b", "pha"),
+    ]);
     const typedAfter = after.map((block) =>
       block.id === "b" ? { ...block, text: "pha!" } : block,
     );
+
     expect(history.undo(typedAfter)).toBeNull();
+
+    // Native undo rewound the typing, so the operation is reachable again.
+    expect(history.undo(after)).toEqual(before);
+  });
+
+  it("rewinds the drift itself once the document stops moving", () => {
+    const history = createStructuralHistory();
+    const before = [paragraph("a", "Alpha")];
+    const after = history.apply(before, (blocks) => [
+      { ...blocks[0], text: "Al" },
+      paragraph("b", "pha"),
+    ]);
+    const typedAfter = after.map((block) =>
+      block.id === "b" ? { ...block, text: "pha!" } : block,
+    );
+
+    // An unmoved document on the second press means there is no native undo
+    // stack left to wait for -- otherwise the split below is unreachable.
+    expect(history.undo(typedAfter)).toBeNull();
+    expect(history.undo(typedAfter)).toEqual(after);
+    expect(history.undo(after)).toEqual(before);
+  });
+
+  it("keeps the rewound typing redoable so undo never discards it", () => {
+    const history = createStructuralHistory();
+    const before = [paragraph("a", "Alpha")];
+    const after = history.apply(before, (blocks) => [
+      { ...blocks[0], text: "Al" },
+      paragraph("b", "pha"),
+    ]);
+    const typedAfter = after.map((block) =>
+      block.id === "b" ? { ...block, text: "pha!" } : block,
+    );
+
+    history.undo(typedAfter);
+    history.undo(typedAfter);
+
+    expect(history.redo(after)).toEqual(typedAfter);
   });
 });

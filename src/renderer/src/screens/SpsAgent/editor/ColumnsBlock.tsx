@@ -136,7 +136,9 @@ function ColumnEditor({
   const commitStructure = (updater: (bs: Block[]) => Block[]): void =>
     onChange(historyRef.current.apply(blocks, updater));
   const setType = (id: string, patch: Partial<Block>): void =>
-    set((bs) => bs.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    commitStructure((bs) =>
+      bs.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    );
   const focusSoon = (id: string): void =>
     void requestAnimationFrame(() => refs.current[id]?.current?.focus());
   const focusAtOffsetSoon = (id: string, offset: number): void =>
@@ -155,7 +157,7 @@ function ColumnEditor({
   );
 
   const insertAfter = (id: string, nb: Block): void =>
-    set((bs) => {
+    commitStructure((bs) => {
       const i = bs.findIndex((b) => b.id === id);
       const indent = bs[i] ? bs[i].indent || 0 : 0;
       const next = [...bs];
@@ -351,12 +353,12 @@ function ColumnEditor({
             onRedoStructure={onRedoStructure}
             onArrow={onArrow}
             toggleTodo={(id) =>
-              set((bs) =>
+              commitStructure((bs) =>
                 bs.map((x) => (x.id === id ? { ...x, done: !x.done } : x)),
               )
             }
             toggleCollapse={(id) =>
-              set((bs) =>
+              commitStructure((bs) =>
                 bs.map((x) =>
                   x.id === id ? { ...x, collapsed: !x.collapsed } : x,
                 ),
