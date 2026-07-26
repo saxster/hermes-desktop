@@ -538,7 +538,9 @@ export function SourceIntakePanel({
   }
 
   return (
-    <section className="source-intake-panel" aria-label="Capture">
+    // "Capture" here duplicated the sidebar's Capture destination, so screen
+    // readers announced two unrelated regions by the same name.
+    <section className="source-intake-panel" aria-label="Source intake">
       <div className="source-intake-header">
         <div>
           <h3>Capture</h3>

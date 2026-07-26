@@ -242,6 +242,14 @@ export function CommandPalette() {
       },
       {
         kind: "action",
+        id: "go-home",
+        icon: "board",
+        label: "Go Home",
+        desc: "Return to the surface set as Home in Tweaks.",
+        run: () => useStore.getState().goHome(),
+      },
+      {
+        kind: "action",
         id: "work",
         icon: "board",
         label: "Open Work",
@@ -324,7 +332,9 @@ export function CommandPalette() {
         kind: "action",
         id: "personal-health",
         icon: "info",
-        label: "Open Health",
+        // "Open Health" collided with "Vault health" above — two unrelated
+        // destinations that were indistinguishable in the palette.
+        label: "Open Personal Health",
         desc: "Open the optional personal health workspace pack.",
         run: () => setSurface("personal-health"),
       },

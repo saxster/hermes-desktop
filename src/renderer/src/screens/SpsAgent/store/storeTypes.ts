@@ -265,6 +265,8 @@ export interface UiSlice {
   setRightTab: (t: RightTab) => void;
   openPanelTab: (t: RightTab) => void;
   setSurface: (s: Surface) => void;
+  /** Return to the surface configured as Home in Tweaks. */
+  goHome: () => void;
   openContentStudioIdea: (idea: ContentIdea) => void;
   clearPendingContentStudioIdea: () => void;
   openDeckStudioInput: (input: DeckGenerationInput) => void;

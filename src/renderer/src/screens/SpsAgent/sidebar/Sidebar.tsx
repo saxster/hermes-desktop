@@ -18,6 +18,7 @@ import { StatusChip } from "./StatusChip";
 import { openSettings } from "../../../lib/openSettings";
 import brandLogo from "../../../assets/icon.png";
 import type { Surface } from "../store/storeTypes";
+import { loadTweaks } from "../store/slices/tweaks";
 
 interface Identity {
   workspace: string;
@@ -116,6 +117,8 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
   const activeId = useStore((s) => s.page);
   const surface = useStore((s) => s.surface);
   const setSurface = useStore((s) => s.setSurface);
+  const goHome = useStore((s) => s.goHome);
+  const homeSurface = loadTweaks().homeSurface;
   const selectPage = useStore((s) => s.selectPage);
   const libraryPages = tree.filter(
     (node) =>
@@ -302,8 +305,8 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
 
         <button
           type="button"
-          className={`nav-item ${activeId === "home" && surface === "doc" ? "active" : ""}`}
-          onClick={() => selectDoc("home")}
+          className={`nav-item ${surface === homeSurface && (homeSurface !== "doc" || activeId === "home") ? "active" : ""}`}
+          onClick={() => goHome()}
           title="Home"
           aria-label="Home"
         >

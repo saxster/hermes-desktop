@@ -593,7 +593,7 @@ await shot("09-journal-entry", async () => {
 });
 
 await shot("09-health-journal", async () => {
-  await openCommand("Open Health");
+  await openCommand("Open Personal Health");
   await expectVisible("Health");
   await win.getByLabel("Weight (kg)").fill("78.4");
   await win.getByLabel("Fasting Glucose (mg/dL)").fill("92");

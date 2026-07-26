@@ -77,6 +77,19 @@ export const createUiSlice: StateCreator<Store, [], [], UiSlice> = (
     set({ panelOpen: true, rightTab: t });
   },
   setSurface: (s) => set({ surface: s }),
+  // The configured home surface was read once at store construction (see
+  // `surface:` above) and nothing ever set it again, so a non-"doc" Home
+  // (the default is "cockpit") was unreachable once you navigated away —
+  // only an app restart brought it back. Re-read the tweak rather than
+  // caching it, so changing Home in Tweaks takes effect immediately.
+  goHome: () => {
+    const home = loadTweaks().homeSurface;
+    set({ surface: home });
+    // "doc" is a surface that shows whichever page is selected, so landing
+    // there without selecting the home page would leave you on whatever you
+    // were last reading.
+    if (home === "doc") get().selectPage("home");
+  },
   openContentStudioIdea: (idea) =>
     set({
       surface: "contentStudio",
