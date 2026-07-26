@@ -871,6 +871,8 @@ const acceptanceSurfaces = [
       win.getByRole("button", { name: "Home" }).click({ force: true }),
   },
   { id: "dashboard", open: () => openCommand("Open Dashboard") },
+  { id: "today", open: () => openCommand("Open Today") },
+  { id: "schedules", open: () => openCommand("Open Schedules") },
   { id: "work", open: () => openCommand("Open Work") },
   { id: "assistant", open: () => openCommand("Open My Assistant") },
   { id: "journal", open: () => openCommand("Open Journal") },

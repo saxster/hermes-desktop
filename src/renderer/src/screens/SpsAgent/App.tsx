@@ -22,6 +22,8 @@ import { GraphView } from "./graph/GraphView";
 import { EquityResearch } from "./equity/EquityResearch";
 import { JournalSurface } from "./journal/JournalSurface";
 import { MyWorkSurface } from "./journal/MyWorkSurface";
+import { TodaySurface } from "./today/TodaySurface";
+import { SchedulesSurface } from "./schedules/SchedulesSurface";
 import { YouSurface } from "./you/YouSurface";
 import { LearningSurface } from "./learning/LearningSurface";
 import { ActiveWorkSurface } from "./activeWork/ActiveWorkSurface";
@@ -267,6 +269,10 @@ export function App() {
             <ChatSurface key={`chat-${chatNonce}`} />
           ) : surface === "ask" ? (
             <AskPane />
+          ) : surface === "today" ? (
+            <TodaySurface />
+          ) : surface === "schedules" ? (
+            <SchedulesSurface />
           ) : surface === "work" ? (
             <MyWorkSurface />
           ) : surface === "journal" ? (

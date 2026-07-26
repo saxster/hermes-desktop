@@ -462,8 +462,9 @@ export function TweaksPanel() {
       <Select<Tweaks["homeSurface"]>
         label="Home page"
         value={t.homeSurface}
-        options={["doc", "cockpit", "chats", "inbox"]}
+        options={["today", "doc", "cockpit", "chats", "inbox"]}
         labels={{
+          today: "Today",
           doc: "Document Editor",
           cockpit: "Cockpit Dashboard",
           chats: "AI Chats",

@@ -314,6 +314,17 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
           <span className="nav-label">Home</span>
         </button>
 
+        <button
+          type="button"
+          className={`nav-item ${surface === "today" ? "active" : ""}`}
+          onClick={() => openSurface("today")}
+          title="Today"
+          aria-label="Today"
+        >
+          <Icon name="calendar" size={17} />
+          <span className="nav-label">Today</span>
+        </button>
+
         <div className={`nav-item ${surface === "inbox" ? "active" : ""}`}>
           <button
             type="button"
@@ -352,6 +363,17 @@ export function Sidebar({ displayMode }: SidebarProps = {}) {
         >
           <Icon name="board" size={17} />
           <span className="nav-label">Work</span>
+        </button>
+
+        <button
+          type="button"
+          className={`nav-item ${surface === "schedules" ? "active" : ""}`}
+          onClick={() => openSurface("schedules")}
+          title="Schedules"
+          aria-label="Schedules"
+        >
+          <Icon name="clock" size={17} />
+          <span className="nav-label">Schedules</span>
         </button>
 
         <button

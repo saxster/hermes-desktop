@@ -44,6 +44,12 @@ export interface ExternalConversationTarget {
 // wikilink graph view (F4).
 export type Surface =
   | "doc"
+  // "today" is the daily landing surface (brief + tasks + inbox + next runs)
+  // and "schedules" the single home for everything that runs on its own. Both
+  // are the merge TARGETS of the surface cut: journal/work/activeWork/review
+  // fold into Today, and the Scheduled tab became Schedules.
+  | "today"
+  | "schedules"
   | "dashboard"
   | "cockpit"
   | "insights"

@@ -250,6 +250,22 @@ export function CommandPalette() {
       },
       {
         kind: "action",
+        id: "today",
+        icon: "calendar",
+        label: "Open Today",
+        desc: "Your brief, what needs attention today, and what runs next.",
+        run: () => setSurface("today"),
+      },
+      {
+        kind: "action",
+        id: "schedules",
+        icon: "clock",
+        label: "Open Schedules",
+        desc: "Every recurring monitor, launch recipe, and agent job.",
+        run: () => setSurface("schedules"),
+      },
+      {
+        kind: "action",
         id: "work",
         icon: "board",
         label: "Open Work",
