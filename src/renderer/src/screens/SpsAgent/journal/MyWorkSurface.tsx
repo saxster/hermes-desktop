@@ -1,17 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import { ActiveWorkSurface } from "../activeWork/ActiveWorkSurface";
 import { ReviewQueueSurface } from "../review/ReviewQueueSurface";
+import { TaskPanel } from "../today/TaskPanel";
 import { cadenceLabel } from "../../../../../shared/scheduledResearch";
 import { appLaunchCadenceLabel } from "../../../../../shared/app-launcher";
 import type { CronJob } from "../../../../../shared/cronjobs";
 import type { AppLaunchSchedule } from "../../../../../shared/app-launcher";
-import type { Task } from "../types";
-import { useVaultQuery } from "../hooks/useNoteIndex";
-import { vaultRowToTask } from "../tasks/vaultRowToTask";
-import { TASKS_DB_FOLDER } from "../tasks/taskStorage";
-import { dueDateKey } from "../tasks/taskUtils";
 import {
   listCronJobs,
   pauseCronJob,
@@ -20,21 +16,13 @@ import {
   srUpdate,
 } from "../../../lib/api/scheduler";
 
+// Both helpers moved to today/todayModel.ts when Today was promoted to its own
+// surface — re-exported here so existing importers keep working and there is
+// still exactly one implementation.
+export { localDateKey, taskNeedsAttentionToday } from "../today/todayModel";
+
 type WorkTab = "today" | "next" | "scheduled" | "delegated" | "review";
 type Schedule = Awaited<ReturnType<typeof srList>>[number];
-
-export function localDateKey(date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-export function taskNeedsAttentionToday(task: Task, today: string): boolean {
-  if (["doing", "review", "blocked"].includes(task.status)) return true;
-  const due = dueDateKey(task.due, Number(today.slice(0, 4)));
-  return Boolean(due && due <= today);
-}
 
 function fmtTime(ms: number): string {
   if (!ms) return "never";
@@ -232,60 +220,6 @@ function WorkScheduledPanel(): React.JSX.Element {
   );
 }
 
-function WorkTaskPanel({
-  mode,
-}: {
-  mode: "today" | "next";
-}): React.JSX.Element {
-  const setOpenTask = useStore((state) => state.setOpenTask);
-  const { rows } = useVaultQuery(TASKS_DB_FOLDER);
-  const today = localDateKey();
-  const tasks = useMemo(
-    () => rows.map(vaultRowToTask).filter((task) => task.status !== "done"),
-    [rows],
-  );
-  const visible = tasks.filter((task) => {
-    const isToday = taskNeedsAttentionToday(task, today);
-    return mode === "today" ? isToday : !isToday;
-  });
-
-  return (
-    <section className="work-task-panel" aria-labelledby={`work-${mode}-title`}>
-      <div className="work-rule-head">
-        <div>
-          <h2 id={`work-${mode}-title`}>
-            {mode === "today" ? "Today" : "Next"}
-          </h2>
-          <p>
-            {mode === "today"
-              ? "In progress, blocked, in review, or due today."
-              : "Open tasks without an immediate status or due date."}
-          </p>
-        </div>
-      </div>
-      {visible.length === 0 ? (
-        <p className="work-task-empty">
-          {mode === "today"
-            ? "Nothing needs attention today."
-            : "No next tasks queued."}
-        </p>
-      ) : (
-        <ul className="work-task-list">
-          {visible.map((task: Task) => (
-            <li key={task.id}>
-              <button type="button" onClick={() => setOpenTask(task)}>
-                <span className={`dot s-${task.status}`} aria-hidden="true" />
-                <span>{task.title || "Untitled task"}</span>
-                <small>{task.due || task.status.replaceAll("_", " ")}</small>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 export function MyWorkSurface() {
   const [tab, setTab] = useState<WorkTab>("today");
 
@@ -321,8 +255,8 @@ export function MyWorkSurface() {
           ))}
         </div>
 
-        {tab === "today" && <WorkTaskPanel mode="today" />}
-        {tab === "next" && <WorkTaskPanel mode="next" />}
+        {tab === "today" && <TaskPanel mode="today" />}
+        {tab === "next" && <TaskPanel mode="next" />}
         {tab === "delegated" && <ActiveWorkSurface />}
         {tab === "scheduled" && <WorkScheduledPanel />}
         {tab === "review" && <ReviewQueueSurface profile="default" />}
