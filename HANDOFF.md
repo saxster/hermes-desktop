@@ -1,4 +1,9 @@
-# HANDOFF — branch `harness/thin-slice` (2026-07-25)
+# HANDOFF — the harness thin slice (opened 2026-07-25)
+
+> **Current state: everything below has landed on `main`, now at `253fef86`.** The
+> `harness/thin-slice` branch this document was written on is merged and gone. Sections are
+> append-only and dated; later ones correct earlier ones, so read to the END before acting.
+> The newest entries are W4c and the repo cleanup (2026-07-27), further down.
 
 Phase 1 of turning Hermes Desktop into a **harness over the Hermes engine**.
 Full plan: `~/.claude/plans/how-can-we-hugely-jolly-elephant.md`
@@ -22,7 +27,7 @@ copies of the same cron-brief machine. None ever ran. Meanwhile `owner-daily-bri
 the one feature built correctly, has produced a good brief at 07:00 every day for weeks
 into `~/.hermes/cron/output/70a4fd959098/` — and nothing drained it.
 
-## State: 9 commits, tree clean, 0 behind `origin/main` (clean fast-forward), NOT merged
+## Phase 1 as shipped — 9 commits (since merged to `main`; "NOT merged" below is historical)
 
 | Commit     | Work                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------ |
@@ -401,7 +406,75 @@ provable in jsdom — check whether it belongs in `scripts/sps-smoke.mjs` instea
 **Out of scope (Lazy-Dev Ladder):** virtualization/memoization and the O(n²)
 `orderedListNumber`. Premature at a four-file vault.
 
-## Phase 2 — W7 CLOSED, W4b CLOSED. W4a and W5 are BLOCKED, and the plan was wrong about why.
+## ✅ W4c CLOSED 2026-07-27 — one client for every non-streaming completion (`253fef86`)
+
+`main` @ **`253fef86`**, pushed, full gate green. **401 lines deleted, 332 added.**
+
+**The plan named the wrong target.** It said collapse onto `hermes/chat-client/api.ts:240` —
+that is `sendMessageViaApi`, the streaming + tool + approval chat loop, the wrong shape
+entirely for one-shot JSON calls. The right target was `gatewayChat()` in `gateway-chat.ts`,
+which already existed with 14 callers and whose own header comment said "new code should
+import here." Thirteen modules had ignored it and re-pasted the fetch+parse dance instead.
+
+Also note: task tracking recorded W4b as "collapse the fetches + fix the 401", but only the
+first half had shipped in `b383c995` (profile-scoped `api_server_key` across 13 sites). The
+collapse itself was never done until now.
+
+Three additions let the helper absorb the copies:
+
+- **`maxTokens: number | null`** — `null` OMITS the field. Several copies sent no cap at all;
+  substituting a default silently truncates a long page mid-JSON, which parses to no usable
+  page. This is the one that would have failed invisibly, so it has an explicit test.
+- **`options.timeoutMs`** — the copies used 60s / 120s / 180s, and one used none.
+- **`GatewayChatError` carrying `status`** — the two retry loops in `sps-agent.ts` bail on a
+  4xx and retry once on a 5xx, so the status has to survive as more than a formatted string.
+
+`ChatMessage.content` widened to `string | ChatContentPart[]` for the one vision caller
+(`self-healing.ts`'s screenshot triage).
+
+**Three deliberate behaviour changes, all toward surfacing failure:**
+
+| Where | Was | Now |
+| --- | --- | --- |
+| `scheduler.ts` cron failure-triage | `if (res.ok)` with **no else** — a failed triage vanished | throws into the existing catch, which logs |
+| `sps-agent.ts` ingest concept audit | `if (!auditRes.ok) return` per page | lands in the per-page catch that logs; other pages still proceed |
+| `self-healing.ts` gateway call | **no timeout at all** — a wedged gateway hung the run forever | inherits the 240s default |
+
+`telos-auditor.ts`'s `"Gateway error <status>"` became the canonical `"gateway <status>: <body>"`.
+Its test asserted the old prefix and now asserts the status and body it actually cares about —
+a real user-visible string change, not a pure refactor.
+
+**Deliberately NOT collapsed** (do not "finish the job" without reading this):
+
+- `chat-client/completion.ts` — `chatCompletionOnce` resolves the configured model via
+  `getModelConfig(profile)` rather than hardcoding `"hermes-agent"`. Folding it in would change
+  model selection for its four callers (`dream-cycle` ×2, `session-summary`, `grounding`).
+- `chat-client/api.ts` — streaming, tools, transport negotiation. A different lane, not a copy.
+
+So "one client" is true for the **non-streaming lane specifically**, not the whole repo.
+
+Gate: 3 typechecks · eslint `--max-warnings=0` on 9 touched files · **vitest 3261 passed /
+7 skipped, exit 0** (3254 baseline + 7 new) · `verify:note-index` · build. No renderer code
+changed, so no smoke run.
+
+## Repo cleanup 2026-07-27 — 46 branches → 1, 10 worktrees → 1
+
+11 GB reclaimed. Eight branches had unmerged commits (`codex/substack-feed-flow` alone had 25;
+`codex/roadmap-phase0-note-index` had 18) and six of the eight had never been pushed. Every tip
+was tagged **and the tags are pushed to origin**, so all of it is restorable:
+
+```
+git checkout -b <name> archive/<name>
+```
+
+One untracked file would otherwise have been lost with no reflog to recover it —
+`docs/superpowers/plans/2026-06-27-tasks-dump-followons-handoff.md` from the tasks-dump
+worktree. It is at `~/.claude/plans/` and is NOT in this repo; decide whether it belongs here.
+
+⚠ `archive/codex/assistant-recipes` matters for W4a below — that module is a dependency of two
+modules not on the deletion list.
+
+## Phase 2 — W7 CLOSED, W4b CLOSED, W4c CLOSED. W4a is BLOCKED; W5 is UNBLOCKED (Today + Schedules exist).
 
 Landed 2026-07-26, `main` @ `48511a14` (4 commits, pushed, gate green):
 
