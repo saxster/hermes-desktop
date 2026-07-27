@@ -6,9 +6,8 @@
 import fs from "fs";
 import { join } from "path";
 import { getSpsNoteIndex } from "./note-index";
-import { getApiUrl, getGatewayAuthHeader } from "./hermes";
+import { gatewayChat } from "./gateway-chat";
 import { resolveSpsVaultDir } from "./sps-storage";
-import { gatewayFetch } from "./security/network-policy";
 
 export interface AuditResult {
   success: boolean;
@@ -99,38 +98,17 @@ export async function runTelosAudit(profile?: string): Promise<AuditResult> {
       "List 3 concrete, actionable things I should prioritize next to get back on track.",
     ].join("\n");
 
-    const apiUrl = `${getApiUrl(profile)}/v1/chat/completions`;
-    const res = await gatewayFetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
-      },
-      signal: AbortSignal.timeout(120000),
-      body: JSON.stringify({
-        model: "hermes-agent",
-        stream: false,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
-      }),
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: prompt },
+    ];
+    // A GatewayChatError falls through to the outer catch as
+    // `gateway <status>: <body>` — one canonical wording for every caller.
+    const raw = await gatewayChat(messages, null, profile, {
+      timeoutMs: 120000,
+      scope: "telos-audit",
     });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return {
-        success: false,
-        error: `Gateway error ${res.status}: ${body.slice(0, 150)}`,
-      };
-    }
-
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = stripMarkdownFences(
-      data?.choices?.[0]?.message?.content ?? "",
-    );
+    const content = stripMarkdownFences(raw);
 
     return {
       success: true,
@@ -202,38 +180,17 @@ ${text}`;
         return { success: false, error: `Unknown pattern: ${pattern}` };
     }
 
-    const apiUrl = `${getApiUrl(profile)}/v1/chat/completions`;
-    const res = await gatewayFetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
-      },
-      signal: AbortSignal.timeout(120000),
-      body: JSON.stringify({
-        model: "hermes-agent",
-        stream: false,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ];
+    // A GatewayChatError falls through to the outer catch as
+    // `gateway <status>: <body>` — one canonical wording for every caller.
+    const raw = await gatewayChat(messages, null, profile, {
+      timeoutMs: 120000,
+      scope: "telos-piping",
     });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return {
-        success: false,
-        error: `Gateway error ${res.status}: ${body.slice(0, 150)}`,
-      };
-    }
-
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = stripMarkdownFences(
-      data?.choices?.[0]?.message?.content ?? "",
-    );
+    const content = stripMarkdownFences(raw);
 
     return {
       success: true,

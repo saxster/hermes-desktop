@@ -15,8 +15,7 @@ import { homedir } from "os";
 import { HERMES_HOME, HERMES_REPO } from "./installer";
 import { isValidNamedProfileName, profileHome } from "./utils";
 import { runHermesCliSync } from "./hermes-cli-runner";
-import { getApiUrl, getGatewayAuthHeader } from "./hermes";
-import { gatewayFetch } from "./security/network-policy";
+import { gatewayChat } from "./gateway-chat";
 import {
   recordSkillCapability,
   removeSkillCapability,
@@ -1028,38 +1027,17 @@ export async function generateSkillFromRepo(
     return { success: false, error: "Could not read the repository." };
 
   try {
-    const res = await gatewayFetch(
-      `${getApiUrl(profile)}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getGatewayAuthHeader(profile),
-        },
-        signal: AbortSignal.timeout(120000),
-        body: JSON.stringify({
-          model: "hermes-agent",
-          stream: false,
-          messages: [
-            { role: "system", content: SKILL_AUTHOR_SYSTEM },
-            { role: "user", content: `Repository digest:\n\n${digest}` },
-          ],
-        }),
-      },
-    );
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return {
-        success: false,
-        error: `gateway ${res.status}: ${body.slice(0, 160)}`,
-      };
-    }
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const md = stripCodeFence(
-      data?.choices?.[0]?.message?.content ?? "",
-    ).trim();
+    const messages = [
+      { role: "system", content: SKILL_AUTHOR_SYSTEM },
+      { role: "user", content: `Repository digest:\n\n${digest}` },
+    ];
+    // A GatewayChatError falls through to the outer catch, which returns the
+    // same `gateway <status>: <body>` message this used to build by hand.
+    const content = await gatewayChat(messages, null, profile, {
+      timeoutMs: 120000,
+      scope: "skill-author",
+    });
+    const md = stripCodeFence(content).trim();
     if (!md)
       return { success: false, error: "The agent returned an empty draft." };
     const meta = parseSkillFrontmatter(md);

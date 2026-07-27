@@ -16,12 +16,7 @@ import {
   buildTeachCapturePrompt,
   type TeachCapturePromptInput,
 } from "../shared/teach-capture";
-import {
-  getApiUrl,
-  getGatewayAuthHeader,
-  isRemoteMode,
-  buildRetrievalSystemMessage,
-} from "./hermes";
+import { isRemoteMode, buildRetrievalSystemMessage } from "./hermes";
 import { assembleVaultContext, type VaultContextUsage } from "./sps-context";
 import { buildActiveSkillsSystemMessage } from "./active-skills";
 import { resolveSpsVaultDir } from "./sps-storage";
@@ -45,9 +40,8 @@ import {
 import { getSpsNoteIndex } from "./note-index";
 import { createLearningProposal } from "./learning-proposals";
 import { safeFetch } from "./security/ssrf-guard";
-import { gatewayFetch } from "./security/network-policy";
 import { formatLogError, log } from "./log";
-import { extractJson } from "./gateway-chat";
+import { extractJson, gatewayChat, GatewayChatError } from "./gateway-chat";
 
 export { spsBackupWorkspace, spsLoad, spsSave } from "./sps-agent/persistence";
 
@@ -76,21 +70,6 @@ function pick(html: string, patterns: RegExp[]): string | undefined {
   return undefined;
 }
 
-async function readGatewayErrorBody(
-  res: Response,
-  scope: string,
-): Promise<string> {
-  try {
-    return await res.text();
-  } catch (err) {
-    log.warn("sps-agent.gateway-error-body", {
-      scope,
-      status: res.status,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return "";
-  }
-}
 function absolute(base: string, ref: string | undefined): string | undefined {
   if (!ref) return undefined;
   try {
@@ -454,7 +433,6 @@ export async function spsAssistant(
       groundInWorkspace && !isRemoteMode()
         ? await buildRetrievalSystemMessage(prompt, profile)
         : null;
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
     // Ground the run in the user's own vault + memory (Milestone 1A) AND, when
     // enabled, the opt-in KB retrieval (`grounding`). Both are merged into one
     // system message placed after the SYSTEM_PROMPT by buildSpsAssistantMessages,
@@ -521,32 +499,16 @@ export async function spsAssistant(
     const context: VaultContextUsage | undefined = usedAnything
       ? used
       : undefined;
-    const res = await gatewayFetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
-      },
-      signal: AbortSignal.timeout(120000),
-      body: JSON.stringify({
-        model: "hermes-agent",
-        stream: false,
-        messages: buildSpsAssistantMessages(
-          prompt,
-          ctx,
-          combinedGrounding,
-          buildActiveSkillsSystemMessage(profile),
-        ),
-      }),
+    const messages = buildSpsAssistantMessages(
+      prompt,
+      ctx,
+      combinedGrounding,
+      buildActiveSkillsSystemMessage(profile),
+    );
+    const content = await gatewayChat(messages, null, profile, {
+      timeoutMs: 120000,
+      scope: "assistant",
     });
-    if (!res.ok) {
-      const body = await readGatewayErrorBody(res, "assistant");
-      throw new Error(`gateway ${res.status}: ${body.slice(0, 160)}`);
-    }
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = data?.choices?.[0]?.message?.content ?? "";
     const parsed = extractJson(content);
     const valid = validateResult(parsed);
     const result: AssistantResult = valid ?? {
@@ -703,28 +665,16 @@ export async function spsIngestInbox(profile?: string): Promise<IngestResult> {
     }
     const schema = await readWikiSchema(vaultDir);
     const messages = buildIngestMessages(schema, captures);
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
-    const res = await gatewayFetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
-      },
-      signal: AbortSignal.timeout(180000),
-      body: JSON.stringify({ model: "hermes-agent", stream: false, messages }),
-    });
-    if (!res.ok) {
-      const body = await readGatewayErrorBody(res, "ingest");
-      return {
-        ok: false,
-        captureCount: captures.length,
-        error: `gateway ${res.status}: ${body.slice(0, 160)}`,
-      };
+    let content = "";
+    try {
+      content = await gatewayChat(messages, null, profile, {
+        timeoutMs: 180000,
+        scope: "ingest",
+      });
+    } catch (err) {
+      if (!(err instanceof GatewayChatError)) throw err;
+      return { ok: false, captureCount: captures.length, error: err.message };
     }
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = data?.choices?.[0]?.message?.content ?? "";
     const changeset = parseChangeset(extractJson(content));
     if (!changeset) {
       return {
@@ -738,7 +688,6 @@ export async function spsIngestInbox(profile?: string): Promise<IngestResult> {
     if (changeset.pages && changeset.pages.length > 0) {
       const runConceptAudit = async (): Promise<void> => {
         try {
-          const auditUrl = `${getApiUrl(profile)}/v1/chat/completions`;
           const conceptAuditSystemPrompt = `You are a technical pedagogy expert. You scan the provided document content for any unfamiliar technical terms, key concepts, or specialized jargon that the user might need to study or memorize.
 For each concept, formulate a clean, stand-alone flashcard or summary memory fact (in the format of Q&A or a concise fact, e.g. "Concept: definition") suitable for the user's study deck/memory.
 Return your findings as a JSON array of objects. Each object must have:
@@ -751,31 +700,19 @@ Return ONLY a JSON array, with no other prose or markdown formatting (no code fe
           await Promise.all(
             changeset.pages.map(async (page) => {
               try {
-                const auditRes = await gatewayFetch(auditUrl, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    ...getGatewayAuthHeader(profile),
+                const auditMessages = [
+                  { role: "system", content: conceptAuditSystemPrompt },
+                  {
+                    role: "user",
+                    content: `Page Title: ${page.title}\n\nPage Content:\n${page.markdown}`,
                   },
-                  signal: AbortSignal.timeout(60000),
-                  body: JSON.stringify({
-                    model: "hermes-agent",
-                    stream: false,
-                    messages: [
-                      { role: "system", content: conceptAuditSystemPrompt },
-                      {
-                        role: "user",
-                        content: `Page Title: ${page.title}\n\nPage Content:\n${page.markdown}`,
-                      },
-                    ],
-                  }),
-                });
-                if (!auditRes.ok) return;
-                const auditData = (await auditRes.json()) as {
-                  choices?: { message?: { content?: string } }[];
-                };
-                const auditContent =
-                  auditData?.choices?.[0]?.message?.content ?? "";
+                ];
+                const auditContent = await gatewayChat(
+                  auditMessages,
+                  null,
+                  profile,
+                  { timeoutMs: 60000, scope: "ingest-concept-audit" },
+                );
                 const parsedConcepts = extractJson(auditContent);
                 if (Array.isArray(parsedConcepts)) {
                   for (const item of parsedConcepts) {
@@ -892,28 +829,12 @@ export async function spsFileAnswer(
       answerMarkdown,
       related,
     );
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
-    const res = await gatewayFetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
-      },
-      signal: AbortSignal.timeout(180000),
-      body: JSON.stringify({ model: "hermes-agent", stream: false, messages }),
+    // A GatewayChatError falls through to the outer catch, which returns the
+    // same shape and message this used to build by hand.
+    const content = await gatewayChat(messages, null, profile, {
+      timeoutMs: 180000,
+      scope: "file-answer",
     });
-    if (!res.ok) {
-      const body = await readGatewayErrorBody(res, "file-answer");
-      return {
-        ok: false,
-        captureCount: 0,
-        error: `gateway ${res.status}: ${body.slice(0, 160)}`,
-      };
-    }
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = data?.choices?.[0]?.message?.content ?? "";
     const changeset = parseChangeset(extractJson(content));
     if (!changeset || changeset.pages.length === 0) {
       return {
@@ -966,39 +887,26 @@ export async function spsFileResearch(
       researchedMarkdown,
       related,
     );
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
     // max_tokens gives the page-JSON room so a long page can't truncate mid-
     // string (which parses to no usable page). Retry ONCE on a 5xx or a
     // parse-failure — structured-JSON output is occasionally flaky — but bail
     // immediately on a 4xx (auth/client errors won't improve on retry).
     let lastError = "My Assistant didn't return a usable page.";
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const res = await gatewayFetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getGatewayAuthHeader(profile),
-        },
-        signal: AbortSignal.timeout(180000),
-        body: JSON.stringify({
-          model: "hermes-agent",
-          stream: false,
-          max_tokens: 4096,
-          messages,
-        }),
-      });
-      if (!res.ok) {
-        const body = await readGatewayErrorBody(res, "file-research");
-        lastError = `gateway ${res.status}: ${body.slice(0, 160)}`;
-        if (res.status >= 400 && res.status < 500) {
+      let content = "";
+      try {
+        content = await gatewayChat(messages, 4096, profile, {
+          timeoutMs: 180000,
+          scope: "file-research",
+        });
+      } catch (err) {
+        if (!(err instanceof GatewayChatError)) throw err;
+        lastError = err.message;
+        if (err.status >= 400 && err.status < 500) {
           return { ok: false, captureCount: 0, error: lastError };
         }
         continue; // 5xx — retry once
       }
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const content = data?.choices?.[0]?.message?.content ?? "";
       const changeset = parseChangeset(extractJson(content));
       if (changeset && changeset.pages.length > 0) {
         return { ok: true, captureCount: 0, changeset };
@@ -1049,37 +957,24 @@ export async function spsExternalSaveToKb(
       transcriptMarkdown,
       related,
     );
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
     // Retry ONCE on a 5xx or parse-failure (structured-JSON output is
     // occasionally flaky); bail immediately on a 4xx.
     let lastError = "My Assistant didn't return a usable page.";
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const res = await gatewayFetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getGatewayAuthHeader(profile),
-        },
-        signal: AbortSignal.timeout(180000),
-        body: JSON.stringify({
-          model: "hermes-agent",
-          stream: false,
-          max_tokens: 4096,
-          messages,
-        }),
-      });
-      if (!res.ok) {
-        const body = await readGatewayErrorBody(res, "external-session");
-        lastError = `gateway ${res.status}: ${body.slice(0, 160)}`;
-        if (res.status >= 400 && res.status < 500) {
+      let content = "";
+      try {
+        content = await gatewayChat(messages, 4096, profile, {
+          timeoutMs: 180000,
+          scope: "external-session",
+        });
+      } catch (err) {
+        if (!(err instanceof GatewayChatError)) throw err;
+        lastError = err.message;
+        if (err.status >= 400 && err.status < 500) {
           return { ok: false, captureCount: 0, error: lastError };
         }
         continue; // 5xx — retry once
       }
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const content = data?.choices?.[0]?.message?.content ?? "";
       const changeset = parseChangeset(extractJson(content));
       if (changeset && changeset.pages.length > 0) {
         return { ok: true, captureCount: 0, changeset };
@@ -1159,29 +1054,24 @@ export async function spsLintWiki(
     }
     const schema = await readWikiSchema(vaultDir);
     const messages = buildLintMessages(schema, mechanical, digests);
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
-    const res = await gatewayFetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
-      },
-      signal: AbortSignal.timeout(180000),
-      body: JSON.stringify({ model: "hermes-agent", stream: false, messages }),
-    });
-    if (!res.ok) {
-      const body = await readGatewayErrorBody(res, "lint");
+    // Caught here rather than at the outer catch: this failure still reports
+    // the mechanical findings and the scan counts, which `fail()` alone drops.
+    let content = "";
+    try {
+      content = await gatewayChat(messages, null, profile, {
+        timeoutMs: 180000,
+        scope: "lint",
+      });
+    } catch (err) {
+      if (!(err instanceof GatewayChatError)) throw err;
       return {
-        ...fail(`gateway ${res.status}: ${body.slice(0, 160)}`),
+        ...fail(err.message),
         mechanical,
         pagesScanned: scanned,
         pagesDropped: dropped,
       };
     }
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const parsed = extractJson(data?.choices?.[0]?.message?.content ?? "");
+    const parsed = extractJson(content);
     const changeset = parseChangeset(parsed);
     const findings = parseLintFindings(parsed);
     return {

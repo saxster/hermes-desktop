@@ -4,8 +4,8 @@ import type { BrowserWindow } from "electron";
 import { profileHome, safeAppendFile, safeWriteFile } from "./utils";
 import { listInstalledSkills } from "./skills";
 import { readDesktopConfig, readEnv } from "./config";
-import { getApiUrl, getGatewayAuthHeader } from "./hermes";
-import { gatewayFetch, publicFetch } from "./security/network-policy";
+import { gatewayChat, type ChatContentPart } from "./gateway-chat";
+import { publicFetch } from "./security/network-policy";
 import { formatLogError, log } from "./log";
 
 let mainWindowGetter: (() => BrowserWindow | null) | null = null;
@@ -399,13 +399,7 @@ async function callTriageLLM(
 
   // Fallback to active model gateway
   try {
-    const apiUrl = getApiUrl(profile);
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...getGatewayAuthHeader(profile),
-    };
-
-    let userContent: unknown = prompt;
+    let userContent: string | ChatContentPart[] = prompt;
     if (screenshotPath && existsSync(screenshotPath)) {
       const base64Data = readFileSync(screenshotPath, "base64");
       userContent = [
@@ -419,37 +413,19 @@ async function callTriageLLM(
       ];
     }
 
-    const payload = {
-      model: "hermes-agent",
-      stream: false,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a reliability bot. Output strictly JSON as instructed.",
-        },
-        { role: "user", content: userContent },
-      ],
-    };
-
-    const res = await gatewayFetch(`${apiUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are a reliability bot. Output strictly JSON as instructed.",
+      },
+      { role: "user", content: userContent },
+    ];
+    // This call had no timeout at all before, so a wedged gateway hung the
+    // self-healing run forever; it now inherits the shared default.
+    const rawOutput = await gatewayChat(messages, null, profile, {
+      scope: "self-healing",
     });
-
-    if (!res.ok) {
-      const text = await res.text();
-      return {
-        success: false,
-        error: `Gateway API responded with ${res.status}: ${text}`,
-      };
-    }
-
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const rawOutput = data.choices?.[0]?.message?.content || "";
     return { success: true, rawOutput };
   } catch (err) {
     return {

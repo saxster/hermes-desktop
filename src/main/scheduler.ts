@@ -36,8 +36,7 @@ import { maybeRunHermesAgentUpdateRoutine } from "./hermes-agent-updates";
 import { maybeRunHermesUpstreamWatchRoutine } from "./hermes-upstream-watch";
 import { maybeRunDesktopUpdateRoutine } from "./desktop-update-routine";
 import { maybeRunAppLaunchSchedules } from "./app-launcher";
-import { getApiUrl, getGatewayAuthHeader } from "./hermes";
-import { gatewayFetch } from "./security/network-policy";
+import { gatewayChat } from "./gateway-chat";
 import { createLearningProposal } from "./learning-proposals";
 import { listInstalledSkills, getSkillContent } from "./skills";
 import { drainTaskProposalSpool } from "./task-proposal-bridge";
@@ -666,43 +665,30 @@ The remediation card body should explain:
 
 Your output must be a single, concise explanation representing the study card body. Keep it clear, professional, and educational. Use markdown formatting. Do not include any HTML, JSON, or formatting wrappers, just return the plain markdown content of the card.`;
 
-    const url = `${getApiUrl(profile)}/v1/chat/completions`;
-    const res = await gatewayFetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getGatewayAuthHeader(profile),
+    const messages = [
+      { role: "system", content: failureTriageSystemPrompt },
+      {
+        role: "user",
+        content: `Job Name: ${jobName}\nJob ID: ${jobId}\nJob Prompt: ${job.prompt || "N/A"}\nScript: ${job.script || "N/A"}\nAssociated Skills:\n${skillsContext || "None"}\nFailure Context: ${errorInfo}\n\nExecution Logs (Last 8000 characters):\n${logContent.slice(-8000)}`,
       },
-      signal: AbortSignal.timeout(60000),
-      body: JSON.stringify({
-        model: "hermes-agent",
-        stream: false,
-        messages: [
-          { role: "system", content: failureTriageSystemPrompt },
-          {
-            role: "user",
-            content: `Job Name: ${jobName}\nJob ID: ${jobId}\nJob Prompt: ${job.prompt || "N/A"}\nScript: ${job.script || "N/A"}\nAssociated Skills:\n${skillsContext || "None"}\nFailure Context: ${errorInfo}\n\nExecution Logs (Last 8000 characters):\n${logContent.slice(-8000)}`,
-          },
-        ],
-      }),
+    ];
+    // A gateway error now throws into the catch below and gets LOGGED. This
+    // used to be an `if (res.ok)` with no else: triage failed in silence.
+    const raw = await gatewayChat(messages, null, profile, {
+      timeoutMs: 60000,
+      scope: "cron-failure-triage",
     });
-
-    if (res.ok) {
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const cardBody = data?.choices?.[0]?.message?.content?.trim() || "";
-      if (cardBody) {
-        createLearningProposal(
-          {
-            kind: "memory",
-            body: cardBody,
-            reason: `Routine "${jobName}" execution failure (${errorInfo})`,
-            source: { type: "repo", title: `Cron Failure: ${jobName}` },
-          },
-          profile,
-        );
-      }
+    const cardBody = raw.trim();
+    if (cardBody) {
+      createLearningProposal(
+        {
+          kind: "memory",
+          body: cardBody,
+          reason: `Routine "${jobName}" execution failure (${errorInfo})`,
+          source: { type: "repo", title: `Cron Failure: ${jobName}` },
+        },
+        profile,
+      );
     }
   } catch (err) {
     log.error("scheduler", {

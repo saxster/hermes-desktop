@@ -99,7 +99,11 @@ describe("Telos Alignment Auditor", () => {
 
     const res = await runTelosAudit("default");
     expect(res.success).toBe(false);
-    expect(res.error).toContain("Gateway error 500");
+    // The wording is now gatewayChat's single canonical format (it used to be
+    // this module's own "Gateway error <status>"). The status and the body are
+    // what the caller actually needs.
+    expect(res.error).toContain("500");
+    expect(res.error).toContain("Internal Server Error");
   });
 });
 

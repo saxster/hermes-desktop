@@ -16,8 +16,8 @@ import {
   type DeckQaIssue,
   type DeckProject,
 } from "../shared/deck-studio";
-import { getApiUrl, getGatewayAuthHeader, isRemoteOnlyMode } from "./hermes";
-import { gatewayFetch } from "./security/network-policy";
+import { isRemoteOnlyMode } from "./hermes";
+import { gatewayChat } from "./gateway-chat";
 
 interface ModelParseResult {
   project: DeckProject | null;
@@ -79,34 +79,18 @@ async function callDeckModel(
   prompt: string,
   profile?: string,
 ): Promise<string> {
-  const res = await gatewayFetch(`${getApiUrl(profile)}/v1/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getGatewayAuthHeader(profile),
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You produce strict JSON only. Do not include markdown fences unless explicitly requested.",
     },
-    signal: AbortSignal.timeout(120000),
-    body: JSON.stringify({
-      model: "hermes-agent",
-      stream: false,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You produce strict JSON only. Do not include markdown fences unless explicitly requested.",
-        },
-        { role: "user", content: prompt },
-      ],
-    }),
+    { role: "user", content: prompt },
+  ];
+  return gatewayChat(messages, null, profile, {
+    timeoutMs: 120000,
+    scope: "deck-studio",
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`gateway ${res.status}: ${body.slice(0, 160)}`);
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  return data.choices?.[0]?.message?.content ?? "";
 }
 
 function parseModelDeck(raw: string): ModelParseResult {
